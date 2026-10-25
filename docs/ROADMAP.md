@@ -1,64 +1,51 @@
 # Roadmap
 
-The roadmap is ordered by risk. Recording reliability and audio quality come before advanced UI and AI features.
+The roadmap is ordered by technical risk. The shared engine and real-device recording path come before editing features or AI.
 
-## Phase 0 — Repository and technical validation
-- [x] Establish product direction and documentation.
-- [ ] Scaffold Flutter project for Android and Windows.
-- [ ] Establish CI for formatting, analysis, tests, and supported builds.
-- [ ] Evaluate capture APIs and candidate audio libraries/models, including licenses and platform support.
-- [ ] Record initial architecture decisions.
+## Phase 0 — Native foundation (current)
 
-**Exit criteria:** reproducible development setup and a green baseline CI run.
+- [x] Select a native architecture for the audio-focused product.
+- [ ] Add a small, testable C++ core using CMake.
+- [ ] Compile and test the core on Linux and Windows in CI.
+- [ ] Add Android and Windows native application shells.
+- [ ] Record licensing and dependency decisions.
 
-## Phase 1 — Recording foundation
-- [ ] Microphone permission and device availability handling.
-- [ ] Reliable capture and file finalization.
-- [ ] Recording state, timer, input level, and clipping warnings.
-- [ ] Playback and basic file details.
-- [ ] Preserve source recordings and handle failures safely.
-- [ ] Baseline audio-quality and performance tests on Android and Windows.
-- [ ] Compare raw audio against any candidate processing chain.
+**Exit criteria:** green C++ CI, documented architecture, and no claims that recording or enhancement works before platform validation.
 
-**Exit criteria:** users can record and replay speech reliably on both platforms, with no known data-loss defect in the tested workflow. Processing quality must be documented honestly.
+## Phase 1 — Reliable recording
 
-## Phase 2 — Intelligent editor
-- [ ] Non-destructive trimming and assembly.
-- [ ] Takes and targeted retakes.
-- [ ] Waveform navigation.
-- [ ] Speech transcription investigation.
-- [ ] Reviewable silence and filler-word suggestions.
-- [ ] Undo/redo and recovery.
+- Implement Android microphone capture with Oboe/NDK and Windows capture using native Windows audio APIs.
+- Add explicit permission/device handling and lifecycle recovery.
+- Write audio to a safe temporary file and finalize atomically.
+- Support WAV/PCM first; add other codecs only after reviewing compatibility and licensing.
+- Add recording state, duration, input meters, clipping warnings, and recoverable takes.
+- Test device changes, interruption, low storage, failed writes, and abrupt app termination.
 
-**Exit criteria:** a test narration with intentional mistakes can be repaired without re-recording unaffected sections.
+**Exit criteria:** repeatable recordings on real Android hardware and Windows, no known data-loss path in the tested scenarios, and documented limitations.
 
-## Phase 3 — Creator studio
-- [ ] Script editor and project organization.
-- [ ] Teleprompter and section-based recording.
-- [ ] Script-to-audio alignment and timing.
-- [ ] Editable captions and SRT/VTT export.
-- [ ] Production markers, templates, and batch export.
+## Phase 2 — Monitoring and basic processing
 
-**Exit criteria:** a script can move through recording and assembly into an organized narration package.
+- Playback, monitoring where supported, and device/latency diagnostics.
+- Non-destructive gain, high-pass filter, EQ, compression, and de-essing.
+- Audio test fixtures and listening evaluations.
 
-## Phase 4 — Optional AI integrations
-- [ ] Define provider adapter interface.
-- [ ] Add supported voice-generation integration only after checking current API terms and cost.
-- [ ] Import, compare, and mix human and synthetic narration.
-- [ ] Optional transcription/script assistance.
-- [ ] Clearly disclose cloud processing and data transfer.
+## Phase 3 — Editing and creator tools
 
-**Exit criteria:** core app works without configured providers; integration failures do not break local projects.
+- Waveform and take editing.
+- Script editor and teleprompter.
+- Transcript-aware editing, silence/filler review, captions, and export.
+- Project templates and production markers.
+
+## Phase 4 — Enhancement and optional AI
+
+- Evaluate local noise reduction and dereverberation for quality, performance, model size, and license.
+- Optional provider integrations for transcription or synthetic narration.
+- Preserve offline recording/editing if providers are unavailable.
 
 ## Phase 5 — Advanced intelligence
-- [ ] Session consistency analysis.
-- [ ] Quality-control report and recommended corrections.
-- [ ] Evaluate local speech-enhancement and dereverberation models.
-- [ ] Production blueprint and narration-synchronized markers.
-- [ ] Optional authorized personal voice model research.
 
-**Exit criteria:** each intelligent feature has demonstrated usefulness, clear limits, and repeatable validation.
+- Session consistency checks, quality recommendations, production blueprints, and batch workflows.
 
-## Working rule
+## Definition of done
 
-Advance one bounded milestone at a time. Keep the main branch buildable, avoid broad rewrites, and do not claim a phase is complete until its exit criteria are met.
+A feature is complete only when it builds on its target platforms, has tests for normal and failure paths, preserves original recordings, and has clear user-facing limitations. A successful compile alone is not evidence of audio quality.
