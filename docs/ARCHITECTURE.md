@@ -1,57 +1,53 @@
 # Architecture
 
-## Direction
+## Decision
 
-Use Flutter/Dart for the shared application UI and project workflows, with a dedicated audio subsystem for latency-sensitive capture and processing. Platform-specific native code may be required for reliable device access and low-latency audio. The exact bridge and libraries are decisions to validate, not assumptions already proven.
+Use a native, layered architecture rather than Flutter. Audio Studio targets Android and Windows, but those operating systems have different audio APIs, permission models, device lifecycles, and user-interface conventions.
+
+- **Shared C++ core:** audio data types, DSP primitives, deterministic processing, file-format logic, and platform-independent project/audio rules.
+- **Android shell:** Kotlin for UI, permissions, lifecycle, and Android integration; C++ through the Android NDK; Oboe for low-latency audio I/O where suitable.
+- **Windows shell:** C# and WinUI 3 for the desktop interface; native C++ for shared processing and Windows audio integration, using WASAPI where appropriate.
+- **Boundary:** keep platform audio capture and lifecycle details behind small interfaces. Avoid passing audio sample buffers through UI events or high-level UI bindings.
+- **Builds:** CMake for the shared C++ core; Gradle/Android NDK for Android; Visual Studio/MSBuild and Windows App SDK for Windows.
 
 ## Logical layers
 
-1. **Presentation:** screens, controls, accessibility, and view state.
-2. **Application workflows:** recording session lifecycle, projects, take management, export jobs, and user-approved actions.
-3. **Domain models:** project, script, recording, take, edit decision, processing preset, export, and provider job.
-4. **Audio service boundary:** start/stop capture, input meters, playback, device/interruption events, file finalization, and processing jobs.
-5. **Platform adapters:** Android and Windows capture/device APIs, permissions, audio focus, and filesystem behavior.
-6. **Persistence:** project metadata and settings in SQLite or an equivalent local store; audio files stored separately.
+1. **Presentation:** native Android and Windows screens, accessibility, controls, and view state.
+2. **Application workflows:** recording session lifecycle, project management, take management, export jobs, and user-approved actions.
+3. **Domain:** project, script, recording, take, edit decision, processing preset, export, and provider job.
+4. **Shared C++ core:** audio formats/buffers, DSP, processing contracts, quality checks, and platform-independent algorithms.
+5. **Platform audio adapters:** Oboe/Android lifecycle and Windows audio-device APIs; capture/playback behavior remains platform-specific.
+6. **Persistence:** project metadata in SQLite or an equivalent local store; media files stored separately.
 7. **Optional integrations:** transcription, synthetic narration, and cloud assistance behind explicit interfaces.
 
-## Audio threading rules
+## Real-time audio rules
 
-- Audio callbacks must not wait for Flutter UI, database, network, logging, or filesystem operations.
+- Never perform blocking filesystem, database, network, UI, or logging operations inside a real-time audio callback.
 - Use bounded buffers/queues and move encoding, disk writes, and heavier DSP to suitable worker threads.
-- Define sample format, sample rate, channels, frame count, and timestamps explicitly at subsystem boundaries.
+- Define sample format, sample rate, channel count, frame count, and timestamps explicitly at subsystem boundaries.
 - Handle start/stop races, device removal, app lifecycle changes, and failed writes.
-- Measure end-to-end latency and dropouts on real hardware.
-- The UI must not own the lifetime of an audio stream in a way that causes accidental termination during navigation.
+- Measure end-to-end latency, CPU use, and dropouts on actual Android devices and Windows hardware.
+- Do not let screen navigation accidentally destroy a recording session.
+- Never claim noise reduction or dereverberation is production-ready without quality tests and listening evaluation.
 
 ## Project data
 
-Keep metadata separate from media bytes. A project should reference original recordings and derived renders, with processing/edit decisions stored as metadata where feasible. Each project and export should have a schema/version marker so future releases can migrate safely.
+Keep metadata separate from media bytes. A project references original recordings and derived renders; processing/edit decisions should be stored as metadata where feasible. Version project and export schemas so future releases can migrate safely.
 
-Avoid overwriting the only copy of an original take. Long-running work should be recoverable after an application interruption.
+Never overwrite the only copy of an original take. Long-running work should be recoverable after an application interruption or unexpected shutdown.
 
 ## Proposed repository layout
 
 ```text
-lib/                         Flutter entry point and UI
-packages/audio_core/         Shared audio types and contracts (when justified)
-packages/recording_engine/   Capture lifecycle and platform bridge (when justified)
-packages/audio_processing/   DSP and enhancement adapters (when justified)
-packages/project_storage/    Project metadata and media references (when justified)
-packages/export_engine/      Export orchestration and format handling (when justified)
-integration/                 Optional external provider adapters
-test/                        Unit, integration, audio, and performance tests
-docs/                        Product and engineering documentation
+engine/
+  include/audio_studio/    Public, platform-independent C++ interfaces
+  src/                     Shared C++ implementation
+  tests/                   Deterministic core tests
+platforms/android/          Kotlin app, JNI bridge, NDK integration
+platforms/windows/          WinUI app and native bridge
+docs/                       Product and engineering decisions
 ```
 
-Do not split code into separate packages until the dependency boundary is clear. Early modularity should make platform behavior testable, not add ceremony.
+## Licensing and dependencies
 
-## Decisions still open
-
-- Native capture API/library for each platform.
-- Audio file container/codec strategy and any MP3 encoder licensing implications.
-- Real-time versus offline enhancement boundaries.
-- Local speech recognition model and distribution size.
-- Whether native audio components use C++, Rust, or a suitable maintained library.
-- Project bundle/export format and migration policy.
-
-Document each choice with alternatives, licensing, performance measurements, and platform limitations.
+Review licensing, maintenance status, supported Android/Windows versions, architecture support, and offline distribution requirements before adding third-party code. A cross-platform audio framework such as JUCE is a possible alternative, but its AGPL/commercial licensing model must be evaluated before adoption. The current plan avoids committing to it before the product's distribution model is clear.
