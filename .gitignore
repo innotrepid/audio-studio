@@ -1,39 +1,45 @@
-# Flutter / Dart
-.dart_tool/
-.packages
-.pub/
+# CMake / native builds
 build/
-.flutter-plugins
-.flutter-plugins-dependencies
-.metadata
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Testing/
+*.obj
+*.o
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exe
+
+# Android / Gradle
+.gradle/
+local.properties
+**/build/
+*.keystore
+*.jks
+
+# Visual Studio / Windows
+.vs/
+.vscode/
+*.user
+*.suo
+*.pdb
+*.ilk
+*.appx
+*.msix
 
 # IDE
 .idea/
-.vscode/
-*.iml
+*.swp
+.DS_Store
 
-# Platform build outputs
-android/.gradle/
-android/local.properties
-windows/flutter/ephemeral/
-windows/flutter/generated_plugin_registrant.cc
-windows/flutter/generated_plugins.cmake
-
-# Signing / secrets
-*.jks
-*.keystore
-key.properties
-.env
-.env.*
-!.env.example
-
-# Local media and private project data
+# Local recordings and private project media
 *.wav
 *.mp3
 *.m4a
-*.aac
 *.flac
+*.aac
 *.ogg
 *.opus
-recordings/
-local_projects/
