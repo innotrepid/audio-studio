@@ -2,67 +2,43 @@
 
 ## Goals
 
-The audio engine must capture and reproduce speech reliably before adding complex enhancement. It should preserve natural vocal character, avoid dropouts, and keep the original recording available for comparison.
+The engine must capture and save speech reliably before adding complex enhancement. It should preserve natural voice quality, avoid dropouts, and keep original recordings recoverable.
 
-## Processing concepts
+## Technology direction
 
-These are separate problems and should not be treated as one universal filter:
+- **Shared logic:** C++ with CMake, designed for deterministic tests.
+- **Android audio I/O:** evaluate Google's Oboe through the Android NDK for low-latency native capture/playback; handle permissions and lifecycle in the Android layer.
+- **Windows audio I/O:** use Windows audio APIs, including WASAPI where appropriate, with device changes and endpoint failures handled explicitly.
+- **DSP:** implement and test independent processing units; do not run heavy enhancement in a real-time callback unless its timing and worst-case cost have been measured.
+- **File writing:** use a bounded producer/consumer design so the capture callback does not wait on disk I/O.
 
-- **Noise suppression:** reduces relatively stationary or changing background noise.
-- **Dereverberation:** reduces room reflections and lingering reverberation.
-- **EQ:** adjusts frequency balance.
-- **Compression/leveling:** manages dynamic range and perceived consistency.
-- **De-essing:** controls excessive sibilance.
-- **Plosive management:** reduces low-frequency bursts caused by airflow.
-- **Clipping detection:** identifies samples or blocks that reach the digital ceiling; clipped source audio may not be recoverable.
+## First implementation milestone
 
-Each processing stage can introduce artifacts. The default should be conservative, adjustable, and bypassable.
+The first milestone is intentionally small:
+1. Define explicit audio format and buffer types.
+2. Validate core invariants with unit tests.
+3. Build the shared C++ core on Linux and Windows in CI.
+4. Add platform-native shells and microphone capture separately, with integration tests.
+5. Record known test signals and voice samples, then verify duration, sample rate, channel count, clipping behavior, and file integrity.
 
-## Initial recording requirements
+The initial C++ core is not itself a recorder. Platform capture is only considered complete after it works on real devices.
 
-- Use supported native capture facilities appropriate to each platform.
-- Record the actual capture format and any resampling/conversion performed.
-- Monitor input peak/RMS levels without blocking the capture path.
-- Detect overload and report device/permission failures.
-- Finalize files safely and verify they can be reopened.
-- Keep the unprocessed source separate from derived output.
-- Handle interruption, route/device changes, and low-storage conditions.
+## Audio callback constraints
 
-## Evaluation plan
+- No blocking locks, disk writes, network requests, database access, or UI work in the callback.
+- No unbounded allocation or unpredictable work in the callback.
+- Communicate with worker threads using bounded queues and explicit overflow behavior.
+- Detect clipping, dropped frames, stream errors, and interrupted sessions.
+- Make sample rate, channel count, and sample representation explicit.
 
-Build a repeatable speech test set with consented recordings and representative conditions, such as:
-- quiet room,
-- computer fan or steady hum,
-- moderate household background noise,
-- reverberant room,
-- plosives and sibilance,
-- low input level,
-- loud voice and clipping edge cases.
+## Enhancement order
 
-Avoid committing identifiable or private recordings to the repository. Use synthetic test signals or appropriately licensed, consented, non-sensitive fixtures.
+1. Safe recording and file finalization.
+2. Playback and input monitoring with measured latency.
+3. Basic gain, high-pass filtering, EQ, compression, and de-essing as non-destructive options.
+4. Offline noise reduction and dereverberation evaluated on speech datasets and user listening tests.
+5. Optional real-time enhancement only when CPU cost and artifacts are acceptable.
 
-For each candidate pipeline, compare:
-- speech intelligibility and naturalness through blind listening,
-- residual noise and speech distortion,
-- peak level and clipping,
-- latency for live processing,
-- CPU, memory, and battery impact,
-- model/package size,
-- supported sample rates and channels,
-- dependency and model licenses.
+## Quality gates
 
-Record the device, OS, build, settings, and source fixture for each test. A successful build is not evidence of successful noise reduction.
-
-## Live versus offline processing
-
-Start with reliable recording and offline processing of a copy where feasible. Live processing should be introduced only when measured latency and artifact quality meet defined targets. Monitoring audio should avoid accidental feedback and should explain whether the user hears raw or processed input.
-
-## Model/library selection gate
-
-Before adopting a library or model, verify:
-1. License permits the intended app distribution and commercial use.
-2. Android and Windows support are real and maintained.
-3. CPU/memory/latency are suitable for target devices.
-4. The model does not degrade speech in common conditions.
-5. Offline use and bundled model size are acceptable.
-6. Build and update procedures are reproducible.
+Every audio feature needs automated tests for correctness and failure paths plus listening tests on representative voices, rooms, microphones, and background noise. Avoid claiming that ordinary filters remove severe room echo or noise; those problems may require more advanced algorithms or models.
