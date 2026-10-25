@@ -1,0 +1,24 @@
+add_library(audio_studio_core
+    src/audio_types.cpp
+)
+
+target_include_directories(audio_studio_core PUBLIC include)
+target_compile_features(audio_studio_core PUBLIC cxx_std_17)
+
+if(MSVC)
+    target_compile_options(audio_studio_core PRIVATE /W4 /WX)
+else()
+    target_compile_options(audio_studio_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(audio_studio_core_tests tests/audio_types_test.cpp)
+    target_link_libraries(audio_studio_core_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_core_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_core_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_core_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_core_tests COMMAND audio_studio_core_tests)
+endif()
