@@ -1,41 +1,39 @@
 # Android and Windows Strategy
 
-## Shared product, different operating environments
+## Shared product, native platform behavior
 
-Both Android and Windows are first-class targets. Shared project models, processing settings, workflows, and most UI logic should remain common. Microphone APIs, permissions, lifecycle, routing, and interface density must respect each platform.
+Audio Studio targets Android and Windows without requiring one UI toolkit to control both. The shared C++ core minimizes duplicated audio logic, while native shells handle each platform's lifecycle and interaction patterns.
 
 ## Android
 
-Considerations:
-- Runtime microphone permission and clear permission-denied recovery.
-- Audio focus/interruption and phone-call or other-app interruptions.
-- App backgrounding, screen locking, battery use, and recording lifecycle.
-- Device route changes such as wired, Bluetooth, and built-in microphones.
-- Scoped storage and user-visible export destinations.
-- Small-screen controls suitable for starting/stopping a take safely.
-- Supported device/OS variation and codec availability.
-
-No background recording should happen without a clear user-initiated session and platform-compliant disclosure/permissions.
+- Kotlin UI and application lifecycle.
+- Android NDK for C++ integration.
+- Evaluate Google's Oboe for native low-latency audio input/output.
+- Request microphone permission transparently and handle denial or revocation.
+- Handle calls, audio focus changes, app backgrounding, device changes, and interrupted sessions.
+- Keep recordings and project metadata in app-controlled storage by default; make export destinations explicit.
+- Test across real devices because audio latency and available input routes vary by manufacturer.
 
 ## Windows
 
-Considerations:
-- Input-device selection and default-device changes.
-- Microphone privacy settings and permission errors.
-- Device sample rates, channel layouts, and buffer behavior.
-- Long-form recording, keyboard shortcuts, precise timeline interaction, and multi-window/resizable layouts.
-- User-selected project/export folders and disk-space checks.
-- Robust behavior when an input device is unplugged during recording.
+- C# with WinUI 3 for a desktop-first interface.
+- Shared native C++ core through a narrow, documented interop boundary.
+- Use Windows audio APIs (including WASAPI where appropriate) for capture/playback and handle device changes, endpoint selection, and format negotiation.
+- Support mouse, keyboard, accessible controls, file-system workflows, and large project views.
+- Test microphone permissions, device removal, sleep/resume, and recording recovery.
 
-## Shared behavior
+## Shared components
 
-- Projects and original recordings remain local by default.
-- Display recording status and input level clearly.
-- Report interruptions and incomplete files.
-- Do not silently change input devices or processing settings without feedback.
-- Make processing state explicit: original, processed preview, or final render.
-- Provide clear exports that can be used in common video editors.
+Keep these in C++ where they are genuinely platform-independent:
+- Audio formats, buffers, and validation.
+- DSP primitives and offline processing.
+- Shared project/audio data rules.
+- Quality metrics and deterministic processing tests.
 
-## Verification matrix
+Keep these platform-specific:
+- Microphone capture, device routing, permissions, focus, and lifecycle.
+- UI, file pickers, background execution, and OS integration.
 
-Test at least one real Android device and one Windows machine before declaring cross-platform milestones complete. Automated builds are useful but do not replace real microphone tests. Track platform-specific defects separately and do not claim Windows or Android readiness solely from a shared Dart test passing.
+## CI and release strategy
+
+The first CI milestone compiles and tests the shared C++ core on Linux and Windows. Later CI milestones add Android NDK/Gradle builds and Windows app packaging once each native shell exists. A green core build must not be described as proof that microphone capture works on either platform.
