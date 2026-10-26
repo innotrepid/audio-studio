@@ -58,6 +58,8 @@ class MainActivity : Activity() {
     private lateinit var attenuationSeekBar: SeekBar
     @Volatile private var processing = false
     @Volatile private var cancelRequested = false
+    // Prevent repeated picker launches and recording while a document is being selected.
+    private var wavPickerActive = false
     private var recording = false
     private var startAfterPermission = false
     private var currentRecordingFile: File? = null
@@ -221,6 +223,10 @@ class MainActivity : Activity() {
     }
 
     private fun requestPermissionOrStart() {
+        if (processing || wavPickerActive) {
+            statusText.text = "Finish selecting or processing the WAV before recording."
+            return
+        }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecording()
         } else {
@@ -338,7 +344,7 @@ class MainActivity : Activity() {
 
 
     private fun chooseWavToProcess() {
-        if (recording || processing) {
+        if (recording || processing || wavPickerActive) {
             statusText.text = "Stop the current operation before processing a WAV."
             return
         }
@@ -346,19 +352,38 @@ class MainActivity : Activity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "audio/*"
         }
-        startActivityForResult(picker, REQUEST_PROCESS_WAV)
+        wavPickerActive = true
+        processButton.isEnabled = false
+        startButton.isEnabled = false
+        try {
+            startActivityForResult(picker, REQUEST_PROCESS_WAV)
+        } catch (exception: Exception) {
+            wavPickerActive = false
+            processButton.isEnabled = true
+            startButton.isEnabled = true
+            statusText.text = "Could not open the document picker: ${exception.message ?: "unknown error"}"
+        }
     }
 
     @Deprecated("Uses the platform document picker result API for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_PROCESS_WAV || resultCode != RESULT_OK) return
+        if (requestCode != REQUEST_PROCESS_WAV) return
+        wavPickerActive = false
+        if (resultCode != RESULT_OK) {
+            processButton.isEnabled = true
+            startButton.isEnabled = true
+            return
+        }
         val uri = data?.data ?: run {
             statusText.text = "No WAV file was selected."
+            processButton.isEnabled = true
+            startButton.isEnabled = true
             return
         }
         stopComparisonPlayback()
         processButton.isEnabled = false
+        startButton.isEnabled = false
         playOriginalButton.isEnabled = false
         playProcessedButton.isEnabled = false
         comparisonOriginalFile?.delete()
@@ -469,6 +494,7 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         processButton.isEnabled = true
+                        startButton.isEnabled = true
                         cancelProcessingButton.isEnabled = false
                         cancelProcessingButton.text = "Cancel processing"
                         processingProgress.visibility = android.view.View.GONE
