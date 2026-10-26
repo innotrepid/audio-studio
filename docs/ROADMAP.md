@@ -58,6 +58,6 @@ A feature is complete only when it builds on its target platforms, has tests for
 - [x] Add Android document-picker and processed-copy export path.
 - [ ] Validate processed output on a physical Android device with quiet speech gaps and real background noise.
 - [ ] Replace whole-file decoding with bounded streaming before raising or removing the 64 MiB input cap.
-- [ ] Add A/B playback for original-versus-processed comparison.
+- [x] Add Android A/B playback for the latest original-versus-processed WAV pair.
 - [x] Add persistent Android user controls for gate threshold and attenuation after initial device listening checks.
 - [ ] Evaluate spectral noise reduction and dereverberation separately; do not describe the gate as AI cancellation.

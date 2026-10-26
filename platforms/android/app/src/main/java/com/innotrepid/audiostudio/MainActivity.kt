@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -36,6 +37,12 @@ class MainActivity : Activity() {
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var processButton: Button
+    private lateinit var playOriginalButton: Button
+    private lateinit var playProcessedButton: Button
+    private lateinit var stopPlaybackButton: Button
+    private var playback: MediaPlayer? = null
+    @Volatile private var comparisonOriginalFile: File? = null
+    @Volatile private var comparisonProcessedFile: File? = null
     private lateinit var thresholdLabel: TextView
     private lateinit var attenuationLabel: TextView
     private lateinit var thresholdSeekBar: SeekBar
@@ -103,6 +110,21 @@ class MainActivity : Activity() {
             text = "Reduce background noise in a WAV"
             setOnClickListener { chooseWavToProcess() }
         }
+        playOriginalButton = Button(this).apply {
+            text = "Play original"
+            isEnabled = false
+            setOnClickListener { playComparisonFile(comparisonOriginalFile, "original") }
+        }
+        playProcessedButton = Button(this).apply {
+            text = "Play noise-reduced copy"
+            isEnabled = false
+            setOnClickListener { playComparisonFile(comparisonProcessedFile, "noise-reduced") }
+        }
+        stopPlaybackButton = Button(this).apply {
+            text = "Stop playback"
+            isEnabled = false
+            setOnClickListener { stopComparisonPlayback() }
+        }
 
         val gatePreferences = getSharedPreferences("noise_gate_preferences", MODE_PRIVATE)
         thresholdLabel = TextView(this).apply {
@@ -156,6 +178,9 @@ class MainActivity : Activity() {
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
         root.addView(processButton, matchWidth())
+        root.addView(playOriginalButton, matchWidth())
+        root.addView(playProcessedButton, matchWidth())
+        root.addView(stopPlaybackButton, matchWidth())
         root.addView(thresholdLabel, matchWidth())
         root.addView(thresholdSeekBar, matchWidth())
         root.addView(attenuationLabel, matchWidth())
@@ -301,7 +326,14 @@ class MainActivity : Activity() {
             statusText.text = "No WAV file was selected."
             return
         }
+        stopComparisonPlayback()
         processButton.isEnabled = false
+        playOriginalButton.isEnabled = false
+        playProcessedButton.isEnabled = false
+        comparisonOriginalFile?.delete()
+        comparisonProcessedFile?.delete()
+        comparisonOriginalFile = null
+        comparisonProcessedFile = null
         processing = true
         val thresholdDbfs = (thresholdSeekBar.progress - 70).toFloat()
         val attenuationDb = (attenuationSeekBar.progress - 36).toFloat()
@@ -310,6 +342,7 @@ class MainActivity : Activity() {
             val stagingDirectory = File(filesDir, "processing-staging")
             var input: File? = null
             var output: File? = null
+            var keepComparisonFiles = false
             try {
                 if (!stagingDirectory.exists() && !stagingDirectory.mkdirs()) {
                     throw IOException("Could not create processing staging folder.")
@@ -342,14 +375,14 @@ class MainActivity : Activity() {
                 val publicUri = publishRecording(outputFile, "Processed")
                     ?: throw IOException("Public export requires Android 10 or later. The processed file remains in app-private storage.")
                 val outputName = outputFile.name
-                val removed = outputFile.delete()
+                comparisonOriginalFile = inputFile
+                comparisonProcessedFile = outputFile
+                keepComparisonFiles = true
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
-                        statusText.text = if (removed) {
-                            "Noise-reduced copy saved to Music/Audio Studio/Processed as $outputName. Your original is unchanged."
-                        } else {
-                            "Processed copy exported. A private staging copy could not be removed."
-                        }
+                        playOriginalButton.isEnabled = true
+                        playProcessedButton.isEnabled = true
+                        statusText.text = "Noise-reduced copy saved as " + outputName + ". Use Play original and Play noise-reduced copy to compare them. Your source is unchanged."
                     }
                 }
             } catch (exception: Exception) {
@@ -359,13 +392,82 @@ class MainActivity : Activity() {
                     }
                 }
             } finally {
-                input?.delete()
+                if (!keepComparisonFiles) {
+                    input?.delete()
+                    output?.delete()
+                }
                 processing = false
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) processButton.isEnabled = true
                 }
             }
         }.start()
+    }
+
+    private fun playComparisonFile(file: File?, label: String) {
+        if (recording || processing) {
+            statusText.text = "Wait until the current operation finishes before playback."
+            return
+        }
+        if (file == null || !file.isFile || file.length() <= WAV_HEADER_BYTES) {
+            statusText.text = "No comparison file is available. Process a WAV first."
+            return
+        }
+        stopComparisonPlayback()
+        try {
+            val player = MediaPlayer()
+            playback = player
+            player.setDataSource(file.absolutePath)
+            player.setOnPreparedListener { prepared ->
+                if (playback === prepared && !isFinishing && !isDestroyed) {
+                    prepared.start()
+                    stopPlaybackButton.isEnabled = true
+                    statusText.text = "Playing " + label + " recording. You can switch to the other version at any time."
+                } else {
+                    prepared.release()
+                }
+            }
+            player.setOnCompletionListener { completed ->
+                if (playback === completed) {
+                    completed.release()
+                    playback = null
+                    stopPlaybackButton.isEnabled = false
+                    statusText.text = "Playback finished. Compare the other version or process another WAV."
+                }
+            }
+            player.setOnErrorListener { failed, _, _ ->
+                if (playback === failed) {
+                    failed.release()
+                    playback = null
+                }
+                stopPlaybackButton.isEnabled = false
+                statusText.text = "Playback failed for the " + label + " file. Try another PCM16 WAV."
+                true
+            }
+            stopPlaybackButton.isEnabled = true
+            statusText.text = "Preparing " + label + " playback…"
+            player.prepareAsync()
+        } catch (exception: Exception) {
+            playback?.release()
+            playback = null
+            stopPlaybackButton.isEnabled = false
+            statusText.text = "Could not play " + label + " recording: " + (exception.message ?: "unknown error")
+        }
+    }
+
+    private fun stopComparisonPlayback() {
+        val current = playback
+        playback = null
+        if (current != null) {
+            try {
+                if (current.isPlaying) current.stop()
+            } catch (_: IllegalStateException) {
+                // The player may still be preparing or may already have stopped.
+            } finally {
+                current.release()
+            }
+        }
+        if (::stopPlaybackButton.isInitialized) stopPlaybackButton.isEnabled = false
     }
 
     @Throws(IOException::class)
@@ -429,6 +531,7 @@ class MainActivity : Activity() {
 
     override fun onDestroy() {
         if (recording) stopRecording(interrupted = true)
+        stopComparisonPlayback()
         mainHandler.removeCallbacks(recordingClock)
         super.onDestroy()
     }
