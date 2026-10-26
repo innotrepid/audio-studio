@@ -3,6 +3,7 @@
 #include "audio_studio/wav_writer.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
