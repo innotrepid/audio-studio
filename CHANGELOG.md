@@ -1,10 +1,10 @@
 # Changelog
 
-Notable project changes are recorded here.
-
 ## Unreleased
 
-- Established the Audio Studio working title and Android + Windows product direction.
-- Added product vision, requirements, phased roadmap, architecture, audio-engine, platform, privacy, and testing documentation.
-- Defined reliability, offline-first, and non-destructive editing principles.
-- Application implementation and audio-engine selection remain pending validation.
+- Replaced the initial Flutter scaffold with a native C++ core architecture.
+- Added CMake builds and deterministic audio-format/buffer validation tests.
+- Added an Android Kotlin/NDK shell with Oboe linked through Gradle Prefab.
+- Added a Windows C# / WinUI 3 shell with a narrow native C ABI bridge.
+- Expanded CI to test the C++ core on Linux and Windows and build platform shell artifacts.
+- Microphone capture and WAV recording are not implemented yet.
