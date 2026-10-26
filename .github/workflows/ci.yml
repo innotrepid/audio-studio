@@ -40,8 +40,10 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Run core tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Set up Visual Studio MSBuild
+        uses: microsoft/setup-msbuild@v2
       - name: Build WinUI application shell
-        run: dotnet build platforms/windows/AudioStudio/AudioStudio.csproj --configuration Release --property:Platform=x64
+        run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /m /p:Configuration=Release /p:Platform=x64
       - name: Upload Windows application shell
         uses: actions/upload-artifact@v4
         with:
@@ -62,6 +64,8 @@ jobs:
           java-version: "17"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.2.12479018"
       - name: Set up Gradle
