@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import java.io.File
@@ -27,11 +28,16 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 
+private interface NoiseGateProgressCallback {
+    fun onProgress(processedFrames: Long, totalFrames: Long)
+}
+
 class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeStopRecording(): String
-    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float): String
+    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, callback: NoiseGateProgressCallback): String
+    private external fun nativeCancelNoiseGateProcessing()
 
     private lateinit var statusText: TextView
     private lateinit var startButton: Button
@@ -40,6 +46,8 @@ class MainActivity : Activity() {
     private lateinit var playOriginalButton: Button
     private lateinit var playProcessedButton: Button
     private lateinit var stopPlaybackButton: Button
+    private lateinit var cancelProcessingButton: Button
+    private lateinit var processingProgress: ProgressBar
     private var playback: MediaPlayer? = null
     @Volatile private var comparisonOriginalFile: File? = null
     @Volatile private var comparisonProcessedFile: File? = null
@@ -48,6 +56,7 @@ class MainActivity : Activity() {
     private lateinit var thresholdSeekBar: SeekBar
     private lateinit var attenuationSeekBar: SeekBar
     @Volatile private var processing = false
+    @Volatile private var cancelRequested = false
     private var recording = false
     private var startAfterPermission = false
     private var currentRecordingFile: File? = null
@@ -120,6 +129,24 @@ class MainActivity : Activity() {
             isEnabled = false
             setOnClickListener { playComparisonFile(comparisonProcessedFile, "noise-reduced") }
         }
+        processingProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+            visibility = android.view.View.GONE
+        }
+        cancelProcessingButton = Button(this).apply {
+            text = "Cancel processing"
+            isEnabled = false
+            setOnClickListener {
+                if (processing) {
+                    cancelRequested = true
+                    try { nativeCancelNoiseGateProcessing() } catch (_: Exception) { }
+                    text = "Cancelling…"
+                    isEnabled = false
+                    statusText.text = "Cancelling safely after the current audio block…"
+                }
+            }
+        }
         stopPlaybackButton = Button(this).apply {
             text = "Stop playback"
             isEnabled = false
@@ -178,6 +205,8 @@ class MainActivity : Activity() {
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
         root.addView(processButton, matchWidth())
+        root.addView(processingProgress, matchWidth())
+        root.addView(cancelProcessingButton, matchWidth())
         root.addView(playOriginalButton, matchWidth())
         root.addView(playProcessedButton, matchWidth())
         root.addView(stopPlaybackButton, matchWidth())
@@ -335,6 +364,11 @@ class MainActivity : Activity() {
         comparisonOriginalFile = null
         comparisonProcessedFile = null
         processing = true
+        cancelRequested = false
+        processingProgress.progress = 0
+        processingProgress.visibility = android.view.View.VISIBLE
+        cancelProcessingButton.isEnabled = true
+        cancelProcessingButton.text = "Cancel processing"
         val thresholdDbfs = (thresholdSeekBar.progress - 70).toFloat()
         val attenuationDb = (attenuationSeekBar.progress - 36).toFloat()
         statusText.text = "Preparing WAV for noise reduction…"
@@ -350,18 +384,40 @@ class MainActivity : Activity() {
                 val inputFile = File(stagingDirectory, "source-${System.currentTimeMillis()}.wav")
                 input = inputFile
                 contentResolver.openInputStream(uri)?.use { source ->
-                    inputFile.outputStream().use { destination -> source.copyTo(destination) }
+                    inputFile.outputStream().use { destination ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            if (cancelRequested) throw IOException("Processing cancelled by user.")
+                            val count = source.read(buffer)
+                            if (count < 0) break
+                            destination.write(buffer, 0, count)
+                        }
+                    }
                 } ?: throw IOException("Could not open the selected document.")
                 if (inputFile.length() <= WAV_HEADER_BYTES) {
                     throw IOException("The selected file is empty or too small to be a WAV.")
                 }
                 val outputFile = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
                 output = outputFile
+                if (cancelRequested) throw IOException("Processing cancelled by user.")
+                val callback = object : NoiseGateProgressCallback {
+                    override fun onProgress(processedFrames: Long, totalFrames: Long) {
+                        val percent = if (totalFrames <= 0L) 0 else
+                            ((processedFrames.coerceAtLeast(0L).toDouble() / totalFrames.toDouble()) * 100.0).toInt().coerceIn(0, 100)
+                        mainHandler.post {
+                            if (!isFinishing && !isDestroyed && processing) {
+                                processingProgress.progress = percent
+                                statusText.text = "Reducing background noise… $percent%"
+                            }
+                        }
+                    }
+                }
                 val nativeStatus = nativeProcessNoiseGate(
                     inputFile.absolutePath,
                     outputFile.absolutePath,
                     thresholdDbfs,
-                    attenuationDb
+                    attenuationDb,
+                    callback
                 )
                 if (!nativeStatus.startsWith("Processed WAV:")) {
                     throw IOException(nativeStatus.removePrefix("ERROR:").trim())
@@ -385,7 +441,12 @@ class MainActivity : Activity() {
             } catch (exception: Exception) {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
-                        statusText.text = "Could not process WAV: ${exception.message ?: "unknown error"}. The original was not modified."
+                        val message = exception.message ?: "unknown error"
+                        statusText.text = if (cancelRequested || message.contains("cancelled", ignoreCase = true)) {
+                            "Processing cancelled. The original was not modified."
+                        } else {
+                            "Could not process WAV: $message. The original was not modified."
+                        }
                     }
                 }
             } finally {
@@ -394,8 +455,14 @@ class MainActivity : Activity() {
                     output?.delete()
                 }
                 processing = false
+                cancelRequested = false
                 mainHandler.post {
-                    if (!isFinishing && !isDestroyed) processButton.isEnabled = true
+                    if (!isFinishing && !isDestroyed) {
+                        processButton.isEnabled = true
+                        cancelProcessingButton.isEnabled = false
+                        cancelProcessingButton.text = "Cancel processing"
+                        processingProgress.visibility = android.view.View.GONE
+                    }
                 }
             }
         }.start()
