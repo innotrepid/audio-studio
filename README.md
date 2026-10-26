@@ -58,11 +58,11 @@ Platform folders and audio dependencies will be added in deliberate, buildable s
 
 ## Development status
 
-The repository now contains a tested C++ core, an Android Kotlin/NDK shell linked to Oboe, and a Windows WinUI shell connected to a small C ABI bridge. CI builds the core on Linux and Windows and attempts to build the Android APK and Windows shell. These shells are **not finished recorders**: microphone capture, safe WAV writing, noise cancellation, dereverberation, and AI voice generation are not implemented yet. Each platform build must pass CI, and recording must be validated on real hardware before being described as working.
+The repository contains a tested C++ core, an Android Kotlin/NDK shell linked to Oboe, and a Windows WinUI shell connected to a small C ABI bridge. CI builds the core on Linux and Windows and attempts to build the Android APK and Windows shell. These shells are not finished production suites; individual features must pass CI and platform validation before being described as complete.
 
 ## Processing status
 
-The shared C++ core includes an optional, tested conservative noise-gate/expander foundation. It is not yet connected to the recording UI or capture pipeline, and it is not advanced noise cancellation or echo removal. Recording remains raw and non-destructive; enhancement quality must be validated on real speech and background-noise samples before production use.
+The shared C++ core includes a validated PCM16 WAV reader and an optional, tested conservative noise-gate/expander foundation. The reader supports mono/stereo PCM16 and rejects unsupported or malformed WAV files rather than guessing. The noise gate is not yet connected to the recording UI or capture pipeline, and it is not advanced noise cancellation or echo removal. Recording remains raw and non-destructive; enhancement quality must be validated on real speech and background-noise samples before production use.
 
 ## Licensing
 
