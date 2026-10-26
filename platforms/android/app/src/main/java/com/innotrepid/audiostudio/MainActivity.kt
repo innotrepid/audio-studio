@@ -245,6 +245,8 @@ class MainActivity : Activity() {
     }
 
     private fun startRecording() {
+        // Do not let comparison audio bleed into a new microphone recording.
+        stopComparisonPlayback()
         val recordingDirectory = File(filesDir, "recording-staging")
         if (!recordingDirectory.exists() && !recordingDirectory.mkdirs()) {
             statusText.text = "Could not create a temporary recordings folder."
