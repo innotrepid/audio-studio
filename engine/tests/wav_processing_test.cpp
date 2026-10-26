@@ -54,6 +54,13 @@ void test_processes_to_separate_file_and_preserves_source() {
             "processing preserves format");
     require(processed.samples.size() == original.samples.size(),
             "processing preserves duration and sample count");
+    audio_studio::AudioBuffer expected = original;
+    audio_studio::NoiseGate reference_gate;
+    require(reference_gate.process(expected), "reference gate processes the whole buffer");
+    for (std::size_t i = 0; i < processed.samples.size(); ++i) {
+        require(std::abs(processed.samples[i] - expected.samples[i]) < 1.0e-6F,
+                "streamed output must match continuous whole-buffer gate processing");
+    }
     double original_quiet = 0.0;
     double processed_quiet = 0.0;
     for (std::size_t i = 0; i < 2400U; ++i) {
