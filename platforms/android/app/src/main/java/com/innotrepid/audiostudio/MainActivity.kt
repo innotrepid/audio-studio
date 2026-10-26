@@ -223,15 +223,24 @@ class MainActivity : Activity() {
     }
 
     private fun requestPermissionOrStart() {
-        if (processing || wavPickerActive) {
-            statusText.text = "Finish selecting or processing the WAV before recording."
+        if (recording || processing || wavPickerActive || startAfterPermission) {
+            statusText.text = "Finish the current operation before recording."
             return
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecording()
         } else {
             startAfterPermission = true
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+            processButton.isEnabled = false
+            startButton.isEnabled = false
+            try {
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+            } catch (exception: Exception) {
+                startAfterPermission = false
+                processButton.isEnabled = true
+                startButton.isEnabled = true
+                statusText.text = "Could not request microphone permission: ${exception.message ?: "unknown error"}"
+            }
         }
     }
 
@@ -344,7 +353,7 @@ class MainActivity : Activity() {
 
 
     private fun chooseWavToProcess() {
-        if (recording || processing || wavPickerActive) {
+        if (recording || processing || wavPickerActive || startAfterPermission) {
             statusText.text = "Stop the current operation before processing a WAV."
             return
         }
@@ -505,7 +514,7 @@ class MainActivity : Activity() {
     }
 
     private fun playComparisonFile(file: File?, label: String) {
-        if (recording || processing) {
+        if (recording || processing || wavPickerActive || startAfterPermission) {
             statusText.text = "Wait until the current operation finishes before playback."
             return
         }
@@ -631,10 +640,16 @@ class MainActivity : Activity() {
         if (requestCode != REQUEST_RECORD_AUDIO) return
         val shouldStart = startAfterPermission
         startAfterPermission = false
+        processButton.isEnabled = !recording && !processing && !wavPickerActive
+        startButton.isEnabled = !recording && !processing && !wavPickerActive
         if (shouldStart && grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
         ) {
-            startRecording()
+            if (recording || processing || wavPickerActive) {
+                statusText.text = "Permission granted, but another operation is active. Tap Start recording when it finishes."
+            } else {
+                startRecording()
+            }
         } else if (shouldStart) {
             statusText.text = "Microphone permission is required to record."
         }
