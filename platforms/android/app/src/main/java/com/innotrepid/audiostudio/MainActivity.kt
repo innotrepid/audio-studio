@@ -36,11 +36,14 @@ class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeStopRecording(): String
+    private external fun nativeRecordingMeter(): FloatArray
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, callback: NoiseGateProgressCallback): String
     private external fun nativeCancelNoiseGateProcessing()
     private external fun nativePrepareNoiseGateProcessing()
 
     private lateinit var statusText: TextView
+    private lateinit var inputMeterLabel: TextView
+    private lateinit var inputMeter: ProgressBar
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var processButton: Button
@@ -65,6 +68,27 @@ class MainActivity : Activity() {
     private var currentRecordingFile: File? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var recordingStartedAtMs = 0L
+    private val recordingMeterClock = object : Runnable {
+        override fun run() {
+            if (!recording || isFinishing || isDestroyed) return
+            val values = try { nativeRecordingMeter() } catch (_: Exception) { floatArrayOf() }
+            if (values.size >= 3) {
+                val rms = values[0].coerceIn(0.0f, 1.0f)
+                val peak = values[1].coerceIn(0.0f, 1.0f)
+                val clipped = values[2] >= 0.5f
+                inputMeter.progress = (peak * inputMeter.max).toInt()
+                val peakDbfs = if (peak > 0.000001f) (20.0 * kotlin.math.log10(peak.toDouble())).toInt() else -120
+                val rmsDbfs = if (rms > 0.000001f) (20.0 * kotlin.math.log10(rms.toDouble())).toInt() else -120
+                inputMeterLabel.text = if (clipped) {
+                    "Input: RMS $rmsDbfs dBFS · Peak $peakDbfs dBFS — CLIPPING DETECTED; lower input gain"
+                } else {
+                    "Input: RMS $rmsDbfs dBFS · Peak $peakDbfs dBFS"
+                }
+                inputMeterLabel.setTextColor(if (clipped) Color.rgb(255, 120, 110) else Color.rgb(190, 220, 200))
+            }
+            mainHandler.postDelayed(this, 100L)
+        }
+    }
     private val recordingClock = object : Runnable {
         override fun run() {
             if (!recording) return
@@ -108,6 +132,17 @@ class MainActivity : Activity() {
             textSize = 15f
             setTextColor(Color.rgb(180, 220, 190))
             gravity = Gravity.CENTER
+        }
+
+        inputMeterLabel = TextView(this).apply {
+            text = "Input level appears while recording"
+            textSize = 13f
+            setTextColor(Color.rgb(190, 198, 214))
+            gravity = Gravity.CENTER
+        }
+        inputMeter = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000
+            progress = 0
         }
 
         startButton = Button(this).apply {
@@ -206,6 +241,8 @@ class MainActivity : Activity() {
         root.addView(title, matchWidth())
         root.addView(subtitle, matchWidth())
         root.addView(statusText, matchWidth())
+        root.addView(inputMeterLabel, matchWidth())
+        root.addView(inputMeter, matchWidth())
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
         root.addView(processButton, matchWidth())
@@ -271,7 +308,12 @@ class MainActivity : Activity() {
             recordingStartedAtMs = SystemClock.elapsedRealtime()
             statusText.text = "Recording · 00:00"
             mainHandler.removeCallbacks(recordingClock)
+            mainHandler.removeCallbacks(recordingMeterClock)
+            inputMeter.progress = 0
+            inputMeterLabel.text = "Input level starting…"
+            inputMeterLabel.setTextColor(Color.rgb(190, 220, 200))
             mainHandler.post(recordingClock)
+            mainHandler.post(recordingMeterClock)
         } else {
             mainHandler.removeCallbacks(recordingClock)
             processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
@@ -283,6 +325,8 @@ class MainActivity : Activity() {
         if (!recording) return
         recording = false
         mainHandler.removeCallbacks(recordingClock)
+        mainHandler.removeCallbacks(recordingMeterClock)
+        inputMeter.progress = 0
         startButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         stopButton.isEnabled = false
@@ -684,6 +728,7 @@ class MainActivity : Activity() {
         if (recording) stopRecording(interrupted = true)
         stopComparisonPlayback()
         mainHandler.removeCallbacks(recordingClock)
+        mainHandler.removeCallbacks(recordingMeterClock)
         super.onDestroy()
     }
 

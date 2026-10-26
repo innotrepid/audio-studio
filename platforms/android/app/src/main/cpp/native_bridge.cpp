@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -25,6 +26,12 @@ public:
     static constexpr std::uint32_t kRequestedSampleRate = 48000U;
     static constexpr std::size_t kRingCapacity = 1U << 18U;
     static constexpr std::size_t kRingMask = kRingCapacity - 1U;
+
+    std::array<float, 3U> meter() const noexcept {
+        return {meter_rms_.load(std::memory_order_relaxed),
+                meter_peak_.load(std::memory_order_relaxed),
+                clipping_detected_.load(std::memory_order_relaxed) ? 1.0F : 0.0F};
+    }
 
     bool start(const std::string& path) {
         if (running_.load(std::memory_order_acquire)) {
@@ -63,6 +70,9 @@ public:
         overflow_.store(false, std::memory_order_release);
         write_failed_.store(false, std::memory_order_release);
         stream_error_.store(false, std::memory_order_release);
+        meter_rms_.store(0.0F, std::memory_order_release);
+        meter_peak_.store(0.0F, std::memory_order_release);
+        clipping_detected_.store(false, std::memory_order_release);
         write_index_.store(0U, std::memory_order_release);
         read_index_.store(0U, std::memory_order_release);
         worker_ready_ = false;
@@ -132,9 +142,23 @@ public:
         }
 
         const auto* input = static_cast<const float*>(audio_data);
+        float peak = 0.0F;
+        double sum_squares = 0.0;
         for (std::uint64_t i = 0; i < frame_count; ++i) {
-            ring_[static_cast<std::size_t>((write + i) & kRingMask)] = input[i];
+            const float sample = input[i];
+            ring_[static_cast<std::size_t>((write + i) & kRingMask)] = sample;
+            if (std::isfinite(sample)) {
+                const float magnitude = std::abs(sample);
+                peak = std::max(peak, magnitude);
+                sum_squares += static_cast<double>(sample) * static_cast<double>(sample);
+                if (magnitude >= 0.999F) {
+                    clipping_detected_.store(true, std::memory_order_release);
+                }
+            }
         }
+        meter_peak_.store(peak, std::memory_order_release);
+        meter_rms_.store(static_cast<float>(std::sqrt(sum_squares / static_cast<double>(frame_count))),
+                         std::memory_order_release);
         write_index_.store(write + frame_count, std::memory_order_release);
         worker_cv_.notify_one();
         return oboe::DataCallbackResult::Continue;
@@ -233,6 +257,9 @@ private:
     std::atomic<bool> overflow_{false};
     std::atomic<bool> write_failed_{false};
     std::atomic<bool> stream_error_{false};
+    std::atomic<float> meter_rms_{0.0F};
+    std::atomic<float> meter_peak_{0.0F};
+    std::atomic<bool> clipping_detected_{false};
     std::atomic<bool> running_{false};
     std::shared_ptr<oboe::AudioStream> stream_{};
     std::thread worker_{};
@@ -278,6 +305,21 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecording(
     }
     g_recorder = std::move(recorder);
     return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeRecordingMeter(
+    JNIEnv* env, jobject /* thiz */) {
+    std::array<float, 3U> values{};
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        if (g_recorder) values = g_recorder->meter();
+    }
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(values.size()));
+    if (result != nullptr) {
+        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+    }
+    return result;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
