@@ -2,16 +2,21 @@ package com.innotrepid.audiostudio
 
 import android.Manifest
 import android.app.Activity
+import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.io.File
+import java.io.IOException
 
 class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
@@ -23,6 +28,7 @@ class MainActivity : Activity() {
     private lateinit var stopButton: Button
     private var recording = false
     private var startAfterPermission = false
+    private var currentRecordingFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,7 +74,7 @@ class MainActivity : Activity() {
         }
 
         val notice = TextView(this).apply {
-            text = "Recordings are saved as PCM16 WAV files in this app's private Music/Recordings folder. Keep the app open while recording. Noise reduction and editing are not implemented yet."
+            text = "Recordings are exported to Music/Audio Studio/Recordings so you can find them outside the app. Keep the app open while recording. Noise reduction and editing are not implemented yet."
             textSize = 14f
             setTextColor(Color.rgb(190, 198, 214))
             gravity = Gravity.CENTER
@@ -94,10 +100,9 @@ class MainActivity : Activity() {
     }
 
     private fun startRecording() {
-        val musicDirectory = getExternalFilesDir(Environment.DIRECTORY_MUSIC) ?: filesDir
-        val recordingDirectory = File(musicDirectory, "Recordings")
+        val recordingDirectory = File(filesDir, "recording-staging")
         if (!recordingDirectory.exists() && !recordingDirectory.mkdirs()) {
-            statusText.text = "Could not create the recordings folder."
+            statusText.text = "Could not create a temporary recordings folder."
             return
         }
 
@@ -110,10 +115,11 @@ class MainActivity : Activity() {
         }
 
         recording = started
+        currentRecordingFile = if (started) output else null
         startButton.isEnabled = !started
         stopButton.isEnabled = started
         statusText.text = if (started) {
-            "Recording to ${output.name}. Tap Stop and save WAV when finished."
+            "Recording ${output.name}. Tap Stop and save WAV when finished."
         } else {
             "Microphone did not start. Check permission and microphone availability."
         }
@@ -124,10 +130,65 @@ class MainActivity : Activity() {
         recording = false
         startButton.isEnabled = true
         stopButton.isEnabled = false
-        statusText.text = try {
+
+        val nativeStatus = try {
             nativeStopRecording()
         } catch (exception: Exception) {
             "Could not finalize recording: ${exception.message ?: "unknown error"}"
+        }
+
+        val stagedFile = currentRecordingFile
+        currentRecordingFile = null
+        statusText.text = if (stagedFile != null && stagedFile.isFile && stagedFile.length() > WAV_HEADER_BYTES) {
+            try {
+                val publicUri = publishRecording(stagedFile)
+                if (publicUri != null) {
+                    stagedFile.delete()
+                    "$nativeStatus\n\nExported to Music/Audio Studio/Recordings. You can open it with your Files app or a music/audio app."
+                } else {
+                    "$nativeStatus\n\nThis Android version does not support automatic public export. The WAV remains in app-private storage."
+                }
+            } catch (exception: Exception) {
+                "$nativeStatus\n\nExport failed: ${exception.message ?: "unknown error"}. The WAV remains in app-private storage."
+            }
+        } else {
+            nativeStatus
+        }
+    }
+
+    @Throws(IOException::class)
+    private fun publishRecording(source: File): Uri? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+
+        val values = ContentValues().apply {
+            put(MediaStore.Audio.Media.DISPLAY_NAME, source.name)
+            put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")
+            put(
+                MediaStore.Audio.Media.RELATIVE_PATH,
+                Environment.DIRECTORY_MUSIC + "/Audio Studio/Recordings"
+            )
+            put(MediaStore.Audio.Media.IS_PENDING, 1)
+        }
+
+        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val destination = contentResolver.insert(collection, values)
+            ?: throw IOException("Android could not create the public WAV entry")
+
+        try {
+            val output = contentResolver.openOutputStream(destination, "w")
+                ?: throw IOException("Android could not open the exported WAV")
+            output.use { stream -> source.inputStream().use { input -> input.copyTo(stream) } }
+
+            val completedValues = ContentValues().apply {
+                put(MediaStore.Audio.Media.IS_PENDING, 0)
+            }
+            if (contentResolver.update(destination, completedValues, null, null) <= 0) {
+                throw IOException("Android could not finalize the exported WAV")
+            }
+            return destination
+        } catch (exception: Exception) {
+            contentResolver.delete(destination, null, null)
+            throw exception
         }
     }
 
@@ -165,5 +226,6 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 1001
+        private const val WAV_HEADER_BYTES = 44L
     }
 }
