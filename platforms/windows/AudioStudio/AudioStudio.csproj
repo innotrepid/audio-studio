@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>AudioStudio</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250205002" />
+  </ItemGroup>
+
+  <Target Name="CopyAudioStudioNative" AfterTargets="Build">
+    <PropertyGroup>
+      <NativeEnginePath>$(MSBuildThisFileDirectory)..\..\..\build\Release\audio_studio_native.dll</NativeEnginePath>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(NativeEnginePath)')" Text="The C++ native engine DLL was not found. Build the repository CMake project first." />
+    <Copy SourceFiles="$(NativeEnginePath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
