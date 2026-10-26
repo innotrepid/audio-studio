@@ -7,6 +7,7 @@
 #include <ksmedia.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -63,8 +64,10 @@ public:
     }
 
     const wchar_t* status() {
+        thread_local std::wstring snapshot;
         std::lock_guard<std::mutex> lock(mutex_);
-        return status_.c_str();
+        snapshot = status_;
+        return snapshot.c_str();
     }
 
 private:
@@ -143,17 +146,18 @@ private:
                     publish_startup(true, L"Recording from the default microphone…");
                     const auto bytes_per_sample = mix_format->wBitsPerSample / 8U;
                     std::vector<float> converted;
+                    HRESULT capture_result = S_OK;
                     while (!stop_requested_.load()) {
                         const DWORD wait_result = WaitForSingleObject(event_handle, 200);
                         if (wait_result != WAIT_OBJECT_0) continue;
                         UINT32 packet_frames = 0;
-                        HRESULT packet_hr = capture->GetNextPacketSize(&packet_frames);
-                        while (SUCCEEDED(packet_hr) && packet_frames > 0) {
+                        capture_result = capture->GetNextPacketSize(&packet_frames);
+                        while (SUCCEEDED(capture_result) && packet_frames > 0) {
                             BYTE* data = nullptr;
                             UINT32 frames = 0;
                             DWORD flags = 0;
-                            packet_hr = capture->GetBuffer(&data, &frames, &flags, nullptr, nullptr);
-                            if (FAILED(packet_hr)) break;
+                            capture_result = capture->GetBuffer(&data, &frames, &flags, nullptr, nullptr);
+                            if (FAILED(capture_result)) break;
                             const auto sample_count = static_cast<std::size_t>(frames) * channels;
                             converted.resize(sample_count);
                             if ((flags & AUDCLNT_BUFFERFLAGS_SILENT) != 0 || data == nullptr) {
@@ -170,19 +174,19 @@ private:
                             const bool wrote = writer.write_frames(converted.data(), frames);
                             const HRESULT release_hr = capture->ReleaseBuffer(frames);
                             if (!wrote || FAILED(release_hr)) {
-                                packet_hr = E_FAIL;
+                                capture_result = E_FAIL;
                                 break;
                             }
-                            packet_hr = capture->GetNextPacketSize(&packet_frames);
+                            capture_result = capture->GetNextPacketSize(&packet_frames);
                         }
-                        if (FAILED(packet_hr)) {
+                        if (FAILED(capture_result)) {
                             set_status(L"Capture stopped because the audio device or file write failed. Incomplete output was discarded.");
                             break;
                         }
                     }
                     (void)client->Stop();
                     active_.store(false);
-                    const bool should_finalize = SUCCEEDED(packet_hr);
+                    const bool should_finalize = SUCCEEDED(capture_result);
                     if (should_finalize && writer.finalize()) {
                         set_status(L"Recording saved as a PCM WAV file.");
                     } else {
@@ -205,7 +209,9 @@ private:
         if (event_handle != nullptr) CloseHandle(event_handle);
         if (uninitialize_com) CoUninitialize();
 
-        if (!startup_complete_) {
+        bool startup_was_published = false;
+        { std::lock_guard<std::mutex> lock(mutex_); startup_was_published = startup_complete_; }
+        if (!startup_was_published) {
             const std::wstring message = hr == AUDCLNT_E_UNSUPPORTED_FORMAT
                 ? L"Unsupported microphone format. Choose a mono or stereo 16-bit PCM / 32-bit float input."
                 : L"Could not start microphone capture. Check Windows microphone privacy and device settings.";
