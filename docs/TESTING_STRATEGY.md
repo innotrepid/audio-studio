@@ -25,7 +25,19 @@
 - Low storage/write failure behavior.
 - Project reopen and export verification.
 
-### Audio tests
+### Recording hardening checklist
+
+Before treating Android capture as hardened on a device, verify:
+- Record and save three consecutive sessions; each file must open and play independently.
+- Record for at least five minutes; compare the WAV duration and file size with the captured session.
+- Background the app during recording; the app should stop cleanly, export a valid WAV when possible, and clearly report why recording stopped.
+- Deny microphone permission, then grant it and retry; no stale recording state should remain.
+- Simulate a storage/export failure where practical; never report a successful export when writing, finalization, or WAV-header validation failed.
+- Confirm the elapsed-time indicator advances while recording and resets on the next session.
+
+These checks require a physical Android device; CI validates the native build and deterministic WAV-writer tests, not hardware microphone behavior.
+
+## Audio tests
 - Known test signals for sample format, channels, duration, and clipping behavior.
 - Repeatable speech fixtures for noise-reduction comparisons.
 - Regression checks for unexpected silence, truncation, distortion, or channel swapping.
