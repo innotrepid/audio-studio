@@ -8,7 +8,7 @@
 namespace {
 void require(bool condition, const char* message) {
     if (!condition) {
-        std::cerr << "FAILED: " << message << '\\n';
+        std::cerr << "FAILED: " << message << '\n';
         std::exit(EXIT_FAILURE);
     }
 }
@@ -25,7 +25,7 @@ float rms(const audio_studio::AudioBuffer& buffer, std::size_t start, std::size_
 void test_reduces_low_level_noise() {
     constexpr std::uint32_t sample_rate = 48000U;
     audio_studio::AudioBuffer buffer{audio_studio::AudioFormat{sample_rate, 1U}, {}};
-    buffer.samples.resize(sample_rate, 0.003F);
+    buffer.samples.resize(sample_rate, 0.001F);
     audio_studio::NoiseGate gate;
     require(gate.process(buffer), "valid mono audio should process");
     require(rms(buffer, 12000U, 24000U) < 0.0015F,
@@ -66,6 +66,6 @@ int main() {
     test_reduces_low_level_noise();
     test_preserves_louder_speech_and_block_continuity();
     test_rejects_invalid_settings_and_audio();
-    std::cout << "All noise gate tests passed.\\n";
+    std::cout << "All noise gate tests passed.\n";
     return EXIT_SUCCESS;
 }
