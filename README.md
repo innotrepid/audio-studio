@@ -62,7 +62,7 @@ The repository contains a tested C++ core, an Android Kotlin/NDK shell linked to
 
 ## Processing status
 
-The shared C++ core includes a validated PCM16 WAV reader and an optional, tested conservative noise-gate/expander foundation. The reader supports mono/stereo PCM16 and rejects unsupported or malformed WAV files rather than guessing. The noise gate is not yet connected to the recording UI or capture pipeline, and it is not advanced noise cancellation or echo removal. Recording remains raw and non-destructive; enhancement quality must be validated on real speech and background-noise samples before production use.
+The shared C++ core includes a validated PCM16 WAV reader, a tested conservative noise gate, and a non-destructive WAV processing path. On Android, users can choose a PCM16 WAV and export a separate processed copy to Music/Audio Studio/Processed; the original is never overwritten. This first processing version supports files up to 64 MiB because the reader currently loads a file into memory. The gate attenuates quieter sections and is not advanced noise cancellation or echo removal. Audio quality still requires physical-device listening tests.
 
 ## Licensing
 
