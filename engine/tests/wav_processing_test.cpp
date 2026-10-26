@@ -3,6 +3,7 @@
 #include "audio_studio/wav_writer.hpp"
 
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -40,9 +41,20 @@ void test_processes_to_separate_file_and_preserves_source() {
     }
     const auto original_bytes = load_bytes(input);
     std::string error;
-    require(audio_studio::process_wav_with_noise_gate(input, output, {}, &error),
+    std::uint64_t last_progress = 0U;
+    std::uint64_t reported_total = 0U;
+    bool saw_initial_progress = false;
+    const auto progress = [&](std::uint64_t processed, std::uint64_t total) {
+        if (!saw_initial_progress) saw_initial_progress = processed == 0U && total == samples.size();
+        require(processed >= last_progress, "progress must be monotonic");
+        last_progress = processed;
+        reported_total = total;
+    };
+    require(audio_studio::process_wav_with_noise_gate(input, output, {}, &error, nullptr, progress),
             "processing should create a separate WAV");
     require(error.empty(), "successful processing clears error");
+    require(saw_initial_progress && last_progress == samples.size() && reported_total == samples.size(),
+            "processing reports initial and final frame progress");
     require(load_bytes(input) == original_bytes, "source bytes must remain unchanged");
 
     audio_studio::AudioBuffer original;
@@ -72,6 +84,28 @@ void test_processes_to_separate_file_and_preserves_source() {
     std::remove(output.c_str());
 }
 
+
+void test_cancellation_cleans_partial_output() {
+    const std::string input = "audio_studio_processing_cancel_source.wav";
+    const std::string output = "audio_studio_processing_cancel_result.wav";
+    const std::array<float, 32> samples{};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create cancellation source");
+        require(writer.write_frames(samples.data(), samples.size()), "write cancellation source");
+        require(writer.finalize(), "finalize cancellation source");
+    }
+    std::atomic<bool> cancel{true};
+    std::string error;
+    require(!audio_studio::process_wav_with_noise_gate(input, output, {}, &error, &cancel),
+            "pre-requested cancellation must stop processing");
+    require(error.find("cancelled") != std::string::npos, "cancellation error should be descriptive");
+    require(!std::ifstream(output).good(), "cancelled output must be removed");
+    require(std::ifstream(input).good(), "cancellation must preserve source");
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
 void test_refuses_to_overwrite_input() {
     const std::string input = "audio_studio_processing_no_overwrite.wav";
     const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
@@ -93,6 +127,7 @@ void test_refuses_to_overwrite_input() {
 
 int main() {
     test_processes_to_separate_file_and_preserves_source();
+    test_cancellation_cleans_partial_output();
     test_refuses_to_overwrite_input();
     std::cout << "All WAV processing tests passed.\n";
     return EXIT_SUCCESS;
