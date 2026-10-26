@@ -137,7 +137,7 @@ private:
         { std::lock_guard<std::mutex> lock(mutex_); audio_event_ = event_handle; }
         if (SUCCEEDED(hr)) {
             audio_studio::WavWriter writer;
-            if (!writer.open(std::filesystem::path(output_path_),
+            if (!writer.open_path(std::filesystem::path(output_path_),
                     audio_studio::AudioFormat{sample_rate, channels})) {
                 hr = E_FAIL;
             } else {
