@@ -61,6 +61,7 @@ public:
         stop_requested_.store(false, std::memory_order_release);
         overflow_.store(false, std::memory_order_release);
         write_failed_.store(false, std::memory_order_release);
+        stream_error_.store(false, std::memory_order_release);
         write_index_.store(0U, std::memory_order_release);
         read_index_.store(0U, std::memory_order_release);
         worker_ready_ = false;
@@ -139,12 +140,14 @@ public:
     }
 
     void onErrorBeforeClose(oboe::AudioStream*, oboe::Result error) override {
+        stream_error_.store(true, std::memory_order_release);
         set_status(std::string("Microphone stream error: ") + oboe::convertToText(error));
         stop_requested_.store(true, std::memory_order_release);
         worker_cv_.notify_one();
     }
 
     void onErrorAfterClose(oboe::AudioStream*, oboe::Result error) override {
+        stream_error_.store(true, std::memory_order_release);
         set_status(std::string("Microphone stream closed with error: ") +
                    oboe::convertToText(error));
         stop_requested_.store(true, std::memory_order_release);
@@ -208,7 +211,9 @@ private:
         std::string result = "Saved recording: " + path + " (" +
                              std::to_string(frames) + " frames).";
         if (overflow_.load(std::memory_order_acquire)) {
-            result = "Recording stopped because the audio queue filled; the saved file may be incomplete: " + path;
+            result = "ERROR: Recording stopped because the audio queue filled; the WAV may be incomplete: " + path;
+        } else if (stream_error_.load(std::memory_order_acquire)) {
+            result = "ERROR: The microphone stream was interrupted; the WAV may be incomplete: " + path;
         } else if (write_failed_.load(std::memory_order_acquire) || !finalized) {
             result = "Recording could not be fully written or finalized: " + path;
         }
@@ -226,6 +231,7 @@ private:
     std::atomic<bool> stop_requested_{false};
     std::atomic<bool> overflow_{false};
     std::atomic<bool> write_failed_{false};
+    std::atomic<bool> stream_error_{false};
     std::atomic<bool> running_{false};
     std::shared_ptr<oboe::AudioStream> stream_{};
     std::thread worker_{};
