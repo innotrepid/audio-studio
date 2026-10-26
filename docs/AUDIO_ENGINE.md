@@ -39,17 +39,23 @@ The initial C++ core is not itself a recorder. Platform capture is only consider
 4. Offline noise reduction and dereverberation evaluated on speech datasets and user listening tests.
 5. Optional real-time enhancement only when CPU cost and artifacts are acceptable.
 
+## WAV reader foundation
+
+The shared C++ core now has a validated PCM16 WAV reader for mono and stereo files. It walks RIFF chunks rather than assuming that the format and data chunks are at fixed offsets, skips unknown chunks and odd-byte padding, checks declared sizes and frame alignment, and leaves the caller's existing audio buffer untouched if loading fails. Decoded samples are normalized to float for DSP.
+
+The first implementation deliberately supports integer PCM16 only; float WAV, other bit depths, compressed formats, and multi-data-chunk files are rejected rather than guessed. The current reader loads the selected file into memory, so a later UI workflow should run it off the main thread and account for large files.
+
 ## Noise-reduction foundation
 
-The shared core now includes an optional, non-destructive `NoiseGate` processor. It is a conservative downward expander intended to attenuate low-level room/electronic noise between phrases while leaving louder speech close to unity gain. Its threshold, attenuation floor, attack, and release are configurable and validated.
+The shared core includes an optional, non-destructive `NoiseGate` processor. It is a conservative downward expander intended to attenuate low-level room/electronic noise between phrases while leaving louder speech close to unity gain. Its threshold, attenuation floor, attack, and release are configurable and validated.
 
 Important limits:
 - This is **not** AI noise cancellation, spectral denoising, or dereverberation. It will not reliably remove noise that overlaps speech, traffic, fans at speech level, or room echo.
-- The processor is currently a tested engine component, not enabled in the capture-to-WAV path and not exposed in the Android UI. Raw recordings remain unchanged.
+- The processor is a tested engine component, not enabled in the capture-to-WAV path and not exposed in the Android UI. Raw recordings remain unchanged.
 - It operates on normalized float buffers and maintains state between consecutive blocks; callers should use a separate processed copy to preserve the original take.
 - Listen for pumping, clipped word beginnings/endings, and changes to quiet speech before using it in a production workflow.
 
-The next enhancement step should be a controlled preview/apply workflow that writes a separate processed WAV, compares it against the untouched original, and measures noise-only and speech regions before exploring spectral noise reduction.
+The next enhancement step is a controlled preview/apply workflow that writes a separate processed WAV, compares it against the untouched original, and measures noise-only and speech regions before exploring spectral noise reduction.
 
 ## Quality gates
 
