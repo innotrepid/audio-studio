@@ -50,6 +50,34 @@ void test_preserves_louder_speech_and_block_continuity() {
     require(std::isfinite(speech.samples.back()), "output samples must remain finite");
 }
 
+void test_stereo_channels_share_gain_without_balance_shift() {
+    constexpr std::uint32_t sample_rate = 48000U;
+    audio_studio::AudioBuffer stereo{audio_studio::AudioFormat{sample_rate, 2U}, {}};
+    constexpr std::size_t frames = 24000U;
+    stereo.samples.resize(frames * 2U);
+    for (std::size_t frame = 0; frame < frames; ++frame) {
+        const float wave = std::sin(2.0F * 3.14159265358979323846F * 220.0F *
+                                    static_cast<float>(frame) / sample_rate);
+        stereo.samples[frame * 2U] = 0.002F * wave;
+        stereo.samples[frame * 2U + 1U] = 0.001F * wave;
+    }
+
+    audio_studio::NoiseGate gate;
+    require(gate.process(stereo), "valid stereo audio should process");
+    double left_energy = 0.0;
+    double right_energy = 0.0;
+    for (std::size_t frame = 3000U; frame < frames; ++frame) {
+        const double left = stereo.samples[frame * 2U];
+        const double right = stereo.samples[frame * 2U + 1U];
+        left_energy += left * left;
+        right_energy += right * right;
+    }
+    require(right_energy > 0.0, "right channel should remain present");
+    const double rms_ratio = std::sqrt(left_energy / right_energy);
+    require(rms_ratio > 1.98 && rms_ratio < 2.02,
+            "linked stereo gating should preserve the original left/right level ratio");
+}
+
 void test_rejects_invalid_settings_and_audio() {
     audio_studio::NoiseGate gate;
     require(!gate.set_settings({std::numeric_limits<float>::quiet_NaN(), -18.0F, 5.0F, 120.0F}),
@@ -65,6 +93,7 @@ void test_rejects_invalid_settings_and_audio() {
 int main() {
     test_reduces_low_level_noise();
     test_preserves_louder_speech_and_block_continuity();
+    test_stereo_channels_share_gain_without_balance_shift();
     test_rejects_invalid_settings_and_audio();
     std::cout << "All noise gate tests passed.\n";
     return EXIT_SUCCESS;
