@@ -294,7 +294,8 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
-    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path) {
+    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
+    jfloat threshold_dbfs, jfloat attenuation_db) {
     if (input_path == nullptr || output_path == nullptr) {
         return env->NewStringUTF("ERROR: Input and output paths are required.");
     }
@@ -308,8 +309,12 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     const std::string output(output_chars);
     env->ReleaseStringUTFChars(output_path, output_chars);
 
+    audio_studio::NoiseGateSettings settings{};
+    settings.threshold_dbfs = threshold_dbfs;
+    settings.attenuation_db = attenuation_db;
+
     std::string error;
-    if (!audio_studio::process_wav_with_noise_gate(input, output, {}, &error)) {
+    if (!audio_studio::process_wav_with_noise_gate(input, output, settings, &error)) {
         const std::string message = "ERROR: " + error;
         return env->NewStringUTF(message.c_str());
     }
