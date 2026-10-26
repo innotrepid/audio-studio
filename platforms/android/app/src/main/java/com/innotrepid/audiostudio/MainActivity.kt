@@ -16,7 +16,13 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 
 class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
@@ -29,6 +35,18 @@ class MainActivity : Activity() {
     private var recording = false
     private var startAfterPermission = false
     private var currentRecordingFile: File? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var recordingStartedAtMs = 0L
+    private val recordingClock = object : Runnable {
+        override fun run() {
+            if (!recording) return
+            val elapsedSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAtMs) / 1000L).coerceAtLeast(0L)
+            val minutes = elapsedSeconds / 60L
+            val seconds = elapsedSeconds % 60L
+            statusText.text = "Recording · %02d:%02d".format(minutes, seconds)
+            mainHandler.postDelayed(this, 1000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,7 +92,7 @@ class MainActivity : Activity() {
         }
 
         val notice = TextView(this).apply {
-            text = "Recordings are exported to Music/Audio Studio/Recordings so you can find them outside the app. Keep the app open while recording. Noise reduction and editing are not implemented yet."
+            text = "Recordings are exported to Music/Audio Studio/Recordings. Recording stops safely if Audio Studio leaves the foreground. Noise reduction and editing are not implemented yet."
             textSize = 14f
             setTextColor(Color.rgb(190, 198, 214))
             gravity = Gravity.CENTER
@@ -116,43 +134,93 @@ class MainActivity : Activity() {
 
         recording = started
         currentRecordingFile = if (started) output else null
+        if (!started) output.delete()
         startButton.isEnabled = !started
         stopButton.isEnabled = started
-        statusText.text = if (started) {
-            "Recording ${output.name}. Tap Stop and save WAV when finished."
+        if (started) {
+            recordingStartedAtMs = SystemClock.elapsedRealtime()
+            statusText.text = "Recording · 00:00"
+            mainHandler.removeCallbacks(recordingClock)
+            mainHandler.post(recordingClock)
         } else {
-            "Microphone did not start. Check permission and microphone availability."
+            mainHandler.removeCallbacks(recordingClock)
+            statusText.text = "Microphone did not start. Check permission and microphone availability, then try again."
         }
     }
 
-    private fun stopRecording() {
+    private fun stopRecording(interrupted: Boolean = false) {
         if (!recording) return
         recording = false
+        mainHandler.removeCallbacks(recordingClock)
         startButton.isEnabled = true
         stopButton.isEnabled = false
 
         val nativeStatus = try {
             nativeStopRecording()
         } catch (exception: Exception) {
-            "Could not finalize recording: ${exception.message ?: "unknown error"}"
+            "ERROR: Could not finalize recording: ${exception.message ?: "unknown error"}"
         }
 
+        val interruptionNotice = if (interrupted) {
+            "Recording was stopped because Audio Studio left the foreground.\n\n"
+        } else {
+            ""
+        }
         val stagedFile = currentRecordingFile
         currentRecordingFile = null
-        statusText.text = if (stagedFile != null && stagedFile.isFile && stagedFile.length() > WAV_HEADER_BYTES) {
-            try {
-                val publicUri = publishRecording(stagedFile)
-                if (publicUri != null) {
-                    stagedFile.delete()
-                    "$nativeStatus\n\nExported to Music/Audio Studio/Recordings. You can open it with your Files app or a music/audio app."
+        if (!nativeStatus.startsWith("Saved recording:")) {
+            statusText.text = interruptionNotice + nativeStatus +
+                "\n\nThe staged file, if present, was retained in app-private storage for recovery."
+            return
+        }
+        if (stagedFile == null || !isCompletePcmWav(stagedFile)) {
+            statusText.text = interruptionNotice +
+                "Recording stopped, but WAV validation failed. The staged file was retained in app-private storage."
+            return
+        }
+
+        statusText.text = try {
+            val publicUri = publishRecording(stagedFile)
+            if (publicUri != null) {
+                if (!stagedFile.delete()) {
+                    interruptionNotice + "Recording exported successfully, but the private staging copy could not be removed."
                 } else {
-                    "$nativeStatus\n\nThis Android version does not support automatic public export. The WAV remains in app-private storage."
+                    interruptionNotice + "Saved and verified WAV in Music/Audio Studio/Recordings."
                 }
-            } catch (exception: Exception) {
-                "$nativeStatus\n\nExport failed: ${exception.message ?: "unknown error"}. The WAV remains in app-private storage."
+            } else {
+                interruptionNotice + "This Android version does not support automatic public export. The verified WAV remains in app-private storage."
             }
-        } else {
-            nativeStatus
+        } catch (exception: Exception) {
+            interruptionNotice + "Export failed: ${exception.message ?: "unknown error"}. The verified WAV remains in app-private storage."
+        }
+    }
+
+    private fun isCompletePcmWav(file: File): Boolean {
+        if (!file.isFile || file.length() <= WAV_HEADER_BYTES) return false
+        return try {
+            val header = ByteArray(WAV_HEADER_BYTES.toInt())
+            FileInputStream(file).use { input ->
+                val data = java.io.DataInputStream(input)
+                data.readFully(header)
+            }
+            if (String(header, 0, 4, Charsets.US_ASCII) != "RIFF" ||
+                String(header, 8, 4, Charsets.US_ASCII) != "WAVE" ||
+                String(header, 12, 4, Charsets.US_ASCII) != "fmt " ||
+                String(header, 36, 4, Charsets.US_ASCII) != "data"
+            ) return false
+
+            val buffer = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+            val riffSize = Integer.toUnsignedLong(buffer.getInt(4))
+            val audioFormat = buffer.getShort(20).toInt()
+            val channels = buffer.getShort(22).toInt()
+            val sampleRate = Integer.toUnsignedLong(buffer.getInt(24))
+            val bitsPerSample = buffer.getShort(34).toInt()
+            val dataSize = Integer.toUnsignedLong(buffer.getInt(40))
+            riffSize == file.length() - 8L && dataSize == file.length() - WAV_HEADER_BYTES &&
+                audioFormat == 1 && channels == 1 && sampleRate > 0L &&
+                bitsPerSample == 16 && dataSize > 0L && dataSize % 2L == 0L
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -210,11 +278,14 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onStop() {
+        if (recording) stopRecording(interrupted = true)
+        super.onStop()
+    }
+
     override fun onDestroy() {
-        if (recording) {
-            recording = false
-            nativeStopRecording()
-        }
+        if (recording) stopRecording(interrupted = true)
+        mainHandler.removeCallbacks(recordingClock)
         super.onDestroy()
     }
 
