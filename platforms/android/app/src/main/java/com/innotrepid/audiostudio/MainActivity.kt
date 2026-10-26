@@ -429,8 +429,13 @@ class MainActivity : Activity() {
                 if (!isCompletePcmWav(outputFile)) {
                     throw IOException("The processed file did not pass WAV integrity checks.")
                 }
-                val publicUri = publishRecording(outputFile, "Processed")
+                if (cancelRequested) throw IOException("Processing cancelled by user.")
+                val publicUri = publishRecording(outputFile, "Processed") { cancelRequested }
                     ?: throw IOException("Public export requires Android 10 or later. The processed file remains in app-private storage.")
+                if (cancelRequested) {
+                    contentResolver.delete(publicUri, null, null)
+                    throw IOException("Processing cancelled by user.")
+                }
                 val outputName = outputFile.name
                 comparisonOriginalFile = inputFile
                 comparisonProcessedFile = outputFile
@@ -539,7 +544,11 @@ class MainActivity : Activity() {
     }
 
     @Throws(IOException::class)
-    private fun publishRecording(source: File, folder: String = "Recordings"): Uri? {
+    private fun publishRecording(
+        source: File,
+        folder: String = "Recordings",
+        isCancelled: (() -> Boolean)? = null
+    ): Uri? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
 
         val values = ContentValues().apply {
@@ -559,7 +568,19 @@ class MainActivity : Activity() {
         try {
             val output = contentResolver.openOutputStream(destination, "w")
                 ?: throw IOException("Android could not open the exported WAV")
-            output.use { stream -> source.inputStream().use { input -> input.copyTo(stream) } }
+            output.use { stream ->
+                source.inputStream().use { input ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        if (isCancelled?.invoke() == true) {
+                            throw IOException("Export cancelled by user.")
+                        }
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        stream.write(buffer, 0, count)
+                    }
+                }
+            }
 
             val completedValues = ContentValues().apply {
                 put(MediaStore.Audio.Media.IS_PENDING, 0)
