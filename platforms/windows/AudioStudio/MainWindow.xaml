@@ -7,8 +7,8 @@
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" MaxWidth="620">
             <TextBlock Text="Audio Studio" FontSize="36" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
             <TextBlock Text="Your voice. Your studio." FontSize="20" Foreground="#BEC6D6" HorizontalAlignment="Center" />
-            <Border Background="#1C222D" CornerRadius="12" Padding="20" Margin="0,12,0,0">
-                <StackPanel Spacing="8">
+            <Border Background="#1C222D" CornerRadius="12" Margin="0,12,0,0">
+                <StackPanel Spacing="8" Padding="20">
                     <TextBlock Text="Native engine status" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
                     <TextBlock Text="Recording is not enabled yet. This shell verifies the Windows UI and native C++ bridge; microphone capture is the next milestone." TextWrapping="Wrap" Foreground="#BEC6D6" Margin="0,8,0,0" />
