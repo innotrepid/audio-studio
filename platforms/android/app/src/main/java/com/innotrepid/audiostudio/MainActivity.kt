@@ -38,6 +38,7 @@ class MainActivity : Activity() {
     private external fun nativeStopRecording(): String
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, callback: NoiseGateProgressCallback): String
     private external fun nativeCancelNoiseGateProcessing()
+    private external fun nativePrepareNoiseGateProcessing()
 
     private lateinit var statusText: TextView
     private lateinit var startButton: Button
@@ -363,6 +364,9 @@ class MainActivity : Activity() {
         comparisonProcessedFile?.delete()
         comparisonOriginalFile = null
         comparisonProcessedFile = null
+        // Reset native cancellation before staging begins. Do not reset it in the
+        // processing JNI call, or a late staging cancellation could be lost.
+        nativePrepareNoiseGateProcessing()
         processing = true
         cancelRequested = false
         processingProgress.progress = 0

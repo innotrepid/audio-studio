@@ -293,6 +293,12 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
     return env->NewStringUTF(status.c_str());
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativePrepareNoiseGateProcessing(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    g_cancel_noise_gate.store(false, std::memory_order_release);
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
@@ -310,7 +316,6 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     const std::string output(output_chars);
     env->ReleaseStringUTFChars(output_path, output_chars);
 
-    g_cancel_noise_gate.store(false, std::memory_order_release);
     jclass callback_class = progress_callback == nullptr ? nullptr : env->GetObjectClass(progress_callback);
     jmethodID progress_method = callback_class == nullptr ? nullptr :
         env->GetMethodID(callback_class, "onProgress", "(JJ)V");
