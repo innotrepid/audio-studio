@@ -162,7 +162,7 @@ class MainActivity : Activity() {
         }
 
         val interruptionNotice = if (interrupted) {
-            "Recording was stopped because Audio Studio left the foreground.\\n\\n"
+            "Recording was stopped because Audio Studio left the foreground.\n\n"
         } else {
             ""
         }
@@ -170,7 +170,7 @@ class MainActivity : Activity() {
         currentRecordingFile = null
         if (!nativeStatus.startsWith("Saved recording:")) {
             statusText.text = interruptionNotice + nativeStatus +
-                "\\n\\nThe staged file, if present, was retained in app-private storage for recovery."
+                "\n\nThe staged file, if present, was retained in app-private storage for recovery."
             return
         }
         if (stagedFile == null || !isCompletePcmWav(stagedFile)) {
