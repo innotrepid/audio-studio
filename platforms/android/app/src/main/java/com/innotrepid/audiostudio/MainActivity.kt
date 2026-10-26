@@ -3,6 +3,7 @@ package com.innotrepid.audiostudio
 import android.Manifest
 import android.app.Activity
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
@@ -28,10 +29,13 @@ class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeStopRecording(): String
+    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String): String
 
     private lateinit var statusText: TextView
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
+    private lateinit var processButton: Button
+    @Volatile private var processing = false
     private var recording = false
     private var startAfterPermission = false
     private var currentRecordingFile: File? = null
@@ -90,9 +94,13 @@ class MainActivity : Activity() {
             isEnabled = false
             setOnClickListener { stopRecording() }
         }
+        processButton = Button(this).apply {
+            text = "Reduce background noise in a WAV"
+            setOnClickListener { chooseWavToProcess() }
+        }
 
         val notice = TextView(this).apply {
-            text = "Recordings are exported to Music/Audio Studio/Recordings. Recording stops safely if Audio Studio leaves the foreground. Noise reduction and editing are not implemented yet."
+            text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a PCM16 WAV to create a separate noise-gated copy in Music/Audio Studio/Processed. This conservative gate reduces quieter noise between phrases; it is not AI noise cancellation or echo removal."
             textSize = 14f
             setTextColor(Color.rgb(190, 198, 214))
             gravity = Gravity.CENTER
@@ -104,6 +112,7 @@ class MainActivity : Activity() {
         root.addView(statusText, matchWidth())
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
+        root.addView(processButton, matchWidth())
         root.addView(notice, matchWidth())
         setContentView(root)
     }
@@ -217,15 +226,96 @@ class MainActivity : Activity() {
             val bitsPerSample = buffer.getShort(34).toInt()
             val dataSize = Integer.toUnsignedLong(buffer.getInt(40))
             riffSize == file.length() - 8L && dataSize == file.length() - WAV_HEADER_BYTES &&
-                audioFormat == 1 && channels == 1 && sampleRate > 0L &&
-                bitsPerSample == 16 && dataSize > 0L && dataSize % 2L == 0L
+                audioFormat == 1 && (channels == 1 || channels == 2) && sampleRate > 0L &&
+                bitsPerSample == 16 && dataSize > 0L && dataSize % (channels * 2L) == 0L
         } catch (_: Exception) {
             false
         }
     }
 
+
+    private fun chooseWavToProcess() {
+        if (recording || processing) {
+            statusText.text = "Stop the current operation before processing a WAV."
+            return
+        }
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+        }
+        startActivityForResult(picker, REQUEST_PROCESS_WAV)
+    }
+
+    @Deprecated("Uses the platform document picker result API for broad Android compatibility")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_PROCESS_WAV || resultCode != RESULT_OK) return
+        val uri = data?.data ?: run {
+            statusText.text = "No WAV file was selected."
+            return
+        }
+        processButton.isEnabled = false
+        processing = true
+        statusText.text = "Preparing WAV for noise reduction…"
+        Thread {
+            val stagingDirectory = File(filesDir, "processing-staging")
+            var input: File? = null
+            var output: File? = null
+            try {
+                if (!stagingDirectory.exists() && !stagingDirectory.mkdirs()) {
+                    throw IOException("Could not create processing staging folder.")
+                }
+                val inputFile = File(stagingDirectory, "source-${System.currentTimeMillis()}.wav")
+                input = inputFile
+                contentResolver.openInputStream(uri)?.use { source ->
+                    inputFile.outputStream().use { destination -> source.copyTo(destination) }
+                } ?: throw IOException("Could not open the selected document.")
+                if (inputFile.length() <= WAV_HEADER_BYTES) {
+                    throw IOException("The selected file is empty or too small to be a WAV.")
+                }
+                if (inputFile.length() > MAX_PROCESSING_INPUT_BYTES) {
+                    throw IOException("This version supports WAV files up to 64 MiB.")
+                }
+                val outputFile = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
+                output = outputFile
+                val nativeStatus = nativeProcessNoiseGate(inputFile.absolutePath, outputFile.absolutePath)
+                if (!nativeStatus.startsWith("Processed WAV:")) {
+                    throw IOException(nativeStatus.removePrefix("ERROR:").trim())
+                }
+                if (!isCompletePcmWav(outputFile)) {
+                    throw IOException("The processed file did not pass WAV integrity checks.")
+                }
+                val publicUri = publishRecording(outputFile, "Processed")
+                    ?: throw IOException("Public export requires Android 10 or later. The processed file remains in app-private storage.")
+                val outputName = outputFile.name
+                val removed = outputFile.delete()
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) {
+                        statusText.text = if (removed) {
+                            "Noise-reduced copy saved to Music/Audio Studio/Processed as $outputName. Your original is unchanged."
+                        } else {
+                            "Processed copy exported. A private staging copy could not be removed."
+                        }
+                    }
+                }
+            } catch (exception: Exception) {
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) {
+                        statusText.text = "Could not process WAV: ${exception.message ?: "unknown error"}. The original was not modified."
+                    }
+                }
+            } finally {
+                input?.delete()
+                processing = false
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) processButton.isEnabled = true
+                }
+            }
+        }.start()
+    }
+
     @Throws(IOException::class)
-    private fun publishRecording(source: File): Uri? {
+    private fun publishRecording(source: File, folder: String = "Recordings"): Uri? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
 
         val values = ContentValues().apply {
@@ -233,7 +323,7 @@ class MainActivity : Activity() {
             put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")
             put(
                 MediaStore.Audio.Media.RELATIVE_PATH,
-                Environment.DIRECTORY_MUSIC + "/Audio Studio/Recordings"
+                Environment.DIRECTORY_MUSIC + "/Audio Studio/" + folder
             )
             put(MediaStore.Audio.Media.IS_PENDING, 1)
         }
@@ -297,6 +387,8 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_RECORD_AUDIO = 1001
+        private const val REQUEST_PROCESS_WAV = 1002
         private const val WAV_HEADER_BYTES = 44L
+        private const val MAX_PROCESSING_INPUT_BYTES = 64L * 1024L * 1024L
     }
 }

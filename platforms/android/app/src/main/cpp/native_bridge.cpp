@@ -4,6 +4,7 @@
 
 #include "audio_studio/audio_types.hpp"
 #include "audio_studio/wav_writer.hpp"
+#include "audio_studio/wav_processing.hpp"
 
 #include <algorithm>
 #include <array>
@@ -289,4 +290,29 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
     if (!recorder) return env->NewStringUTF("No recording is active.");
     const auto status = recorder->stop();
     return env->NewStringUTF(status.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
+    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path) {
+    if (input_path == nullptr || output_path == nullptr) {
+        return env->NewStringUTF("ERROR: Input and output paths are required.");
+    }
+    const char* input_chars = env->GetStringUTFChars(input_path, nullptr);
+    if (input_chars == nullptr) return env->NewStringUTF("ERROR: Could not read input path.");
+    const std::string input(input_chars);
+    env->ReleaseStringUTFChars(input_path, input_chars);
+
+    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
+    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read output path.");
+    const std::string output(output_chars);
+    env->ReleaseStringUTFChars(output_path, output_chars);
+
+    std::string error;
+    if (!audio_studio::process_wav_with_noise_gate(input, output, {}, &error)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    const std::string message = "Processed WAV: " + output;
+    return env->NewStringUTF(message.c_str());
 }

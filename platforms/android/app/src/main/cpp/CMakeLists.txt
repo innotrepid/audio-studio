@@ -9,6 +9,7 @@ add_library(audio_studio_core STATIC
     ../../../../../../engine/src/wav_writer.cpp
     ../../../../../../engine/src/wav_reader.cpp
     ../../../../../../engine/src/noise_gate.cpp
+    ../../../../../../engine/src/wav_processing.cpp
 )
 target_include_directories(audio_studio_core PUBLIC
     ../../../../../../engine/include

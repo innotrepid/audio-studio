@@ -50,3 +50,13 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 ## Definition of done
 
 A feature is complete only when it builds on its target platforms, has tests for normal and failure paths, preserves original recordings, and has clear user-facing limitations. A successful compile alone is not evidence of audio quality.
+
+
+## Noise-reduction foundation follow-through
+- [x] Parse and validate mono/stereo PCM16 WAV files.
+- [x] Add non-destructive noise-gate processing and a separate WAV output.
+- [x] Add Android document-picker and processed-copy export path.
+- [ ] Validate processed output on a physical Android device with quiet speech gaps and real background noise.
+- [ ] Replace whole-file decoding with bounded streaming before raising or removing the 64 MiB input cap.
+- [ ] Add A/B playback and user-adjustable gate settings after quality checks.
+- [ ] Evaluate spectral noise reduction and dereverberation separately; do not describe the gate as AI cancellation.
