@@ -246,6 +246,7 @@ private:
 
 std::mutex g_recorder_mutex;
 std::unique_ptr<AndroidRecorder> g_recorder;
+std::atomic<bool> g_cancel_noise_gate{false};
 
 }  // namespace
 
@@ -295,7 +296,7 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
-    jfloat threshold_dbfs, jfloat attenuation_db) {
+    jfloat threshold_dbfs, jfloat attenuation_db, jobject progress_callback) {
     if (input_path == nullptr || output_path == nullptr) {
         return env->NewStringUTF("ERROR: Input and output paths are required.");
     }
@@ -309,15 +310,33 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     const std::string output(output_chars);
     env->ReleaseStringUTFChars(output_path, output_chars);
 
+    g_cancel_noise_gate.store(false, std::memory_order_release);
+    jclass callback_class = progress_callback == nullptr ? nullptr : env->GetObjectClass(progress_callback);
+    jmethodID progress_method = callback_class == nullptr ? nullptr :
+        env->GetMethodID(callback_class, "onProgress", "(JJ)V");
+
     audio_studio::NoiseGateSettings settings{};
     settings.threshold_dbfs = threshold_dbfs;
     settings.attenuation_db = attenuation_db;
 
     std::string error;
-    if (!audio_studio::process_wav_with_noise_gate(input, output, settings, &error)) {
+    const auto progress = [env, progress_callback, progress_method](std::uint64_t processed, std::uint64_t total) {
+        if (progress_callback != nullptr && progress_method != nullptr) {
+            env->CallVoidMethod(progress_callback, progress_method,
+                                static_cast<jlong>(processed), static_cast<jlong>(total));
+        }
+    };
+    if (!audio_studio::process_wav_with_noise_gate(
+            input, output, settings, &error, &g_cancel_noise_gate, progress)) {
         const std::string message = "ERROR: " + error;
         return env->NewStringUTF(message.c_str());
     }
     const std::string message = "Processed WAV: " + output;
     return env->NewStringUTF(message.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeCancelNoiseGateProcessing(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    g_cancel_noise_gate.store(true, std::memory_order_release);
 }
