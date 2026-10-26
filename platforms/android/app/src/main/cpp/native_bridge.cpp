@@ -18,7 +18,8 @@
 
 namespace {
 
-class AndroidRecorder final : public oboe::AudioStreamDataCallback,\n                             public oboe::AudioStreamErrorCallback {
+class AndroidRecorder final : public oboe::AudioStreamDataCallback,
+                             public oboe::AudioStreamErrorCallback {
 public:
     static constexpr std::uint32_t kRequestedSampleRate = 48000U;
     static constexpr std::size_t kRingCapacity = 1U << 18U;
