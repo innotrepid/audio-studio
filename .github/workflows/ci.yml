@@ -48,7 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: audio-studio-windows-shell
-          path: platforms/windows/AudioStudio/bin/Release/net8.0-windows10.0.19041.0/
+          path: platforms/windows/AudioStudio/bin/x64/Release/net8.0-windows10.0.19041.0/
           if-no-files-found: error
 
   android-debug:
@@ -64,6 +64,8 @@ jobs:
           java-version: "17"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
         with:
           packages: "platform-tools"
       - name: Install Android SDK components
