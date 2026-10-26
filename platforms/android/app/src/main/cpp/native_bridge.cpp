@@ -18,7 +18,7 @@
 
 namespace {
 
-class AndroidRecorder final : public oboe::AudioStreamDataCallback {
+class AndroidRecorder final : public oboe::AudioStreamDataCallback,\n                             public oboe::AudioStreamErrorCallback {
 public:
     static constexpr std::uint32_t kRequestedSampleRate = 48000U;
     static constexpr std::size_t kRingCapacity = 1U << 18U;
@@ -31,14 +31,14 @@ public:
         }
 
         oboe::AudioStreamBuilder builder;
-        builder.setDirection(oboe::Direction::Input)
-            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Shared)
-            ->setFormat(oboe::AudioFormat::Float)
-            ->setChannelCount(1)
-            ->setSampleRate(static_cast<int32_t>(kRequestedSampleRate))
-            ->setDataCallback(this)
-            ->setErrorCallback(this);
+        builder.setDirection(oboe::Direction::Input);
+        builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
+        builder.setSharingMode(oboe::SharingMode::Shared);
+        builder.setFormat(oboe::AudioFormat::Float);
+        builder.setChannelCount(1);
+        builder.setSampleRate(static_cast<int32_t>(kRequestedSampleRate));
+        builder.setDataCallback(this);
+        builder.setErrorCallback(this);
 
         const auto open_result = builder.openStream(stream_);
         if (open_result != oboe::Result::OK || !stream_) {
