@@ -76,6 +76,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        cleanupStaleProcessingFiles()
         System.loadLibrary("audio_studio_android")
 
         val root = LinearLayout(this).apply {
@@ -625,10 +626,35 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        // onStop normally runs first, but explicitly signal cancellation here as
+        // a final lifecycle guard. The worker owns cleanup of its active files.
+        if (processing) {
+            cancelRequested = true
+            try { nativeCancelNoiseGateProcessing() } catch (_: Exception) { }
+        }
         if (recording) stopRecording(interrupted = true)
         stopComparisonPlayback()
         mainHandler.removeCallbacks(recordingClock)
         super.onDestroy()
+    }
+
+    /**
+     * A process can be killed before the worker's finally block runs. Remove only
+     * old processing scratch files on startup; never touch recordings or recent
+     * files that may still belong to an active operation.
+     */
+    private fun cleanupStaleProcessingFiles() {
+        val stagingDirectory = File(filesDir, "processing-staging")
+        val cutoff = System.currentTimeMillis() - STALE_PROCESSING_FILE_AGE_MS
+        val staleFiles = stagingDirectory.listFiles() ?: return
+        staleFiles.forEach { file ->
+            if (file.isFile &&
+                (file.name.startsWith("source-") || file.name.startsWith("processed-")) &&
+                file.lastModified() < cutoff
+            ) {
+                file.delete()
+            }
+        }
     }
 
     private fun matchWidth(): LinearLayout.LayoutParams =
@@ -641,5 +667,6 @@ class MainActivity : Activity() {
         private const val REQUEST_RECORD_AUDIO = 1001
         private const val REQUEST_PROCESS_WAV = 1002
         private const val WAV_HEADER_BYTES = 44L
+        private const val STALE_PROCESSING_FILE_AGE_MS = 24L * 60L * 60L * 1000L
     }
 }
