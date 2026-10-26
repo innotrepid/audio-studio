@@ -25,6 +25,7 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 
 ## Phase 2 — Monitoring and basic processing
 
+- [x] Add a conservative, tested speech noise-gate/expander foundation to the shared C++ core; keep it opt-in and out of the raw capture path.
 - Playback, monitoring where supported, and device/latency diagnostics.
 - Non-destructive gain, high-pass filter, EQ, compression, and de-essing.
 - Audio test fixtures and listening evaluations.
