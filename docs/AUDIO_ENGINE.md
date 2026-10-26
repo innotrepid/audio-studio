@@ -60,3 +60,9 @@ The next enhancement step is a controlled preview/apply workflow that writes a s
 ## Quality gates
 
 Every audio feature needs automated tests for correctness and failure paths plus listening tests on representative voices, rooms, microphones, and background noise. Avoid claiming that ordinary filters remove severe room echo or noise; those problems may require more advanced algorithms or models.
+
+## Non-destructive noise-gate export (initial Android workflow)
+
+The Android shell now offers a document picker for a WAV file and processes it off the UI thread using the shared C++ reader, conservative noise gate, and WAV writer. A successful operation exports a **separate** file to `Music/Audio Studio/Processed`; it never writes over the selected source. The first version accepts PCM16 mono/stereo WAV and caps input files at 64 MiB because decoding currently loads the full file into memory. Larger files are rejected with an explanation rather than risking an unbounded allocation.
+
+The gate is intentionally conservative and affects quiet sections more than loud speech. It is not spectral or AI noise cancellation, does not remove room echo, and may not help when noise overlaps speech. The UI path requires Android 10+ for the public MediaStore export in this first implementation. Before considering this production-ready, install the CI APK and listen to both the original and processed versions on real speech with quiet gaps and real background noise. Check for pumping, clipped word endings, and speech that becomes too quiet.
