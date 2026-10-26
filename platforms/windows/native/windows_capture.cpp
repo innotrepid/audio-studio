@@ -34,7 +34,7 @@ public:
             worker_.join();
             lock.lock();
         }
-        if (path == nullptr || path[0] == L'\\0') {
+        if (path == nullptr || path[0] == L'\0') {
             status_ = L"The output path is invalid.";
             return 0;
         }
