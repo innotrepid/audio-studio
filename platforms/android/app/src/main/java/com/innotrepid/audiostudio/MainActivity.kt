@@ -35,7 +35,7 @@ class MainActivity : Activity() {
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var processButton: Button
-    private var processing = false
+    @Volatile private var processing = false
     private var recording = false
     private var startAfterPermission = false
     private var currentRecordingFile: File? = null
@@ -265,28 +265,30 @@ class MainActivity : Activity() {
                 if (!stagingDirectory.exists() && !stagingDirectory.mkdirs()) {
                     throw IOException("Could not create processing staging folder.")
                 }
-                input = File(stagingDirectory, "source-${System.currentTimeMillis()}.wav")
+                val inputFile = File(stagingDirectory, "source-${System.currentTimeMillis()}.wav")
+                input = inputFile
                 contentResolver.openInputStream(uri)?.use { source ->
-                    input.outputStream().use { destination -> source.copyTo(destination) }
+                    inputFile.outputStream().use { destination -> source.copyTo(destination) }
                 } ?: throw IOException("Could not open the selected document.")
-                if (input.length() <= WAV_HEADER_BYTES) {
+                if (inputFile.length() <= WAV_HEADER_BYTES) {
                     throw IOException("The selected file is empty or too small to be a WAV.")
                 }
-                if (input.length() > MAX_PROCESSING_INPUT_BYTES) {
+                if (inputFile.length() > MAX_PROCESSING_INPUT_BYTES) {
                     throw IOException("This version supports WAV files up to 64 MiB.")
                 }
-                output = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
-                val nativeStatus = nativeProcessNoiseGate(input.absolutePath, output.absolutePath)
+                val outputFile = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
+                output = outputFile
+                val nativeStatus = nativeProcessNoiseGate(inputFile.absolutePath, outputFile.absolutePath)
                 if (!nativeStatus.startsWith("Processed WAV:")) {
                     throw IOException(nativeStatus.removePrefix("ERROR:").trim())
                 }
-                if (!isCompletePcmWav(output)) {
+                if (!isCompletePcmWav(outputFile)) {
                     throw IOException("The processed file did not pass WAV integrity checks.")
                 }
-                val publicUri = publishRecording(output, "Processed")
+                val publicUri = publishRecording(outputFile, "Processed")
                     ?: throw IOException("Public export requires Android 10 or later. The processed file remains in app-private storage.")
-                val outputName = output.name
-                val removed = output.delete()
+                val outputName = outputFile.name
+                val removed = outputFile.delete()
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         statusText.text = if (removed) {
