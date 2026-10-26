@@ -594,6 +594,12 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         if (recording) stopRecording(interrupted = true)
+        // Processing belongs to this Activity. Cancel it when leaving the foreground;
+        // the worker will clean up staging files and any partial export.
+        if (processing) {
+            cancelRequested = true
+            try { nativeCancelNoiseGateProcessing() } catch (_: Exception) { }
+        }
         super.onStop()
     }
 
