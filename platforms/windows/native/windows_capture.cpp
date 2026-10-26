@@ -25,8 +25,17 @@ class WindowsCapture final {
 public:
     int start(const wchar_t* path) {
         std::unique_lock<std::mutex> lock(mutex_);
-        if (worker_.joinable() || path == nullptr || path[0] == L'\0') {
-            status_ = L"Recording is already active or the output path is invalid.";
+        if (worker_.joinable()) {
+            if (active_.load()) {
+                status_ = L"Recording is already active.";
+                return 0;
+            }
+            lock.unlock();
+            worker_.join();
+            lock.lock();
+        }
+        if (path == nullptr || path[0] == L'\\0') {
+            status_ = L"The output path is invalid.";
             return 0;
         }
         output_path_ = path;
