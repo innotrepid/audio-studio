@@ -40,6 +40,14 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Run core tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Build WinUI application shell
+        run: dotnet build platforms/windows/AudioStudio/AudioStudio.csproj --configuration Release --property:Platform=x64
+      - name: Upload Windows application shell
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-studio-windows-shell
+          path: platforms/windows/AudioStudio/bin/Release/net8.0-windows10.0.19041.0/
+          if-no-files-found: error
 
   android-debug:
     name: Android native shell and APK
