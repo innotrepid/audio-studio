@@ -15,6 +15,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import java.io.File
 import java.io.FileInputStream
@@ -29,12 +30,16 @@ class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeStopRecording(): String
-    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String): String
+    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float): String
 
     private lateinit var statusText: TextView
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var processButton: Button
+    private lateinit var thresholdLabel: TextView
+    private lateinit var attenuationLabel: TextView
+    private lateinit var thresholdSeekBar: SeekBar
+    private lateinit var attenuationSeekBar: SeekBar
     @Volatile private var processing = false
     private var recording = false
     private var startAfterPermission = false
@@ -99,6 +104,44 @@ class MainActivity : Activity() {
             setOnClickListener { chooseWavToProcess() }
         }
 
+        val gatePreferences = getSharedPreferences("noise_gate_preferences", MODE_PRIVATE)
+        thresholdLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(220, 225, 238))
+            gravity = Gravity.CENTER
+        }
+        thresholdSeekBar = SeekBar(this).apply {
+            max = 50
+            progress = gatePreferences.getInt("threshold_progress", 22).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    thresholdLabel.text = "Noise threshold: ${progress - 70} dBFS"
+                    if (fromUser) gatePreferences.edit().putInt("threshold_progress", progress).apply()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        attenuationLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(220, 225, 238))
+            gravity = Gravity.CENTER
+        }
+        attenuationSeekBar = SeekBar(this).apply {
+            max = 36
+            progress = gatePreferences.getInt("attenuation_progress", 18).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    attenuationLabel.text = "Noise reduction strength: ${progress - 36} dB"
+                    if (fromUser) gatePreferences.edit().putInt("attenuation_progress", progress).apply()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        thresholdLabel.text = "Noise threshold: ${thresholdSeekBar.progress - 70} dBFS"
+        attenuationLabel.text = "Noise reduction strength: ${attenuationSeekBar.progress - 36} dB"
+
         val notice = TextView(this).apply {
             text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a PCM16 WAV to create a separate noise-gated copy in Music/Audio Studio/Processed. This conservative gate reduces quieter noise between phrases; it is not AI noise cancellation or echo removal."
             textSize = 14f
@@ -113,6 +156,10 @@ class MainActivity : Activity() {
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
         root.addView(processButton, matchWidth())
+        root.addView(thresholdLabel, matchWidth())
+        root.addView(thresholdSeekBar, matchWidth())
+        root.addView(attenuationLabel, matchWidth())
+        root.addView(attenuationSeekBar, matchWidth())
         root.addView(notice, matchWidth())
         setContentView(root)
     }
@@ -256,6 +303,8 @@ class MainActivity : Activity() {
         }
         processButton.isEnabled = false
         processing = true
+        val thresholdDbfs = (thresholdSeekBar.progress - 70).toFloat()
+        val attenuationDb = (attenuationSeekBar.progress - 36).toFloat()
         statusText.text = "Preparing WAV for noise reduction…"
         Thread {
             val stagingDirectory = File(filesDir, "processing-staging")
@@ -278,7 +327,12 @@ class MainActivity : Activity() {
                 }
                 val outputFile = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
                 output = outputFile
-                val nativeStatus = nativeProcessNoiseGate(inputFile.absolutePath, outputFile.absolutePath)
+                val nativeStatus = nativeProcessNoiseGate(
+                    inputFile.absolutePath,
+                    outputFile.absolutePath,
+                    thresholdDbfs,
+                    attenuationDb
+                )
                 if (!nativeStatus.startsWith("Processed WAV:")) {
                     throw IOException(nativeStatus.removePrefix("ERROR:").trim())
                 }
