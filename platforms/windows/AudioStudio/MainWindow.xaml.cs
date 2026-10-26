@@ -40,11 +40,7 @@ public sealed partial class MainWindow : Window
             StartRecordingButton.IsEnabled = false;
         }
 
-        Closed += (_, _) =>
-        {
-            if (NativeRecordingActive() != 0)
-                NativeRecordingStop();
-        };
+        Closed += (_, _) => NativeRecordingStop();
     }
 
     private async void StartRecording_Click(object sender, RoutedEventArgs e)
