@@ -137,6 +137,12 @@ public:
         return oboe::DataCallbackResult::Continue;
     }
 
+    void onErrorBeforeClose(oboe::AudioStream*, oboe::Result error) override {
+        set_status(std::string("Microphone stream error: ") + oboe::convertToText(error));
+        stop_requested_.store(true, std::memory_order_release);
+        worker_cv_.notify_one();
+    }
+
     void onErrorAfterClose(oboe::AudioStream*, oboe::Result error) override {
         set_status(std::string("Microphone stream closed with error: ") +
                    oboe::convertToText(error));
