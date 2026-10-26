@@ -8,10 +8,15 @@
             <TextBlock Text="Audio Studio" FontSize="36" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
             <TextBlock Text="Your voice. Your studio." FontSize="20" Foreground="#BEC6D6" HorizontalAlignment="Center" />
             <Border Background="#1C222D" CornerRadius="12" Padding="20" Margin="0,12,0,0">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="12">
                     <TextBlock Text="Native engine status" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
-                    <TextBlock Text="Recording is not enabled yet. This shell verifies the Windows UI and native C++ bridge; microphone capture is the next milestone." TextWrapping="Wrap" Foreground="#BEC6D6" Margin="0,8,0,0" />
+                    <TextBlock Text="Record from your Windows default microphone to a standard PCM WAV file." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                        <Button x:Name="StartRecordingButton" Content="Start recording" Click="StartRecording_Click" />
+                        <Button x:Name="StopRecordingButton" Content="Stop and save" Click="StopRecording_Click" IsEnabled="False" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

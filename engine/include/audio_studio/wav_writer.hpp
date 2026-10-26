@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -20,6 +21,7 @@ public:
     WavWriter& operator=(const WavWriter&) = delete;
 
     [[nodiscard]] bool open(const std::string& path, AudioFormat format);
+    [[nodiscard]] bool open_path(const std::filesystem::path& path, AudioFormat format);
     [[nodiscard]] bool write_frames(const float* interleaved_samples,
                                     std::size_t frame_count);
     [[nodiscard]] bool finalize();

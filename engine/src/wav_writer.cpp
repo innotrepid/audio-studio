@@ -51,6 +51,10 @@ WavWriter::~WavWriter() {
 }
 
 bool WavWriter::open(const std::string& path, AudioFormat format) {
+    return open_path(std::filesystem::path(path), format);
+}
+
+bool WavWriter::open_path(const std::filesystem::path& path, AudioFormat format) {
     if (stream_.is_open()) {
         set_error("A WAV file is already open.");
         return false;
