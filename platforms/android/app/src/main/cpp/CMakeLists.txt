@@ -6,6 +6,7 @@ target_compile_features(audio_studio_android PRIVATE cxx_std_17)
 
 add_library(audio_studio_core STATIC
     ../../../../../../engine/src/audio_types.cpp
+    ../../../../../../engine/src/wav_writer.cpp
 )
 target_include_directories(audio_studio_core PUBLIC
     ../../../../../../engine/include
