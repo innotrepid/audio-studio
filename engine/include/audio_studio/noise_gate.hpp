@@ -32,3 +32,5 @@ private:
     float envelope_{0.0F};
     float gain_{1.0F};
 };
+
+}  // namespace audio_studio
