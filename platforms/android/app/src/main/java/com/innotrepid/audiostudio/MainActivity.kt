@@ -659,6 +659,9 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        // Comparison playback is a foreground-only preview; release it when the
+        // Activity loses the foreground (including while the document picker opens).
+        stopComparisonPlayback()
         if (recording) stopRecording(interrupted = true)
         // Processing belongs to this Activity. Cancel it when leaving the foreground;
         // the worker will clean up staging files and any partial export.
