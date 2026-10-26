@@ -263,6 +263,7 @@ class MainActivity : Activity() {
         currentRecordingFile = if (started) output else null
         if (!started) output.delete()
         startButton.isEnabled = !started
+        processButton.isEnabled = !started
         stopButton.isEnabled = started
         if (started) {
             recordingStartedAtMs = SystemClock.elapsedRealtime()
@@ -271,6 +272,7 @@ class MainActivity : Activity() {
             mainHandler.post(recordingClock)
         } else {
             mainHandler.removeCallbacks(recordingClock)
+            processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
             statusText.text = "Microphone did not start. Check permission and microphone availability, then try again."
         }
     }
@@ -279,7 +281,8 @@ class MainActivity : Activity() {
         if (!recording) return
         recording = false
         mainHandler.removeCallbacks(recordingClock)
-        startButton.isEnabled = true
+        startButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
+        processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         stopButton.isEnabled = false
 
         val nativeStatus = try {
