@@ -3,6 +3,7 @@
 #include "audio_studio/wav_writer.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -141,7 +142,9 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
 bool process_wav_with_noise_gate(const std::string& input_path,
                                  const std::string& output_path,
                                  NoiseGateSettings settings,
-                                 std::string* error) {
+                                 std::string* error,
+                                 const std::atomic<bool>* cancel_requested,
+                                 std::function<void(std::uint64_t, std::uint64_t)> progress) {
     if (error != nullptr) error->clear();
     if (input_path.empty() || output_path.empty()) {
         return fail(error, "Input and output paths are required.");
@@ -205,7 +208,13 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     }
 
     std::uint64_t frames_remaining = total_frames;
+    if (progress) progress(0U, total_frames);
     while (frames_remaining > 0U) {
+        if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
+            writer.abort();
+            std::filesystem::remove(output_path, ec);
+            return fail(error, "Processing cancelled by user.");
+        }
         const std::size_t frames = static_cast<std::size_t>(
             std::min<std::uint64_t>(frames_remaining, kFramesPerBlock));
         const std::size_t sample_count = frames * channels;
@@ -236,8 +245,14 @@ bool process_wav_with_noise_gate(const std::string& input_path,
             return fail(error, message);
         }
         frames_remaining -= frames;
+        if (progress) progress(total_frames - frames_remaining, total_frames);
     }
 
+    if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
+        writer.abort();
+        std::filesystem::remove(output_path, ec);
+        return fail(error, "Processing cancelled by user.");
+    }
     if (!writer.finalize()) {
         const std::string message = "Could not finalize processed WAV: " + writer.last_error();
         writer.abort();

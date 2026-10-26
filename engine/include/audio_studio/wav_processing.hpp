@@ -2,6 +2,9 @@
 
 #include "audio_studio/noise_gate.hpp"
 
+#include <atomic>
+#include <cstdint>
+#include <functional>
 #include <string>
 
 namespace audio_studio {
@@ -13,6 +16,8 @@ namespace audio_studio {
     const std::string& input_path,
     const std::string& output_path,
     NoiseGateSettings settings = {},
-    std::string* error = nullptr);
+    std::string* error = nullptr,
+    const std::atomic<bool>* cancel_requested = nullptr,
+    std::function<void(std::uint64_t, std::uint64_t)> progress = {});
 
 }  // namespace audio_studio
