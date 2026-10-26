@@ -6,9 +6,9 @@
 
 namespace audio_studio {
 
-// Reads a PCM16 WAV, applies the gate to decoded samples, and writes a separate
-// PCM16 WAV. The source file is never modified. Large files are bounded to
-// keep whole-file decoding from exhausting mobile memory.
+// Streams PCM16 WAV audio through the gate in bounded blocks and writes a
+// separate PCM16 WAV. Memory use is independent of recording duration; the
+// source file is never modified.
 [[nodiscard]] bool process_wav_with_noise_gate(
     const std::string& input_path,
     const std::string& output_path,
