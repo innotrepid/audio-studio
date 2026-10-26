@@ -106,6 +106,36 @@ void test_cancellation_cleans_partial_output() {
     std::remove(output.c_str());
 }
 
+void test_cancellation_during_progress_cleans_partial_output() {
+    const std::string input = "audio_studio_processing_mid_cancel_source.wav";
+    const std::string output = "audio_studio_processing_mid_cancel_result.wav";
+    std::array<float, 5000> samples{};
+    samples.fill(0.2F);
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create mid-cancellation source");
+        require(writer.write_frames(samples.data(), samples.size()), "write mid-cancellation source");
+        require(writer.finalize(), "finalize mid-cancellation source");
+    }
+
+    std::atomic<bool> cancel{false};
+    std::string error;
+    const auto progress = [&](std::uint64_t processed, std::uint64_t /* total */) {
+        if (processed > 0U) cancel.store(true, std::memory_order_release);
+    };
+    require(!audio_studio::process_wav_with_noise_gate(
+                input, output, {}, &error, &cancel, progress),
+            "cancellation requested during processing must stop the operation");
+    require(error.find("cancelled") != std::string::npos,
+            "mid-processing cancellation error should be descriptive");
+    require(!std::ifstream(output).good(),
+            "mid-processing cancellation must remove partial output");
+    require(std::ifstream(input).good(),
+            "mid-processing cancellation must preserve source");
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
 void test_refuses_to_overwrite_input() {
     const std::string input = "audio_studio_processing_no_overwrite.wav";
     const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
@@ -128,6 +158,7 @@ void test_refuses_to_overwrite_input() {
 int main() {
     test_processes_to_separate_file_and_preserves_source();
     test_cancellation_cleans_partial_output();
+    test_cancellation_during_progress_cleans_partial_output();
     test_refuses_to_overwrite_input();
     std::cout << "All WAV processing tests passed.\n";
     return EXIT_SUCCESS;
