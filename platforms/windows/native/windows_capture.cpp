@@ -140,6 +140,8 @@ private:
             if (!writer.open_path(std::filesystem::path(output_path_),
                     audio_studio::AudioFormat{sample_rate, channels})) {
                 hr = E_FAIL;
+                std::error_code ignored;
+                std::filesystem::remove(std::filesystem::path(output_path_), ignored);
             } else {
                 hr = client->Start();
                 if (SUCCEEDED(hr)) {
@@ -148,7 +150,12 @@ private:
                     HRESULT capture_result = S_OK;
                     while (!stop_requested_.load()) {
                         const DWORD wait_result = WaitForSingleObject(event_handle, 200);
-                        if (wait_result != WAIT_OBJECT_0) continue;
+                        if (wait_result == WAIT_TIMEOUT) continue;
+                        if (wait_result != WAIT_OBJECT_0) {
+                            capture_result = E_FAIL;
+                            set_status(L"Microphone capture stopped because the audio event failed. Incomplete output was discarded.");
+                            break;
+                        }
                         UINT32 packet_frames = 0;
                         capture_result = capture->GetNextPacketSize(&packet_frames);
                         while (SUCCEEDED(capture_result) && packet_frames > 0) {
@@ -199,6 +206,7 @@ private:
                     writer.abort();
                     std::error_code ignored;
                     std::filesystem::remove(std::filesystem::path(output_path_), ignored);
+                    set_status(L"Could not start microphone capture. The incomplete output was discarded.");
                 }
             }
         }
