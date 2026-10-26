@@ -355,9 +355,6 @@ class MainActivity : Activity() {
                 if (inputFile.length() <= WAV_HEADER_BYTES) {
                     throw IOException("The selected file is empty or too small to be a WAV.")
                 }
-                if (inputFile.length() > MAX_PROCESSING_INPUT_BYTES) {
-                    throw IOException("This version supports WAV files up to 64 MiB.")
-                }
                 val outputFile = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
                 output = outputFile
                 val nativeStatus = nativeProcessNoiseGate(
@@ -546,6 +543,5 @@ class MainActivity : Activity() {
         private const val REQUEST_RECORD_AUDIO = 1001
         private const val REQUEST_PROCESS_WAV = 1002
         private const val WAV_HEADER_BYTES = 44L
-        private const val MAX_PROCESSING_INPUT_BYTES = 64L * 1024L * 1024L
     }
 }
