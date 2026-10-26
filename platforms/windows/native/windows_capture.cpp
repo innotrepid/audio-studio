@@ -134,7 +134,7 @@ private:
         if (SUCCEEDED(hr)) hr = client->SetEventHandle(event_handle);
         if (SUCCEEDED(hr)) hr = client->GetService(IID_PPV_ARGS(&capture));
 
-        audio_event_ = event_handle;
+        { std::lock_guard<std::mutex> lock(mutex_); audio_event_ = event_handle; }
         if (SUCCEEDED(hr)) {
             audio_studio::WavWriter writer;
             if (!writer.open(std::filesystem::path(output_path_),
@@ -144,7 +144,6 @@ private:
                 hr = client->Start();
                 if (SUCCEEDED(hr)) {
                     publish_startup(true, L"Recording from the default microphone…");
-                    const auto bytes_per_sample = mix_format->wBitsPerSample / 8U;
                     std::vector<float> converted;
                     HRESULT capture_result = S_OK;
                     while (!stop_requested_.load()) {
@@ -205,7 +204,7 @@ private:
         }
 
         if (mix_format != nullptr) CoTaskMemFree(mix_format);
-        audio_event_ = nullptr;
+        { std::lock_guard<std::mutex> lock(mutex_); audio_event_ = nullptr; }
         if (event_handle != nullptr) CloseHandle(event_handle);
         if (uninitialize_com) CoUninitialize();
 
