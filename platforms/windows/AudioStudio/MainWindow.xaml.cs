@@ -91,7 +91,7 @@ public sealed partial class MainWindow : Window
         }
 
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
-        Loaded += (_, _) => RefreshInputDevices();
+        Content.Loaded += (_, _) => RefreshInputDevices();
         _processingTimer.Tick += (_, _) => UpdateProcessingStatus();
         GateThresholdSlider.ValueChanged += (_, _) =>
             GateThresholdText.Text = $"Noise threshold: {GateThresholdSlider.Value:0} dBFS";
