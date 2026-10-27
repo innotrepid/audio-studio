@@ -1,5 +1,6 @@
 #include "audio_studio/native_api.h"
 #include "audio_studio/wav_writer.hpp"
+#include "audio_studio/wav_recovery.hpp"
 
 #include <windows.h>
 #include <audioclient.h>
@@ -387,4 +388,30 @@ extern "C" AUDIO_STUDIO_API float audio_studio_recording_peak(void) {
 }
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_clipping(void) {
     return capture_instance().clipping();
+}
+
+
+extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_recover_partial_wav(
+    const wchar_t* partial_path, const wchar_t* output_path) {
+    thread_local std::wstring result;
+    if (partial_path == nullptr || output_path == nullptr) {
+        result = L"ERROR: Recovery paths are required.";
+        return result.c_str();
+    }
+    try {
+        std::string error;
+        if (!audio_studio::recover_partial_wav(
+                std::filesystem::path(partial_path),
+                std::filesystem::path(output_path), &error)) {
+            result = L"ERROR: ";
+            for (const char character : error) {
+                result.push_back(static_cast<wchar_t>(static_cast<unsigned char>(character)));
+            }
+            return result.c_str();
+        }
+        result = L"RECOVERED";
+    } catch (...) {
+        result = L"ERROR: Recovery failed unexpectedly.";
+    }
+    return result.c_str();
 }

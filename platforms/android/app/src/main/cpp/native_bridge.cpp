@@ -5,6 +5,7 @@
 #include "audio_studio/audio_types.hpp"
 #include "audio_studio/wav_writer.hpp"
 #include "audio_studio/wav_processing.hpp"
+#include "audio_studio/wav_recovery.hpp"
 
 #include <algorithm>
 #include <array>
@@ -398,3 +399,28 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeCancelNoiseGateProcessing(
     JNIEnv* /* env */, jobject /* thiz */) {
     g_cancel_noise_gate.store(true, std::memory_order_release);
 }
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
+    JNIEnv* env, jobject /* thiz */, jstring partial_path, jstring output_path) {
+    if (partial_path == nullptr || output_path == nullptr) {
+        return env->NewStringUTF("ERROR: Recovery paths are required.");
+    }
+    const char* partial_chars = env->GetStringUTFChars(partial_path, nullptr);
+    if (partial_chars == nullptr) return env->NewStringUTF("ERROR: Could not read temporary path.");
+    const std::string partial(partial_chars);
+    env->ReleaseStringUTFChars(partial_path, partial_chars);
+
+    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
+    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read destination path.");
+    const std::string output(output_chars);
+    env->ReleaseStringUTFChars(output_path, output_chars);
+
+    std::string error;
+    if (!audio_studio::recover_partial_wav(partial, output, &error)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    return env->NewStringUTF("RECOVERED");
+}
+
