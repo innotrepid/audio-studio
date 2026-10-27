@@ -116,12 +116,47 @@ void test_rejects_malformed_and_preserves_destination() {
     std::remove(valid_path.c_str());
     std::remove(bad_path.c_str());
 }
+
+void test_rejects_partial_pcm_frame_and_preserves_destination() {
+    const std::string valid_path = "audio_studio_reader_frame_valid.wav";
+    const std::string bad_path = "audio_studio_reader_frame_bad.wav";
+    const std::array<float, 4> samples{0.1F, -0.2F, 0.3F, -0.4F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(valid_path, {48000U, 1U}), "writer should create mono frame-alignment WAV");
+        require(writer.write_frames(samples.data(), samples.size()), "writer should write frame-alignment samples");
+        require(writer.finalize(), "writer should finalize frame-alignment WAV");
+    }
+
+    audio_studio::AudioBuffer destination;
+    require(audio_studio::WavReader::read(valid_path, destination),
+            "valid frame-alignment WAV should load");
+    const auto original_samples = destination.samples;
+
+    auto malformed = load(valid_path);
+    // A mono PCM16 data chunk must contain an even number of bytes (whole frames).
+    malformed.resize(48U);
+    write_u32(malformed, 4U, 40U);  // RIFF payload now matches the 48-byte file.
+    write_u32(malformed, 40U, 3U);  // Declare an odd-sized, partial PCM16 frame.
+    save(bad_path, malformed);
+
+    std::string error;
+    require(!audio_studio::WavReader::read(bad_path, destination, &error),
+            "reader should reject a data chunk ending halfway through a PCM16 frame");
+    require(!error.empty(), "partial-frame rejection should provide an error");
+    require(destination.samples == original_samples,
+            "partial-frame rejection must preserve the previous destination audio");
+
+    std::remove(valid_path.c_str());
+    std::remove(bad_path.c_str());
+}
 }  // namespace
 
 int main() {
     test_round_trip_pcm16();
     test_chunk_order_and_padding();
     test_rejects_malformed_and_preserves_destination();
+    test_rejects_partial_pcm_frame_and_preserves_destination();
     std::cout << "All WAV reader tests passed.\n";
     return EXIT_SUCCESS;
 }
