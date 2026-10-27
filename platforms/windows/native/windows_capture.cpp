@@ -404,13 +404,14 @@ extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_recover_partial_wav(
                 std::filesystem::path(partial_path),
                 std::filesystem::path(output_path), &error)) {
             result = L"ERROR: ";
-            result.append(error.begin(), error.end());
+            for (const char character : error) {
+                result.push_back(static_cast<wchar_t>(static_cast<unsigned char>(character)));
+            }
             return result.c_str();
         }
         result = L"RECOVERED";
-    } catch (const std::exception& exception) {
+    } catch (...) {
         result = L"ERROR: Recovery failed unexpectedly.";
-        (void)exception;
     }
     return result.c_str();
 }
