@@ -34,6 +34,7 @@ public:
 private:
     void set_error(const char* message);
     std::ofstream stream_{};
+    std::filesystem::path output_path_{};
     AudioFormat format_{};
     std::uint64_t frames_written_{0};
     std::string last_error_{};
