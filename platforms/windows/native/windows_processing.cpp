@@ -37,6 +37,11 @@ std::wstring widen_utf8(const std::string& value) {
 
 class WindowsProcessor final {
 public:
+    ~WindowsProcessor() {
+        cancel_.store(true);
+        if (worker_.joinable()) worker_.join();
+    }
+
     int start(const wchar_t* input, const wchar_t* output,
               float threshold_dbfs, float attenuation_db) {
         const std::string input_utf8 = utf8_path(input);
