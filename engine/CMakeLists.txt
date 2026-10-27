@@ -2,6 +2,7 @@ add_library(audio_studio_core
     src/audio_types.cpp
     src/wav_writer.cpp
     src/wav_reader.cpp
+    src/wav_recovery.cpp
     src/noise_gate.cpp
     src/wav_processing.cpp
 )
@@ -45,6 +46,16 @@ if(BUILD_TESTING)
         target_compile_options(audio_studio_wav_reader_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME audio_studio_wav_reader_tests COMMAND audio_studio_wav_reader_tests)
+
+    add_executable(audio_studio_wav_recovery_tests tests/wav_recovery_test.cpp)
+    target_link_libraries(audio_studio_wav_recovery_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_recovery_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_recovery_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_recovery_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_recovery_tests COMMAND audio_studio_wav_recovery_tests)
 
     add_executable(audio_studio_wav_processing_tests tests/wav_processing_test.cpp)
     target_link_libraries(audio_studio_wav_processing_tests PRIVATE audio_studio_core)
