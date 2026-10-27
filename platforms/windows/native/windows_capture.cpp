@@ -92,7 +92,9 @@ public:
         stop_requested_.store(false);
         startup_complete_ = false;
         startup_ok_ = false;
-        status_ = L"Opening default microphone…";
+        status_ = selected_device_id_.empty()
+            ? L"Opening the Windows default microphone…"
+            : L"Opening the selected microphone…";
         worker_ = std::thread(&WindowsCapture::run, this, selected_device_id_);
         startup_cv_.wait(lock, [this] { return startup_complete_; });
         if (!startup_ok_) {
@@ -214,17 +216,21 @@ private:
         if (SUCCEEDED(hr)) hr = client->GetService(IID_PPV_ARGS(&capture));
 
         { std::lock_guard<std::mutex> lock(mutex_); audio_event_ = event_handle; }
+        bool output_open_failed = false;
         if (SUCCEEDED(hr)) {
             audio_studio::WavWriter writer;
             if (!writer.open_path(std::filesystem::path(output_path_),
                     audio_studio::AudioFormat{sample_rate, channels})) {
                 hr = E_FAIL;
+                output_open_failed = true;
                 std::error_code ignored;
                 std::filesystem::remove(std::filesystem::path(output_path_), ignored);
             } else {
                 hr = client->Start();
                 if (SUCCEEDED(hr)) {
-                    publish_startup(true, L"Recording from the default microphone…");
+                    publish_startup(true, selected_device_id.empty()
+                        ? L"Recording from the Windows default microphone…"
+                        : L"Recording from the selected microphone…");
                     std::vector<float> converted;
                     HRESULT capture_result = S_OK;
                     while (!stop_requested_.load()) {
@@ -305,9 +311,22 @@ private:
         bool startup_was_published = false;
         { std::lock_guard<std::mutex> lock(mutex_); startup_was_published = startup_complete_; }
         if (!startup_was_published) {
-            const std::wstring message = hr == AUDCLNT_E_UNSUPPORTED_FORMAT
-                ? L"Unsupported microphone format. Choose a mono or stereo 16-bit PCM / 32-bit float input."
-                : L"Could not start microphone capture. Check Windows microphone privacy and device settings.";
+            std::wstring message;
+            if (output_open_failed) {
+                message = L"Could not create the output WAV file. Check the destination folder and file permissions.";
+            } else if (hr == AUDCLNT_E_UNSUPPORTED_FORMAT) {
+                message = L"Unsupported microphone format. Choose a mono or stereo 16-bit PCM / 32-bit float input.";
+            } else if (hr == E_ACCESSDENIED) {
+                message = L"Windows denied microphone access. Enable microphone access for desktop apps in Windows Privacy settings.";
+            } else if (hr == AUDCLNT_E_DEVICE_INVALIDATED || hr == HRESULT_FROM_WIN32(ERROR_NOT_FOUND)) {
+                message = selected_device_id.empty()
+                    ? L"The default microphone became unavailable. Reconnect it or choose another input."
+                    : L"The selected microphone is no longer available. Refresh the input list and choose another device.";
+            } else if (hr == AUDCLNT_E_DEVICE_IN_USE) {
+                message = L"The microphone could not be opened because it may be in use exclusively by another app. Close that app or change the device audio settings.";
+            } else {
+                message = L"Could not start microphone capture. Check the selected device, Windows microphone privacy, and audio settings.";
+            }
             publish_startup(false, message);
         }
         active_.store(false);
