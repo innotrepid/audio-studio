@@ -11,7 +11,12 @@
                 <StackPanel Spacing="12">
                     <TextBlock Text="Native engine status" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
-                    <TextBlock Text="Record from your Windows default microphone to a standard PCM WAV file." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <TextBlock Text="Choose an input device, then record to a standard PCM WAV file." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ComboBox x:Name="InputDeviceComboBox" MinWidth="260" PlaceholderText="Select microphone" />
+                        <Button x:Name="RefreshInputDevicesButton" Content="Refresh" Click="RefreshInputDevices_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="InputDeviceStatusText" Text="Loading input devices…" TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#BEC6D6" />
                     <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" />
