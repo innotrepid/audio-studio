@@ -1,6 +1,8 @@
 #include "audio_studio/wav_writer.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <system_error>
 #include <cmath>
 #include <limits>
 
@@ -9,6 +11,7 @@ namespace {
 
 constexpr std::uint64_t kMaxDataBytes =
     static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) - 36U;
+std::atomic<std::uint64_t> g_temporary_file_counter{0U};
 
 void write_u16_le(std::ofstream& stream, std::uint16_t value) {
     const char bytes[2] = {static_cast<char>(value & 0xffU),
@@ -63,24 +66,47 @@ bool WavWriter::open_path(const std::filesystem::path& path, AudioFormat format)
         return false;
     }
 
-    stream_.clear();
-    stream_.open(path, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
-    if (!stream_.is_open()) {
-        // Some standard-library implementations require an existing file for in|out.
-        stream_.clear();
-        stream_.open(path, std::ios::binary | std::ios::out | std::ios::trunc);
-        if (!stream_.is_open()) {
-            set_error("Could not open the output file.");
-            return false;
-        }
-        // Output-only streams cannot seek reliably on every implementation, so fail
-        // early instead of risking a corrupt final header.
-        stream_.close();
-        set_error("Output file does not support safe header updates.");
+    std::error_code path_error;
+    if (std::filesystem::exists(path, path_error)) {
+        set_error("The output file already exists; refusing to overwrite it.");
+        return false;
+    }
+    if (path_error) {
+        set_error("Could not inspect the output destination.");
         return false;
     }
 
-    output_path_ = path;
+    // Keep the temporary beside the destination so final rename stays on the
+    // same filesystem and the final filename is invisible until the header is valid.
+    for (int attempt = 0; attempt < 32; ++attempt) {
+        auto candidate = path;
+        candidate += ".partial-" +
+            std::to_string(g_temporary_file_counter.fetch_add(1U, std::memory_order_relaxed));
+        path_error.clear();
+        if (std::filesystem::exists(candidate, path_error)) continue;
+        if (path_error) {
+            set_error("Could not inspect a temporary output path.");
+            return false;
+        }
+        // Create first, then reopen for read/write header updates. Some
+        // standard libraries require the file to exist for in|out mode.
+        {
+            std::ofstream create(candidate, std::ios::binary | std::ios::out);
+            if (!create.is_open()) continue;
+        }
+        stream_.clear();
+        stream_.open(candidate, std::ios::binary | std::ios::in | std::ios::out);
+        if (stream_.is_open()) {
+            temporary_path_ = candidate;
+            output_path_ = path;
+            break;
+        }
+        std::filesystem::remove(candidate, path_error);
+    }
+    if (!stream_.is_open()) {
+        set_error("Could not create a temporary WAV output file.");
+        return false;
+    }
     format_ = format;
     frames_written_ = 0U;
     finalized_ = false;
@@ -149,26 +175,44 @@ bool WavWriter::finalize() {
         frames_written_ * format_.channel_count * 2U);
     write_header(stream_, format_, data_bytes);
     stream_.flush();
-    const bool okay = static_cast<bool>(stream_);
+    const bool flushed = static_cast<bool>(stream_);
     stream_.close();
-    finalized_ = okay;
-    if (!okay) {
-        set_error("Could not finalize the WAV header or flush the file.");
-    } else {
-        output_path_.clear();
+    if (!flushed) {
+        set_error("Could not finalize the WAV header or flush the temporary file.");
+        abort();
+        return false;
     }
-    return okay;
+
+    std::error_code path_error;
+    if (std::filesystem::exists(output_path_, path_error) || path_error) {
+        set_error(path_error ? "Could not inspect the final WAV destination."
+                             : "The final WAV destination already exists; refusing to overwrite it.");
+        abort();
+        return false;
+    }
+    std::filesystem::rename(temporary_path_, output_path_, path_error);
+    if (path_error) {
+        set_error("Could not publish the finalized WAV file.");
+        abort();
+        return false;
+    }
+
+    temporary_path_.clear();
+    output_path_.clear();
+    finalized_ = true;
+    return true;
 }
 
 void WavWriter::abort() noexcept {
     if (stream_.is_open()) {
         stream_.close();
     }
-    if (!output_path_.empty()) {
+    if (!temporary_path_.empty()) {
         std::error_code ignored;
-        std::filesystem::remove(output_path_, ignored);
-        output_path_.clear();
+        std::filesystem::remove(temporary_path_, ignored);
+        temporary_path_.clear();
     }
+    output_path_.clear();
     finalized_ = true;
 }
 

@@ -232,15 +232,26 @@ private:
         }
 
         const auto frames = writer.frames_written();
-        const bool finalized = writer.finalize();
+        const bool overflowed = overflow_.load(std::memory_order_acquire);
+        const bool stream_failed = stream_error_.load(std::memory_order_acquire);
+        const bool write_failed = write_failed_.load(std::memory_order_acquire);
+        bool finalized = false;
+        if (overflowed || stream_failed || write_failed) {
+            // Do not publish a plausible-looking WAV after a capture or disk-write failure.
+            writer.abort();
+        } else {
+            finalized = writer.finalize();
+            if (!finalized) writer.abort();
+        }
+
         std::string result = "Saved recording: " + path + " (" +
                              std::to_string(frames) + " frames).";
-        if (overflow_.load(std::memory_order_acquire)) {
-            result = "ERROR: Recording stopped because the audio queue filled; the WAV may be incomplete: " + path;
-        } else if (stream_error_.load(std::memory_order_acquire)) {
-            result = "ERROR: The microphone stream was interrupted; the WAV may be incomplete: " + path;
-        } else if (write_failed_.load(std::memory_order_acquire) || !finalized) {
-            result = "Recording could not be fully written or finalized: " + path;
+        if (overflowed) {
+            result = "ERROR: Recording stopped because the audio queue filled; incomplete output was discarded.";
+        } else if (stream_failed) {
+            result = "ERROR: The microphone stream was interrupted; incomplete output was discarded.";
+        } else if (write_failed || !finalized) {
+            result = "ERROR: Recording could not be fully written or finalized; incomplete output was discarded.";
         }
         set_status(std::move(result));
     }
