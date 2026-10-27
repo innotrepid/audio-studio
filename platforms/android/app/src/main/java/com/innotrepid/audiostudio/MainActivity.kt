@@ -2,6 +2,7 @@ package com.innotrepid.audiostudio
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -35,6 +36,7 @@ private interface NoiseGateProgressCallback {
 class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
+    private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, callback: NoiseGateProgressCallback): String
@@ -47,6 +49,7 @@ class MainActivity : Activity() {
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var processButton: Button
+    private lateinit var recoverButton: Button
     private lateinit var playOriginalButton: Button
     private lateinit var playProcessedButton: Button
     private lateinit var stopPlaybackButton: Button
@@ -158,6 +161,10 @@ class MainActivity : Activity() {
             text = "Reduce background noise in a WAV"
             setOnClickListener { chooseWavToProcess() }
         }
+        recoverButton = Button(this).apply {
+            text = "Check for interrupted recordings"
+            setOnClickListener { showInterruptedRecordings() }
+        }
         playOriginalButton = Button(this).apply {
             text = "Play original"
             isEnabled = false
@@ -246,6 +253,7 @@ class MainActivity : Activity() {
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
         root.addView(processButton, matchWidth())
+        root.addView(recoverButton, matchWidth())
         root.addView(processingProgress, matchWidth())
         root.addView(cancelProcessingButton, matchWidth())
         root.addView(playOriginalButton, matchWidth())
@@ -257,6 +265,75 @@ class MainActivity : Activity() {
         root.addView(attenuationSeekBar, matchWidth())
         root.addView(notice, matchWidth())
         setContentView(root)
+        root.post { showInterruptedRecordings(showWhenNone = false) }
+    }
+
+    private fun showInterruptedRecordings(showWhenNone: Boolean = true) {
+        if (recording || processing || wavPickerActive) {
+            statusText.text = "Finish the current operation before recovering a recording."
+            return
+        }
+        val directory = File(filesDir, "recording-staging")
+        val candidates = directory.listFiles()?.filter { file ->
+            file.isFile && file.name.matches(Regex(".+\\.wav\\.partial-[0-9]+"))
+        }?.sortedBy { it.name } ?: emptyList()
+        if (candidates.isEmpty()) {
+            if (showWhenNone) statusText.text = "No interrupted recordings were found."
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Interrupted recordings found")
+            .setMessage("Choose a temporary recording to attempt recovery. Audio Studio validates the WAV before publishing it; invalid files are retained.")
+            .setItems(candidates.map { it.name }.toTypedArray()) { _, index ->
+                val partial = candidates[index]
+                val outputName = partial.name.replace(Regex("\\.partial-[0-9]+$"), "")
+                val output = File(partial.parentFile, outputName)
+                AlertDialog.Builder(this)
+                    .setTitle("Recover ${partial.name}?")
+                    .setMessage("Recovery will not replace an existing recording. If the audio is invalid, the temporary file will be left in place.")
+                    .setNegativeButton("Not now", null)
+                    .setPositiveButton("Recover") { _, _ -> recoverInterruptedRecording(partial, output) }
+                    .show()
+            }
+            .setNegativeButton("Later", null)
+            .show()
+    }
+
+    private fun recoverInterruptedRecording(partial: File, output: File) {
+        recoverButton.isEnabled = false
+        startButton.isEnabled = false
+        processButton.isEnabled = false
+        statusText.text = "Validating and recovering ${partial.name}…"
+        Thread {
+            var result = try {
+                nativeRecoverPartialWav(partial.absolutePath, output.absolutePath)
+            } catch (exception: Exception) {
+                "ERROR: ${exception.message ?: "native recovery failed"}"
+            }
+            if (result == "RECOVERED") {
+                result = try {
+                    val publicUri = publishRecording(output)
+                    if (publicUri != null) {
+                        if (output.delete()) "Recovered and saved to Music/Audio Studio/Recordings."
+                        else "Recovered and exported; the private recovered copy could not be removed."
+                    } else {
+                        "Recovered WAV remains in app-private storage: ${output.absolutePath}"
+                    }
+                } catch (exception: Exception) {
+                    "Recovered WAV remains in app-private storage. Export failed: ${exception.message ?: "unknown error"}"
+                }
+            }
+            val finalResult = result
+            mainHandler.post {
+                if (!isFinishing && !isDestroyed) {
+                    statusText.text = finalResult
+                    recoverButton.isEnabled = true
+                    startButton.isEnabled = !recording && !processing && !wavPickerActive
+                    processButton.isEnabled = !recording && !processing && !wavPickerActive
+                    if (finalResult.startsWith("Recovered")) showInterruptedRecordings(showWhenNone = false)
+                }
+            }
+        }.start()
     }
 
     private fun requestPermissionOrStart() {
