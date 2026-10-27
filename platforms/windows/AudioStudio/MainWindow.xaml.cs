@@ -47,6 +47,11 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_clipping", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeRecordingClipping();
 
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recover_partial_wav", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+    private static extern IntPtr NativeRecoverPartialWav(
+        [MarshalAs(UnmanagedType.LPWStr)] string partialPath,
+        [MarshalAs(UnmanagedType.LPWStr)] string outputPath);
+
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_start", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern int NativeProcessingStart([MarshalAs(UnmanagedType.LPWStr)] string inputPath,
         [MarshalAs(UnmanagedType.LPWStr)] string outputPath, float thresholdDbfs, float attenuationDb);
@@ -216,6 +221,80 @@ public sealed partial class MainWindow : Window
             StopRecordingButton.IsEnabled = false;
             InputLevelBar.Value = 0;
             InputLevelText.Text = "Input level: 0%";
+        }
+    }
+
+    private async void RecoverRecordings_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeRecordingActive() != 0 || NativeProcessingActive() != 0)
+        {
+            RecoveryStatusText.Text = "Stop recording or processing before recovering a file.";
+            return;
+        }
+
+        RecoverRecordingsButton.IsEnabled = false;
+        try
+        {
+            var picker = new FolderPicker();
+            picker.FileTypeFilter.Add("*");
+            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+            var folder = await picker.PickSingleFolderAsync();
+            if (folder is null)
+            {
+                RecoveryStatusText.Text = "Recovery cancelled. No files were changed.";
+                return;
+            }
+
+            var candidates = Directory.GetFiles(folder.Path)
+                .Where(path => System.Text.RegularExpressions.Regex.IsMatch(
+                    Path.GetFileName(path), @"\.partial-[0-9]+$"))
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                RecoveryStatusText.Text = "No Audio Studio temporary recording files were found in that folder.";
+                return;
+            }
+
+            foreach (var partialPath in candidates)
+            {
+                if (NativeRecordingActive() != 0 || NativeProcessingActive() != 0)
+                {
+                    RecoveryStatusText.Text = "Recovery stopped because another audio operation became active.";
+                    return;
+                }
+
+                var outputPath = System.Text.RegularExpressions.Regex.Replace(
+                    partialPath, @"\.partial-[0-9]+$", "");
+                var prompt = new Microsoft.UI.Xaml.Controls.ContentDialog
+                {
+                    Title = "Interrupted recording found",
+                    Content = $"{Path.GetFileName(partialPath)}\n\nAttempt WAV validation and recovery? Existing recordings will not be overwritten. Invalid temporary files will be retained.",
+                    PrimaryButtonText = "Recover",
+                    CloseButtonText = "Skip",
+                    DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Primary,
+                    XamlRoot = Content.XamlRoot
+                };
+                var choice = await prompt.ShowAsync();
+                if (choice != Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
+                    continue;
+
+                RecoveryStatusText.Text = $"Validating {Path.GetFileName(partialPath)}…";
+                var nativeMessage = await Task.Run(() =>
+                    Marshal.PtrToStringUni(NativeRecoverPartialWav(partialPath, outputPath))
+                    ?? "Native recovery returned no status.");
+                RecoveryStatusText.Text = nativeMessage == "RECOVERED"
+                    ? $"Recovered: {Path.GetFileName(outputPath)}"
+                    : nativeMessage;
+            }
+        }
+        catch (Exception exception)
+        {
+            RecoveryStatusText.Text = $"Recovery could not complete: {exception.Message}";
+        }
+        finally
+        {
+            RecoverRecordingsButton.IsEnabled = true;
         }
     }
 
