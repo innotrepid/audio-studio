@@ -39,6 +39,8 @@ public:
             return 0;
         }
         output_path_ = path;
+        peak_.store(0.0F);
+        clipping_.store(false);
         stop_requested_.store(false);
         startup_complete_ = false;
         startup_ok_ = false;
@@ -70,6 +72,14 @@ public:
 
     int active() const noexcept {
         return active_.load() ? 1 : 0;
+    }
+
+    float peak() const noexcept {
+        return peak_.load();
+    }
+
+    int clipping() const noexcept {
+        return clipping_.load() ? 1 : 0;
     }
 
     const wchar_t* status() {
@@ -186,6 +196,13 @@ private:
                                     converted[i] = static_cast<float>(input[i]) / 32768.0F;
                                 }
                             }
+                            float packet_peak = 0.0F;
+                            for (const float sample : converted) {
+                                const float magnitude = sample < 0.0F ? -sample : sample;
+                                packet_peak = (std::max)(packet_peak, magnitude);
+                                if (magnitude >= 0.999F) clipping_.store(true);
+                            }
+                            peak_.store(packet_peak);
                             const bool wrote = writer.write_frames(converted.data(), frames);
                             const HRESULT release_hr = capture->ReleaseBuffer(frames);
                             if (!wrote || FAILED(release_hr)) {
@@ -241,6 +258,8 @@ private:
     std::thread worker_;
     std::atomic<bool> stop_requested_{false};
     std::atomic<bool> active_{false};
+    std::atomic<float> peak_{0.0F};
+    std::atomic<bool> clipping_{false};
     bool startup_complete_{false};
     bool startup_ok_{false};
     HANDLE audio_event_{nullptr};
@@ -265,4 +284,10 @@ extern "C" AUDIO_STUDIO_API int audio_studio_recording_active(void) {
 }
 extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_recording_status(void) {
     return capture_instance().status();
+}
+extern "C" AUDIO_STUDIO_API float audio_studio_recording_peak(void) {
+    return capture_instance().peak();
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_recording_clipping(void) {
+    return capture_instance().clipping();
 }

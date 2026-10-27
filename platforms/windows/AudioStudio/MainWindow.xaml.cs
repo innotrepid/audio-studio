@@ -25,6 +25,14 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_status", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr NativeRecordingStatus();
 
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_peak", CallingConvention = CallingConvention.Cdecl)]
+    private static extern float NativeRecordingPeak();
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_clipping", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeRecordingClipping();
+
+    private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+
     public MainWindow()
     {
         InitializeComponent();
@@ -40,7 +48,12 @@ public sealed partial class MainWindow : Window
             StartRecordingButton.IsEnabled = false;
         }
 
-        Closed += (_, _) => NativeRecordingStop();
+        _meterTimer.Tick += (_, _) => UpdateInputMeter();
+        Closed += (_, _) =>
+        {
+            _meterTimer.Stop();
+            NativeRecordingStop();
+        };
     }
 
     private async void StartRecording_Click(object sender, RoutedEventArgs e)
@@ -69,6 +82,8 @@ public sealed partial class MainWindow : Window
             {
                 StartRecordingButton.IsEnabled = false;
                 StopRecordingButton.IsEnabled = true;
+                ClippingWarningText.Text = "";
+                _meterTimer.Start();
             }
         }
         catch (Exception exception)
@@ -88,7 +103,9 @@ public sealed partial class MainWindow : Window
         RecordingStatusText.Text = "Finalizing WAV file…";
         try
         {
+            _meterTimer.Stop();
             await Task.Run(NativeRecordingStop);
+            UpdateInputMeter();
             RecordingStatusText.Text = ReadRecordingStatus();
         }
         catch (Exception exception)
@@ -99,6 +116,25 @@ public sealed partial class MainWindow : Window
         {
             StartRecordingButton.IsEnabled = true;
             StopRecordingButton.IsEnabled = false;
+            InputLevelBar.Value = 0;
+            InputLevelText.Text = "Input level: 0%";
+        }
+    }
+
+    private void UpdateInputMeter()
+    {
+        try
+        {
+            var peak = Math.Clamp((double)NativeRecordingPeak(), 0.0, 1.0);
+            InputLevelBar.Value = peak;
+            InputLevelText.Text = $"Input level: {peak:P0}";
+            if (NativeRecordingClipping() != 0)
+                ClippingWarningText.Text = "CLIPPING DETECTED — lower your microphone/input gain.";
+        }
+        catch (Exception exception)
+        {
+            _meterTimer.Stop();
+            InputLevelText.Text = $"Input meter unavailable: {exception.Message}";
         }
     }
 
