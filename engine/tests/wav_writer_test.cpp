@@ -31,7 +31,11 @@ void test_wav_header_and_samples() {
         require(writer.open(path, {48000U, 2U}), "writer should open a valid WAV");
         require(writer.write_frames(samples.data(), 2U), "writer should accept stereo frames");
         require(writer.frames_written() == 2U, "writer should count audio frames");
+        require(!std::ifstream(path, std::ios::binary).good(),
+                "final destination must stay invisible while recording is in progress");
         require(writer.finalize(), "writer should finalize header");
+        require(std::ifstream(path, std::ios::binary).good(),
+                "final destination should appear after successful finalization");
     }
     std::ifstream file(path, std::ios::binary);
     const std::vector<unsigned char> bytes{
@@ -45,6 +49,27 @@ void test_wav_header_and_samples() {
     require(bytes[46U] == 0x00U && bytes[47U] == 0xc0U, "-0.5 should encode near PCM16 half scale");
     std::remove(path.c_str());
 }
+void test_existing_destination_is_never_overwritten() {
+    const std::string path = "audio_studio_existing_destination.wav";
+    const std::array<unsigned char, 5> original{1U, 2U, 3U, 4U, 5U};
+    {
+        std::ofstream file(path, std::ios::binary);
+        file.write(reinterpret_cast<const char*>(original.data()),
+                   static_cast<std::streamsize>(original.size()));
+    }
+    {
+        audio_studio::WavWriter writer;
+        require(!writer.open(path, {48000U, 1U}),
+                "writer must reject an existing final destination");
+    }
+    std::ifstream file(path, std::ios::binary);
+    const std::vector<unsigned char> actual{
+        std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    require(actual == std::vector<unsigned char>(original.begin(), original.end()),
+            "existing destination bytes must remain unchanged");
+    std::remove(path.c_str());
+}
+
 void test_rejects_invalid_input() {
     audio_studio::WavWriter writer;
     require(!writer.open("unused.wav", {48000U, 3U}), "unsupported channel count should fail");
@@ -118,6 +143,7 @@ void test_repeated_long_recordings() {
 }
 int main() {
     test_wav_header_and_samples();
+    test_existing_destination_is_never_overwritten();
     test_rejects_invalid_input();
     test_abort_discards_partial_output();
     test_destructor_discards_unfinalized_output();
