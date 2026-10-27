@@ -56,6 +56,34 @@ void test_rejects_invalid_input() {
     std::remove(path.c_str());
 }
 
+
+void test_abort_discards_partial_output() {
+    const std::string path = "audio_studio_aborted_test.wav";
+    const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(path, {48000U, 1U}), "aborted writer should open");
+        require(writer.write_frames(samples.data(), samples.size()), "aborted writer should accept initial frames");
+        writer.abort();
+        require(!writer.is_open(), "abort should close the output stream");
+    }
+    require(!std::ifstream(path, std::ios::binary).good(),
+            "abort must remove the incomplete WAV instead of leaving a misleading file");
+}
+
+void test_destructor_discards_unfinalized_output() {
+    const std::string path = "audio_studio_unfinalized_test.wav";
+    const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(path, {48000U, 1U}), "unfinalized writer should open");
+        require(writer.write_frames(samples.data(), samples.size()), "unfinalized writer should accept initial frames");
+        // Intentionally leave scope without finalize(): destructor must discard this session.
+    }
+    require(!std::ifstream(path, std::ios::binary).good(),
+            "destroying an unfinalized writer must not publish an incomplete WAV");
+}
+
 void test_repeated_long_recordings() {
     const std::vector<float> block(480U, 0.125F);
     for (int session = 0; session < 3; ++session) {
@@ -91,6 +119,8 @@ void test_repeated_long_recordings() {
 int main() {
     test_wav_header_and_samples();
     test_rejects_invalid_input();
+    test_abort_discards_partial_output();
+    test_destructor_discards_unfinalized_output();
     test_repeated_long_recordings();
     std::cout << "All WAV writer tests passed.\n";
     return EXIT_SUCCESS;
