@@ -13,6 +13,9 @@
                     <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
                     <TextBlock Text="Record from your Windows default microphone to a standard PCM WAV file." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#BEC6D6" />
+                    <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" />
+                    <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold" />
                     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
                         <Button x:Name="StartRecordingButton" Content="Start recording" Click="StartRecording_Click" />
                         <Button x:Name="StopRecordingButton" Content="Stop and save" Click="StopRecording_Click" IsEnabled="False" />
