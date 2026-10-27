@@ -17,6 +17,18 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_engine_status", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr NativeEngineStatus();
 
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_capture_device_count", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeCaptureDeviceCount();
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_capture_device_name", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr NativeCaptureDeviceName(int index);
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_capture_device_id", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr NativeCaptureDeviceId(int index);
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_capture_device_select", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+    private static extern int NativeCaptureDeviceSelect([MarshalAs(UnmanagedType.LPWStr)] string deviceId);
+
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_start", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern int NativeRecordingStart([MarshalAs(UnmanagedType.LPWStr)] string outputPath);
 
@@ -56,6 +68,12 @@ public sealed partial class MainWindow : Window
     private readonly MediaPlayer _previewPlayer = new();
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
+    private readonly List<CaptureDeviceChoice> _captureDevices = new();
+
+    private sealed record CaptureDeviceChoice(string Name, string Id)
+    {
+        public override string ToString() => Name;
+    }
 
     public MainWindow()
     {
@@ -73,6 +91,7 @@ public sealed partial class MainWindow : Window
         }
 
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
+        Loaded += (_, _) => RefreshInputDevices();
         _processingTimer.Tick += (_, _) => UpdateProcessingStatus();
         GateThresholdSlider.ValueChanged += (_, _) =>
             GateThresholdText.Text = $"Noise threshold: {GateThresholdSlider.Value:0} dBFS";
@@ -89,6 +108,39 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private void RefreshInputDevices_Click(object sender, RoutedEventArgs e) => RefreshInputDevices();
+
+    private void RefreshInputDevices()
+    {
+        var selectedId = (InputDeviceComboBox.SelectedItem as CaptureDeviceChoice)?.Id;
+        _captureDevices.Clear();
+        InputDeviceComboBox.Items.Clear();
+        try
+        {
+            var count = NativeCaptureDeviceCount();
+            for (var i = 0; i < count; i++)
+            {
+                var name = Marshal.PtrToStringUni(NativeCaptureDeviceName(i)) ?? $"Input {i + 1}";
+                var id = Marshal.PtrToStringUni(NativeCaptureDeviceId(i)) ?? "";
+                if (!string.IsNullOrWhiteSpace(id))
+                {
+                    var choice = new CaptureDeviceChoice(name, id);
+                    _captureDevices.Add(choice);
+                    InputDeviceComboBox.Items.Add(choice);
+                }
+            }
+            var match = _captureDevices.FindIndex(device => device.Id == selectedId);
+            InputDeviceComboBox.SelectedIndex = match >= 0 ? match : (_captureDevices.Count > 0 ? 0 : -1);
+            InputDeviceStatusText.Text = _captureDevices.Count == 0
+                ? "No active microphone inputs found. Connect a device and refresh."
+                : $"{_captureDevices.Count} input device(s) available.";
+        }
+        catch (Exception exception)
+        {
+            InputDeviceStatusText.Text = $"Could not enumerate microphones: {exception.Message}";
+        }
+    }
+
     private async void StartRecording_Click(object sender, RoutedEventArgs e)
     {
         if (NativeProcessingActive() != 0)
@@ -97,6 +149,12 @@ public sealed partial class MainWindow : Window
             return;
         }
         StopPreview();
+        if (InputDeviceComboBox.SelectedItem is not CaptureDeviceChoice selectedDevice ||
+            NativeCaptureDeviceSelect(selectedDevice.Id) == 0)
+        {
+            InputDeviceStatusText.Text = "Choose an available input device before recording.";
+            return;
+        }
         StartRecordingButton.IsEnabled = false;
         RecordingStatusText.Text = "Choose where to save the recording…";
         try
