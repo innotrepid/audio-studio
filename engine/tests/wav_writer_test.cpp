@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <limits>
@@ -22,6 +23,13 @@ std::uint32_t read_u32(const std::vector<unsigned char>& bytes, std::size_t offs
            (static_cast<std::uint32_t>(bytes[offset + 1U]) << 8U) |
            (static_cast<std::uint32_t>(bytes[offset + 2U]) << 16U) |
            (static_cast<std::uint32_t>(bytes[offset + 3U]) << 24U);
+}
+bool has_partial_file_for(const std::string& path) {
+    const auto prefix = std::filesystem::path(path).filename().string() + ".partial-";
+    for (const auto& entry : std::filesystem::directory_iterator(".")) {
+        if (entry.path().filename().string().starts_with(prefix)) return true;
+    }
+    return false;
 }
 void test_wav_header_and_samples() {
     const std::string path = "audio_studio_test.wav";
@@ -94,6 +102,7 @@ void test_abort_discards_partial_output() {
     }
     require(!std::ifstream(path, std::ios::binary).good(),
             "abort must remove the incomplete WAV instead of leaving a misleading file");
+    require(!has_partial_file_for(path), "abort must remove the temporary partial file too");
 }
 
 void test_destructor_discards_unfinalized_output() {
@@ -107,6 +116,7 @@ void test_destructor_discards_unfinalized_output() {
     }
     require(!std::ifstream(path, std::ios::binary).good(),
             "destroying an unfinalized writer must not publish an incomplete WAV");
+    require(!has_partial_file_for(path), "destruction must clean up the temporary partial file");
 }
 
 void test_repeated_long_recordings() {
