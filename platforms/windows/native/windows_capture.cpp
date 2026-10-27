@@ -4,6 +4,8 @@
 #include <windows.h>
 #include <audioclient.h>
 #include <mmdeviceapi.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <propsys.h>
 #include <ksmedia.h>
 #include <wrl/client.h>
 
@@ -20,6 +22,47 @@
 
 namespace {
 using Microsoft::WRL::ComPtr;
+
+struct CaptureDeviceInfo {
+    std::wstring id;
+    std::wstring name;
+};
+
+std::vector<CaptureDeviceInfo> enumerate_capture_devices() {
+    std::vector<CaptureDeviceInfo> devices;
+    const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    const bool uninitialize_com = SUCCEEDED(com_result);
+    if (FAILED(com_result) && com_result != RPC_E_CHANGED_MODE) return devices;
+
+    ComPtr<IMMDeviceEnumerator> enumerator;
+    ComPtr<IMMDeviceCollection> collection;
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
+        CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
+    if (SUCCEEDED(hr)) hr = enumerator->EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE, &collection);
+    UINT count = 0;
+    if (SUCCEEDED(hr)) hr = collection->GetCount(&count);
+    for (UINT i = 0; SUCCEEDED(hr) && i < count; ++i) {
+        ComPtr<IMMDevice> device;
+        if (FAILED(collection->Item(i, &device))) continue;
+        LPWSTR id = nullptr;
+        if (FAILED(device->GetId(&id)) || id == nullptr) continue;
+        CaptureDeviceInfo info;
+        info.id = id;
+        CoTaskMemFree(id);
+        ComPtr<IPropertyStore> properties;
+        if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &properties))) {
+            PROPVARIANT value;
+            PropVariantInit(&value);
+            if (SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &value)) &&
+                value.vt == VT_LPWSTR && value.pwszVal != nullptr) info.name = value.pwszVal;
+            PropVariantClear(&value);
+        }
+        if (info.name.empty()) info.name = info.id;
+        devices.push_back(std::move(info));
+    }
+    if (uninitialize_com) CoUninitialize();
+    return devices;
+}
 
 class WindowsCapture final {
 public:
@@ -45,7 +88,7 @@ public:
         startup_complete_ = false;
         startup_ok_ = false;
         status_ = L"Opening default microphone…";
-        worker_ = std::thread(&WindowsCapture::run, this);
+        worker_ = std::thread(&WindowsCapture::run, this, selected_device_id_);
         startup_cv_.wait(lock, [this] { return startup_complete_; });
         if (!startup_ok_) {
             lock.unlock();
@@ -68,6 +111,14 @@ public:
         if (worker_.joinable()) worker_.join();
         std::lock_guard<std::mutex> lock(mutex_);
         return status_.find(L"saved") != std::wstring::npos ? 1 : 0;
+    }
+
+    int select_device(const wchar_t* device_id) {
+        if (device_id == nullptr) return 0;
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (active_.load() || !startup_complete_) return 0;
+        selected_device_id_ = device_id;
+        return 1;
     }
 
     int active() const noexcept {
@@ -104,7 +155,7 @@ private:
         status_ = message;
     }
 
-    void run() {
+    void run(const std::wstring& selected_device_id) {
         const HRESULT com_result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         const bool uninitialize_com = SUCCEEDED(com_result);
         if (FAILED(com_result) && com_result != RPC_E_CHANGED_MODE) {
@@ -122,7 +173,11 @@ private:
 
         if (SUCCEEDED(hr)) hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
             CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
-        if (SUCCEEDED(hr)) hr = enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &device);
+        if (SUCCEEDED(hr)) {
+            hr = selected_device_id.empty()
+                ? enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &device)
+                : enumerator->GetDevice(selected_device_id.c_str(), &device);
+        }
         if (SUCCEEDED(hr)) hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL,
             nullptr, reinterpret_cast<void**>(client.GetAddressOf()));
         if (SUCCEEDED(hr)) hr = client->GetMixFormat(&mix_format);
@@ -264,6 +319,7 @@ private:
     bool startup_ok_{false};
     HANDLE audio_event_{nullptr};
     std::filesystem::path output_path_;
+    std::wstring selected_device_id_;
     std::wstring status_{L"Ready."};
 };
 
@@ -273,6 +329,26 @@ WindowsCapture& capture_instance() {
 }
 }  // namespace
 
+extern "C" AUDIO_STUDIO_API int audio_studio_capture_device_count(void) {
+    return static_cast<int>(enumerate_capture_devices().size());
+}
+extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_capture_device_name(int index) {
+    thread_local std::wstring value;
+    const auto devices = enumerate_capture_devices();
+    value = index >= 0 && static_cast<std::size_t>(index) < devices.size()
+        ? devices[static_cast<std::size_t>(index)].name : L"";
+    return value.c_str();
+}
+extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_capture_device_id(int index) {
+    thread_local std::wstring value;
+    const auto devices = enumerate_capture_devices();
+    value = index >= 0 && static_cast<std::size_t>(index) < devices.size()
+        ? devices[static_cast<std::size_t>(index)].id : L"";
+    return value.c_str();
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_capture_device_select(const wchar_t* device_id) {
+    return capture_instance().select_device(device_id);
+}
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_start(const wchar_t* output_path) {
     return capture_instance().start(output_path);
 }
