@@ -88,13 +88,20 @@ bool WavWriter::open_path(const std::filesystem::path& path, AudioFormat format)
             set_error("Could not inspect a temporary output path.");
             return false;
         }
+        // Create first, then reopen for read/write header updates. Some
+        // standard libraries require the file to exist for in|out mode.
+        {
+            std::ofstream create(candidate, std::ios::binary | std::ios::out);
+            if (!create.is_open()) continue;
+        }
         stream_.clear();
-        stream_.open(candidate, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
+        stream_.open(candidate, std::ios::binary | std::ios::in | std::ios::out);
         if (stream_.is_open()) {
             temporary_path_ = candidate;
             output_path_ = path;
             break;
         }
+        std::filesystem::remove(candidate, path_error);
     }
     if (!stream_.is_open()) {
         set_error("Could not create a temporary WAV output file.");
