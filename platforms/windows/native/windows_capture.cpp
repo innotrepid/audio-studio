@@ -64,6 +64,11 @@ std::vector<CaptureDeviceInfo> enumerate_capture_devices() {
     return devices;
 }
 
+std::vector<CaptureDeviceInfo>& capture_device_cache() {
+    thread_local std::vector<CaptureDeviceInfo> devices;
+    return devices;
+}
+
 class WindowsCapture final {
 public:
     int start(const wchar_t* path) {
@@ -315,7 +320,7 @@ private:
     std::atomic<bool> active_{false};
     std::atomic<float> peak_{0.0F};
     std::atomic<bool> clipping_{false};
-    bool startup_complete_{false};
+    bool startup_complete_{true};
     bool startup_ok_{false};
     HANDLE audio_event_{nullptr};
     std::filesystem::path output_path_;
@@ -330,18 +335,19 @@ WindowsCapture& capture_instance() {
 }  // namespace
 
 extern "C" AUDIO_STUDIO_API int audio_studio_capture_device_count(void) {
-    return static_cast<int>(enumerate_capture_devices().size());
+    capture_device_cache() = enumerate_capture_devices();
+    return static_cast<int>(capture_device_cache().size());
 }
 extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_capture_device_name(int index) {
     thread_local std::wstring value;
-    const auto devices = enumerate_capture_devices();
+    const auto& devices = capture_device_cache();
     value = index >= 0 && static_cast<std::size_t>(index) < devices.size()
         ? devices[static_cast<std::size_t>(index)].name : L"";
     return value.c_str();
 }
 extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_capture_device_id(int index) {
     thread_local std::wstring value;
-    const auto devices = enumerate_capture_devices();
+    const auto& devices = capture_device_cache();
     value = index >= 0 && static_cast<std::size_t>(index) < devices.size()
         ? devices[static_cast<std::size_t>(index)].id : L"";
     return value.c_str();
