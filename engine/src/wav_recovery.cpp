@@ -117,15 +117,19 @@ bool recover_partial_wav(const std::filesystem::path& partial_path,
     stream.close();
     if (stream.fail()) return fail("Could not close the recovered WAV safely.");
 
+    // A plain rename may replace a destination created concurrently on POSIX.
+    // Creating a hard link is an atomic no-clobber publication: it fails if the
+    // destination already exists. Both paths are required to share a directory.
     path_error.clear();
-    if (std::filesystem::exists(output_path, path_error) || path_error) {
-        return fail(path_error ? "Could not inspect the recovery destination."
-                               : "The recovery destination appeared during recovery; the source was retained.");
-    }
-    std::filesystem::rename(partial_path, output_path, path_error);
+    std::filesystem::create_hard_link(partial_path, output_path, path_error);
     if (path_error) {
-        return fail("Could not publish the recovered WAV; the temporary file was retained.");
+        return fail("Could not publish the recovered WAV without replacing an existing file; the temporary file was retained.");
     }
+
+    // Publication is already complete and the recovered output is valid. If
+    // cleanup fails, retain the extra partial name rather than risk losing audio.
+    path_error.clear();
+    std::filesystem::remove(partial_path, path_error);
     if (error != nullptr) error->clear();
     return true;
 }
