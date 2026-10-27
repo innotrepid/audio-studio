@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -153,6 +154,56 @@ void test_refuses_to_overwrite_input() {
     require(load_bytes(input) == before, "rejected operation must preserve source");
     std::remove(input.c_str());
 }
+
+void test_refuses_to_overwrite_existing_destination() {
+    const std::string input = "audio_studio_processing_collision_source.wav";
+    const std::string output = "audio_studio_processing_collision_output.wav";
+    const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create collision source");
+        require(writer.write_frames(samples.data(), samples.size()), "write collision source");
+        require(writer.finalize(), "finalize collision source");
+    }
+    const auto source_before = load_bytes(input);
+    const std::vector<unsigned char> sentinel{'k', 'e', 'e', 'p', '-', 'm', 'e'};
+    {
+        std::ofstream file(output, std::ios::binary | std::ios::trunc);
+        file.write(reinterpret_cast<const char*>(sentinel.data()),
+                   static_cast<std::streamsize>(sentinel.size()));
+        require(static_cast<bool>(file), "create existing destination sentinel");
+    }
+
+    std::string error;
+    require(!audio_studio::process_wav_with_noise_gate(input, output, {}, &error),
+            "processing must refuse an existing destination");
+    require(!error.empty(), "existing-destination refusal should explain the error");
+    require(load_bytes(input) == source_before, "destination collision must preserve source bytes");
+    require(load_bytes(output) == sentinel, "destination collision must preserve existing output bytes");
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
+void test_refuses_relative_absolute_alias_of_input() {
+    const std::string input = "audio_studio_processing_path_alias.wav";
+    const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create path-alias source");
+        require(writer.write_frames(samples.data(), samples.size()), "write path-alias source");
+        require(writer.finalize(), "finalize path-alias source");
+    }
+    const auto before = load_bytes(input);
+    const auto absolute = std::filesystem::absolute(std::filesystem::path(input)).lexically_normal();
+    std::string error;
+    require(!audio_studio::process_wav_with_noise_gate(input, absolute.u8string(), {}, &error),
+            "processing must reject a relative input and absolute output alias");
+    require(!error.empty(), "path-alias refusal should explain the error");
+    require(load_bytes(input) == before, "path-alias refusal must preserve source bytes");
+    std::remove(input.c_str());
+}
+
 }  // namespace
 
 int main() {
@@ -160,6 +211,8 @@ int main() {
     test_cancellation_cleans_partial_output();
     test_cancellation_during_progress_cleans_partial_output();
     test_refuses_to_overwrite_input();
+    test_refuses_to_overwrite_existing_destination();
+    test_refuses_relative_absolute_alias_of_input();
     std::cout << "All WAV processing tests passed.\n";
     return EXIT_SUCCESS;
 }
