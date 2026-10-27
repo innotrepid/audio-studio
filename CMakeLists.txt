@@ -9,6 +9,7 @@ if(WIN32)
         engine/src/native_api.cpp
         engine/src/audio_types.cpp
         engine/src/wav_writer.cpp
+        engine/src/wav_recovery.cpp
         engine/src/noise_gate.cpp
         engine/src/wav_processing.cpp
         platforms/windows/native/windows_capture.cpp
