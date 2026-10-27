@@ -10,6 +10,7 @@ if(WIN32)
         engine/src/audio_types.cpp
         engine/src/wav_writer.cpp
         platforms/windows/native/windows_capture.cpp
+        platforms/windows/native/windows_processing.cpp
     )
     target_include_directories(audio_studio_native PRIVATE engine/include platforms/windows/native)
     target_compile_features(audio_studio_native PRIVATE cxx_std_17)
