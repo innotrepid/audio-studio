@@ -9,6 +9,7 @@
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -35,6 +36,10 @@ unsigned int read_u32(const std::vector<unsigned char>& bytes, std::size_t offse
            (static_cast<unsigned int>(bytes[offset + 1U]) << 8U) |
            (static_cast<unsigned int>(bytes[offset + 2U]) << 16U) |
            (static_cast<unsigned int>(bytes[offset + 3U]) << 24U);
+}
+std::vector<unsigned char> read_bytes(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 }
 std::array<unsigned char, 44U> zero_length_header() {
     std::array<unsigned char, 44U> h{};
@@ -74,10 +79,8 @@ void test_recovers_valid_payload_and_repairs_header() {
     std::string error;
     require(audio_studio::recover_partial_wav(partial, output, &error),
             "valid abandoned WAV should recover");
-    require(!std::filesystem::exists(partial), "successful recovery should move the partial file");
-    std::ifstream file(output, std::ios::binary);
-    const std::vector<unsigned char> bytes{
-        std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    require(!std::filesystem::exists(partial), "successful recovery should remove the partial name");
+    const auto bytes = read_bytes(output);
     require(bytes.size() == 48U, "recovered WAV should retain all payload bytes");
     require(read_u32(bytes, 4U) == 40U, "recovered RIFF length should match actual file");
     require(read_u32(bytes, 40U) == 4U, "recovered data length should match payload");
@@ -109,10 +112,8 @@ void test_never_overwrites_existing_recording() {
     std::string error;
     require(!audio_studio::recover_partial_wav(partial, output, &error),
             "recovery must refuse an existing final destination");
-    std::ifstream file(output, std::ios::binary);
-    const std::vector<unsigned char> actual{
-        std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-    require(actual == std::vector<unsigned char>(existing.begin(), existing.end()),
+    require(read_bytes(output) ==
+                std::vector<unsigned char>(existing.begin(), existing.end()),
             "existing recording must remain byte-for-byte unchanged");
     require(std::filesystem::exists(partial), "source partial must remain after destination conflict");
     std::remove(partial.c_str());
@@ -128,6 +129,33 @@ void test_rejects_unrelated_filename() {
     require(std::filesystem::exists(partial), "unrecognized source must be retained");
     std::remove(partial.c_str());
 }
+void test_rejects_symlink_without_mutating_target() {
+    const std::string target = "recovery_link_target.wav.partial-21";
+    const std::string link = "recovery_link.wav.partial-20";
+    const std::string output = "recovery_link.wav";
+    create_partial(target, {0x01U, 0x02U, 0x03U, 0x04U});
+    std::error_code ec;
+    std::filesystem::create_symlink(target, link, ec);
+    if (ec) {
+        // Symlink creation may be disabled on a host (notably Windows without
+        // developer mode); the production guard is still compiled on both OSes.
+        std::remove(target.c_str());
+        return;
+    }
+
+    const auto original = read_bytes(target);
+    std::string error;
+    require(!audio_studio::recover_partial_wav(link, output, &error),
+            "recovery must reject a symbolic-link source");
+    require(read_bytes(target) == original,
+            "rejecting a symbolic link must leave its target byte-for-byte unchanged");
+    require(std::filesystem::is_symlink(std::filesystem::symlink_status(link)),
+            "rejected symbolic link must be retained for inspection");
+    require(!std::filesystem::exists(output),
+            "a symbolic link must not be published as a recovered recording");
+    std::filesystem::remove(link);
+    std::filesystem::remove(target);
+}
 }  // namespace
 
 int main() {
@@ -135,6 +163,7 @@ int main() {
     test_rejects_partial_frame_without_mutating_source();
     test_never_overwrites_existing_recording();
     test_rejects_unrelated_filename();
+    test_rejects_symlink_without_mutating_target();
     std::cout << "All WAV recovery tests passed.\n";
     return EXIT_SUCCESS;
 }
