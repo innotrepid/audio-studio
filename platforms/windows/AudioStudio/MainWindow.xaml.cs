@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -31,7 +32,24 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_clipping", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeRecordingClipping();
 
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_start", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+    private static extern int NativeProcessingStart([MarshalAs(UnmanagedType.LPWStr)] string inputPath,
+        [MarshalAs(UnmanagedType.LPWStr)] string outputPath, float thresholdDbfs, float attenuationDb);
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_cancel", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void NativeProcessingCancel();
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_active", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeProcessingActive();
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_progress", CallingConvention = CallingConvention.Cdecl)]
+    private static extern float NativeProcessingProgress();
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_status", CallingConvention = CallingConvention.Cdecl)]
+    private static extern IntPtr NativeProcessingStatus();
+
     private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private readonly DispatcherTimer _processingTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
 
     public MainWindow()
     {
@@ -49,15 +67,27 @@ public sealed partial class MainWindow : Window
         }
 
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
+        _processingTimer.Tick += (_, _) => UpdateProcessingStatus();
+        GateThresholdSlider.ValueChanged += (_, _) =>
+            GateThresholdText.Text = $"Noise threshold: {GateThresholdSlider.Value:0} dBFS";
+        GateAttenuationSlider.ValueChanged += (_, _) =>
+            GateAttenuationText.Text = $"Noise attenuation: {GateAttenuationSlider.Value:0} dB";
         Closed += (_, _) =>
         {
             _meterTimer.Stop();
+            _processingTimer.Stop();
+            NativeProcessingCancel();
             NativeRecordingStop();
         };
     }
 
     private async void StartRecording_Click(object sender, RoutedEventArgs e)
     {
+        if (NativeProcessingActive() != 0)
+        {
+            RecordingStatusText.Text = "Wait for WAV processing to finish before recording.";
+            return;
+        }
         StartRecordingButton.IsEnabled = false;
         RecordingStatusText.Text = "Choose where to save the recording…";
         try
@@ -118,6 +148,105 @@ public sealed partial class MainWindow : Window
             StopRecordingButton.IsEnabled = false;
             InputLevelBar.Value = 0;
             InputLevelText.Text = "Input level: 0%";
+        }
+    }
+
+    private async void ProcessWav_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeRecordingActive() != 0)
+        {
+            ProcessingStatusText.Text = "Stop and save the current recording before processing a WAV.";
+            return;
+        }
+
+        ProcessWavButton.IsEnabled = false;
+        try
+        {
+            var openPicker = new FileOpenPicker();
+            openPicker.FileTypeFilter.Add(".wav");
+            InitializeWithWindow.Initialize(openPicker, WindowNative.GetWindowHandle(this));
+            var input = await openPicker.PickSingleFileAsync();
+            if (input is null)
+            {
+                ProcessingStatusText.Text = "Processing cancelled. No files were changed.";
+                return;
+            }
+
+            var folderPicker = new FolderPicker();
+            folderPicker.FileTypeFilter.Add("*");
+            InitializeWithWindow.Initialize(folderPicker, WindowNative.GetWindowHandle(this));
+            var folder = await folderPicker.PickSingleFolderAsync();
+            if (folder is null)
+            {
+                ProcessingStatusText.Text = "Choose an output folder to continue.";
+                return;
+            }
+
+            var outputName = $"{Path.GetFileNameWithoutExtension(input.Name)}-processed.wav";
+            var outputPath = Path.Combine(folder.Path, outputName);
+            ProcessingStatusText.Text = "Starting streamed WAV processing…";
+            var started = NativeProcessingStart(input.Path, outputPath,
+                (float)GateThresholdSlider.Value, (float)GateAttenuationSlider.Value);
+            if (started == 0)
+            {
+                ProcessingStatusText.Text = ReadProcessingStatus();
+                return;
+            }
+
+            StartRecordingButton.IsEnabled = false;
+            CancelProcessingButton.IsEnabled = true;
+            ProcessingProgressBar.Value = 0;
+            _processingTimer.Start();
+        }
+        catch (Exception exception)
+        {
+            ProcessingStatusText.Text = $"Could not process WAV: {exception.Message}";
+        }
+        finally
+        {
+            if (NativeProcessingActive() == 0)
+                ProcessWavButton.IsEnabled = true;
+        }
+    }
+
+    private void CancelProcessing_Click(object sender, RoutedEventArgs e)
+    {
+        CancelProcessingButton.IsEnabled = false;
+        ProcessingStatusText.Text = "Cancelling and cleaning up the partial output…";
+        NativeProcessingCancel();
+    }
+
+    private void UpdateProcessingStatus()
+    {
+        try
+        {
+            ProcessingProgressBar.Value = Math.Clamp((double)NativeProcessingProgress(), 0.0, 1.0);
+            ProcessingStatusText.Text = ReadProcessingStatus();
+            if (NativeProcessingActive() == 0)
+            {
+                _processingTimer.Stop();
+                ProcessWavButton.IsEnabled = true;
+                CancelProcessingButton.IsEnabled = false;
+                StartRecordingButton.IsEnabled = true;
+            }
+        }
+        catch (Exception exception)
+        {
+            _processingTimer.Stop();
+            ProcessingStatusText.Text = $"Processing status unavailable: {exception.Message}";
+        }
+    }
+
+    private static string ReadProcessingStatus()
+    {
+        try
+        {
+            return Marshal.PtrToStringUni(NativeProcessingStatus())
+                ?? "Native processor returned no status.";
+        }
+        catch (Exception exception)
+        {
+            return $"Processing status unavailable: {exception.Message}";
         }
     }
 

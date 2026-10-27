@@ -154,20 +154,22 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     }
     if (!settings.is_valid()) return fail(error, "Noise-gate settings are invalid.");
 
+    const auto input_fs = std::filesystem::u8path(input_path);
+    const auto output_fs = std::filesystem::u8path(output_path);
     std::error_code ec;
-    const auto input_absolute = std::filesystem::absolute(input_path, ec).lexically_normal();
+    const auto input_absolute = std::filesystem::absolute(input_fs, ec).lexically_normal();
     if (ec) return fail(error, "Could not resolve the input path.");
-    const auto output_absolute = std::filesystem::absolute(output_path, ec).lexically_normal();
+    const auto output_absolute = std::filesystem::absolute(output_fs, ec).lexically_normal();
     if (ec) return fail(error, "Could not resolve the output path.");
     if (input_absolute == output_absolute) {
         return fail(error, "Output must be a separate file; the original is never overwritten.");
     }
-    if (!std::filesystem::exists(input_path, ec) || ec) {
+    if (!std::filesystem::exists(input_fs, ec) || ec) {
         return fail(error, "Could not inspect the input path.");
     }
-    if (std::filesystem::exists(output_path, ec)) {
+    if (std::filesystem::exists(output_fs, ec)) {
         if (ec) return fail(error, "Could not inspect the output path.");
-        const bool same_file = std::filesystem::equivalent(input_path, output_path, ec);
+        const bool same_file = std::filesystem::equivalent(input_fs, output_fs, ec);
         if (!ec && same_file) {
             return fail(error, "Output refers to the original file; refusing to overwrite it.");
         }
@@ -176,9 +178,9 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     }
     if (ec) return fail(error, "Could not inspect the output path.");
 
-    const auto input_size = std::filesystem::file_size(input_path, ec);
+    const auto input_size = std::filesystem::file_size(input_fs, ec);
     if (ec) return fail(error, "Could not determine the input file size.");
-    std::ifstream input(input_path, std::ios::binary);
+    std::ifstream input(input_fs, std::ios::binary);
     if (!input.is_open()) return fail(error, "Could not open the input WAV file.");
 
     AudioFormat format{};
@@ -188,7 +190,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
 
     NoiseGate gate(settings);
     WavWriter writer;
-    if (!writer.open(output_path, format)) {
+    if (!writer.open_path(output_fs, format)) {
         return fail(error, "Could not create processed WAV: " + writer.last_error());
     }
 
@@ -203,7 +205,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     input.seekg(static_cast<std::streamoff>(data_offset), std::ios::beg);
     if (!input) {
         writer.abort();
-        std::filesystem::remove(output_path, ec);
+        std::filesystem::remove(output_fs, ec);
         return fail(error, "Could not seek to WAV audio data.");
     }
 
