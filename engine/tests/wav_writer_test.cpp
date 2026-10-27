@@ -27,7 +27,7 @@ std::uint32_t read_u32(const std::vector<unsigned char>& bytes, std::size_t offs
 bool has_partial_file_for(const std::string& path) {
     const auto prefix = std::filesystem::path(path).filename().string() + ".partial-";
     for (const auto& entry : std::filesystem::directory_iterator(".")) {
-        if (entry.path().filename().string().starts_with(prefix)) return true;
+        if (entry.path().filename().string().rfind(prefix, 0U) == 0U) return true;
     }
     return false;
 }
