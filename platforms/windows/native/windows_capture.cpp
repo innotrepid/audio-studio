@@ -289,15 +289,11 @@ private:
                         set_status(L"Recording saved as a PCM WAV file.");
                     } else {
                         writer.abort();
-                        std::error_code ignored;
-                        std::filesystem::remove(std::filesystem::path(output_path_), ignored);
                         if (should_finalize) set_status(L"Could not finalize the WAV file; incomplete output was discarded.");
                     }
                     hr = should_finalize ? S_OK : E_FAIL;
                 } else {
                     writer.abort();
-                    std::error_code ignored;
-                    std::filesystem::remove(std::filesystem::path(output_path_), ignored);
                     set_status(L"Could not start microphone capture. The incomplete output was discarded.");
                 }
             }
