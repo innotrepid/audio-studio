@@ -63,12 +63,12 @@ void test_repeated_long_recordings() {
         {
             audio_studio::WavWriter writer;
             require(writer.open(path, {48000U, 1U}), "each recording session should open cleanly");
-            for (int chunk = 0; chunk < 100; ++chunk) {
+            for (int chunk = 0; chunk < 6000; ++chunk) {
                 require(writer.write_frames(block.data(), block.size()),
                         "long recording chunks should be written without errors");
             }
-            require(writer.frames_written() == 48000U,
-                    "one second of mono 48 kHz audio should count 48000 frames");
+            require(writer.frames_written() == 2880000U,
+                    "sixty seconds of mono 48 kHz audio should count 2880000 frames");
             require(writer.finalize(), "each recording session should finalize cleanly");
             require(!writer.write_frames(block.data(), block.size()),
                     "writes after finalization must be rejected");
@@ -77,11 +77,11 @@ void test_repeated_long_recordings() {
         std::ifstream file(path, std::ios::binary);
         const std::vector<unsigned char> bytes{
             std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-        require(bytes.size() == 44U + 48000U * 2U,
+        require(bytes.size() == 44U + 2880000U * 2U,
                 "long session should have a complete PCM16 payload");
         require(read_u32(bytes, 4U) == bytes.size() - 8U,
                 "long session RIFF size should match the actual file");
-        require(read_u32(bytes, 40U) == 48000U * 2U,
+        require(read_u32(bytes, 40U) == 2880000U * 2U,
                 "long session data size should match all written samples");
         std::remove(path.c_str());
     }
