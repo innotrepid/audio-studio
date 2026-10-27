@@ -25,8 +25,17 @@ class WindowsCapture final {
 public:
     int start(const wchar_t* path) {
         std::unique_lock<std::mutex> lock(mutex_);
-        if (worker_.joinable() || path == nullptr || path[0] == L'\0') {
-            status_ = L"Recording is already active or the output path is invalid.";
+        if (worker_.joinable()) {
+            if (active_.load()) {
+                status_ = L"Recording is already active.";
+                return 0;
+            }
+            lock.unlock();
+            worker_.join();
+            lock.lock();
+        }
+        if (path == nullptr || path[0] == L'\0') {
+            status_ = L"The output path is invalid.";
             return 0;
         }
         output_path_ = path;
@@ -140,6 +149,8 @@ private:
             if (!writer.open_path(std::filesystem::path(output_path_),
                     audio_studio::AudioFormat{sample_rate, channels})) {
                 hr = E_FAIL;
+                std::error_code ignored;
+                std::filesystem::remove(std::filesystem::path(output_path_), ignored);
             } else {
                 hr = client->Start();
                 if (SUCCEEDED(hr)) {
@@ -148,7 +159,12 @@ private:
                     HRESULT capture_result = S_OK;
                     while (!stop_requested_.load()) {
                         const DWORD wait_result = WaitForSingleObject(event_handle, 200);
-                        if (wait_result != WAIT_OBJECT_0) continue;
+                        if (wait_result == WAIT_TIMEOUT) continue;
+                        if (wait_result != WAIT_OBJECT_0) {
+                            capture_result = E_FAIL;
+                            set_status(L"Microphone capture stopped because the audio event failed. Incomplete output was discarded.");
+                            break;
+                        }
                         UINT32 packet_frames = 0;
                         capture_result = capture->GetNextPacketSize(&packet_frames);
                         while (SUCCEEDED(capture_result) && packet_frames > 0) {
@@ -199,6 +215,7 @@ private:
                     writer.abort();
                     std::error_code ignored;
                     std::filesystem::remove(std::filesystem::path(output_path_), ignored);
+                    set_status(L"Could not start microphone capture. The incomplete output was discarded.");
                 }
             }
         }
