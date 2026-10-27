@@ -45,9 +45,8 @@ void write_header(std::ofstream& stream, AudioFormat format, std::uint32_t data_
 }  // namespace
 
 WavWriter::~WavWriter() {
-    if (stream_.is_open() && !finalized_) {
-        (void)finalize();
-    }
+    // An unfinalized recording is incomplete; never turn it into a seemingly valid WAV.
+    if (!finalized_) abort();
 }
 
 bool WavWriter::open(const std::string& path, AudioFormat format) {
@@ -81,6 +80,7 @@ bool WavWriter::open_path(const std::filesystem::path& path, AudioFormat format)
         return false;
     }
 
+    output_path_ = path;
     format_ = format;
     frames_written_ = 0U;
     finalized_ = false;
@@ -154,6 +154,8 @@ bool WavWriter::finalize() {
     finalized_ = okay;
     if (!okay) {
         set_error("Could not finalize the WAV header or flush the file.");
+    } else {
+        output_path_.clear();
     }
     return okay;
 }
@@ -161,6 +163,11 @@ bool WavWriter::finalize() {
 void WavWriter::abort() noexcept {
     if (stream_.is_open()) {
         stream_.close();
+    }
+    if (!output_path_.empty()) {
+        std::error_code ignored;
+        std::filesystem::remove(output_path_, ignored);
+        output_path_.clear();
     }
     finalized_ = true;
 }
