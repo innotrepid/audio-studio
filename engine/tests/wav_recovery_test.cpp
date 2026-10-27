@@ -1,5 +1,6 @@
 #include "audio_studio/wav_recovery.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
