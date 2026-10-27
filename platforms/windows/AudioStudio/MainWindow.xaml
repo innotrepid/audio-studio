@@ -33,6 +33,21 @@
                     </StackPanel>
                     <ProgressBar x:Name="ProcessingProgressBar" Minimum="0" Maximum="1" Value="0" Height="14" />
                     <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <Rectangle Height="1" Fill="#38404D" Margin="0,8" />
+                    <TextBlock Text="A/B preview" FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Load the original and processed WAV, then switch between them to compare." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                        <Button x:Name="ChooseOriginalPreviewButton" Content="Choose original…" Click="ChooseOriginalPreview_Click" />
+                        <Button x:Name="PreviewOriginalButton" Content="Preview original" Click="PreviewOriginal_Click" IsEnabled="False" />
+                    </StackPanel>
+                    <TextBlock x:Name="ProcessedPreviewFileText" Text="Processed: no file selected" TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                        <Button x:Name="ChooseProcessedPreviewButton" Content="Choose processed…" Click="ChooseProcessedPreview_Click" />
+                        <Button x:Name="PreviewProcessedButton" Content="Preview processed" Click="PreviewProcessed_Click" IsEnabled="False" />
+                        <Button x:Name="StopPreviewButton" Content="Stop preview" Click="StopPreview_Click" IsEnabled="False" />
+                    </StackPanel>
+                    <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>
             </Border>
         </StackPanel>
