@@ -19,6 +19,12 @@ AUDIO_STUDIO_API int audio_studio_recording_active(void);
 AUDIO_STUDIO_API const wchar_t* audio_studio_recording_status(void);
 AUDIO_STUDIO_API float audio_studio_recording_peak(void);
 AUDIO_STUDIO_API int audio_studio_recording_clipping(void);
+AUDIO_STUDIO_API int audio_studio_processing_start(const wchar_t* input_path,
+    const wchar_t* output_path, float threshold_dbfs, float attenuation_db);
+AUDIO_STUDIO_API void audio_studio_processing_cancel(void);
+AUDIO_STUDIO_API int audio_studio_processing_active(void);
+AUDIO_STUDIO_API float audio_studio_processing_progress(void);
+AUDIO_STUDIO_API const wchar_t* audio_studio_processing_status(void);
 
 #ifdef __cplusplus
 }
