@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Windows.Media.Core;
+using Windows.Media.Playback;
+using Windows.Storage;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
@@ -50,6 +53,9 @@ public sealed partial class MainWindow : Window
 
     private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly DispatcherTimer _processingTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private readonly MediaPlayer _previewPlayer = new();
+    private StorageFile? _originalPreviewFile;
+    private StorageFile? _processedPreviewFile;
 
     public MainWindow()
     {
@@ -78,6 +84,8 @@ public sealed partial class MainWindow : Window
             _processingTimer.Stop();
             NativeProcessingCancel();
             NativeRecordingStop();
+            StopPreview();
+            _previewPlayer.Dispose();
         };
     }
 
@@ -88,6 +96,7 @@ public sealed partial class MainWindow : Window
             RecordingStatusText.Text = "Wait for WAV processing to finish before recording.";
             return;
         }
+        StopPreview();
         StartRecordingButton.IsEnabled = false;
         RecordingStatusText.Text = "Choose where to save the recording…";
         try
@@ -184,6 +193,7 @@ public sealed partial class MainWindow : Window
 
             var outputName = $"{Path.GetFileNameWithoutExtension(input.Name)}-processed.wav";
             var outputPath = Path.Combine(folder.Path, outputName);
+            StopPreview();
             ProcessingStatusText.Text = "Starting streamed WAV processing…";
             var started = NativeProcessingStart(input.Path, outputPath,
                 (float)GateThresholdSlider.Value, (float)GateAttenuationSlider.Value);
@@ -248,6 +258,85 @@ public sealed partial class MainWindow : Window
         {
             return $"Processing status unavailable: {exception.Message}";
         }
+    }
+
+    private async void ChooseOriginalPreview_Click(object sender, RoutedEventArgs e)
+    {
+        _originalPreviewFile = await ChoosePreviewFileAsync();
+        OriginalPreviewFileText.Text = _originalPreviewFile is null
+            ? "Original: no file selected"
+            : $"Original: {_originalPreviewFile.Name}";
+        PreviewOriginalButton.IsEnabled = _originalPreviewFile is not null;
+    }
+
+    private async void ChooseProcessedPreview_Click(object sender, RoutedEventArgs e)
+    {
+        _processedPreviewFile = await ChoosePreviewFileAsync();
+        ProcessedPreviewFileText.Text = _processedPreviewFile is null
+            ? "Processed: no file selected"
+            : $"Processed: {_processedPreviewFile.Name}";
+        PreviewProcessedButton.IsEnabled = _processedPreviewFile is not null;
+    }
+
+    private async Task<StorageFile?> ChoosePreviewFileAsync()
+    {
+        try
+        {
+            var picker = new FileOpenPicker();
+            picker.FileTypeFilter.Add(".wav");
+            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+            return await picker.PickSingleFileAsync();
+        }
+        catch (Exception exception)
+        {
+            PreviewStatusText.Text = $"Could not choose preview WAV: {exception.Message}";
+            return null;
+        }
+    }
+
+    private async void PreviewOriginal_Click(object sender, RoutedEventArgs e)
+    {
+        if (_originalPreviewFile is not null)
+            await PlayPreviewAsync(_originalPreviewFile, "original");
+    }
+
+    private async void PreviewProcessed_Click(object sender, RoutedEventArgs e)
+    {
+        if (_processedPreviewFile is not null)
+            await PlayPreviewAsync(_processedPreviewFile, "processed");
+    }
+
+    private async Task PlayPreviewAsync(StorageFile file, string label)
+    {
+        try
+        {
+            if (NativeRecordingActive() != 0 || NativeProcessingActive() != 0)
+            {
+                PreviewStatusText.Text = "Stop recording or processing before previewing audio.";
+                return;
+            }
+            _previewPlayer.Pause();
+            _previewPlayer.Source = null;
+            _previewPlayer.Source = MediaSource.CreateFromStorageFile(file);
+            _previewPlayer.Play();
+            StopPreviewButton.IsEnabled = true;
+            PreviewStatusText.Text = $"Playing {label}: {file.Name}";
+            await Task.CompletedTask;
+        }
+        catch (Exception exception)
+        {
+            PreviewStatusText.Text = $"Could not play preview: {exception.Message}";
+        }
+    }
+
+    private void StopPreview_Click(object sender, RoutedEventArgs e) => StopPreview();
+
+    private void StopPreview()
+    {
+        _previewPlayer.Pause();
+        _previewPlayer.Source = null;
+        StopPreviewButton.IsEnabled = false;
+        PreviewStatusText.Text = "Preview is stopped.";
     }
 
     private void UpdateInputMeter()
