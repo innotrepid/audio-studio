@@ -91,55 +91,99 @@
                     </Border>
                 </StackPanel>
             </Border>
-            <Border x:Name="ProcessingPanel" Background="#1C222D" CornerRadius="12" Margin="0,0,0,0" Visibility="Collapsed">
-                <StackPanel Spacing="12" Margin="20">
-                    <TextBlock Text="Processing · create a cleaned copy" FontSize="20" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="Choose a preset first. Advanced controls are kept together here. The original is never overwritten." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <TextBlock Text="Process an existing PCM16 WAV" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="Creates a separate processed copy. The original is never overwritten." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <ComboBox x:Name="ProcessingPresetComboBox" PlaceholderText="Quick processing preset" SelectionChanged="ProcessingPresetComboBox_SelectionChanged">
-                        <ComboBoxItem Content="Natural" />
-                        <ComboBoxItem Content="Voice clarity" />
-                        <ComboBoxItem Content="Rumble cut" />
-                    </ComboBox>
-                    <Expander Header="Advanced controls" IsExpanded="False">
-                        <StackPanel Spacing="8" Margin="0,8,0,0">
-                            <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#BEC6D6" />
-                            <Slider x:Name="GateThresholdSlider" Minimum="-60" Maximum="-30" Value="-48" StepFrequency="1" />
-                            <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#BEC6D6" />
-                            <Slider x:Name="GateAttenuationSlider" Minimum="-36" Maximum="-6" Value="-18" StepFrequency="1" />
-                            <TextBlock x:Name="DspGainText" Text="Output gain: 0 dB" Foreground="#BEC6D6" />
-                            <Slider x:Name="DspGainSlider" Minimum="-24" Maximum="12" Value="0" StepFrequency="1" />
-                            <TextBlock x:Name="HighPassText" Text="High-pass filter: Off" Foreground="#BEC6D6" />
-                            <Slider x:Name="HighPassSlider" Minimum="0" Maximum="49" Value="0" StepFrequency="1" />
-                        </StackPanel>
-                    </Expander>
-                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button x:Name="ProcessWavButton" Content="Process WAV…" Click="ProcessWav_Click" />
-                        <Button x:Name="CancelProcessingButton" Content="Cancel processing" Click="CancelProcessing_Click" IsEnabled="False" />
+            <Border x:Name="ProcessingPanel" Background="#1C222D" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+                <StackPanel Spacing="16" Margin="24">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="PROCESS" FontSize="11" FontWeight="Bold" Foreground="#77E0B5" CharacterSpacing="160" />
+                        <TextBlock Text="Clean up your audio" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Reduce steady background noise and shape your voice. Processing creates a separate output; your original stays untouched." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     </StackPanel>
-                    <ProgressBar x:Name="ProcessingProgressBar" Minimum="0" Maximum="1" Value="0" Height="14" />
-                    <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <Border Background="#171D27" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="1 · CHOOSE A PRESET" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="110" />
+                                <TextBlock Text="Start simple, then fine-tune if needed." Foreground="#F5F7FB" />
+                            </StackPanel>
+                            <ComboBox x:Name="ProcessingPresetComboBox" PlaceholderText="Quick processing preset" SelectionChanged="ProcessingPresetComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Natural" />
+                                <ComboBoxItem Content="Voice clarity" />
+                                <ComboBoxItem Content="Rumble cut" />
+                            </ComboBox>
+                            <TextBlock Text="Natural keeps processing subtle. Voice clarity emphasizes speech. Rumble cut targets low-frequency noise." TextWrapping="Wrap" Foreground="#BEC6D6" FontSize="12" />
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#171D27" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="2 · OPTIONAL FINE-TUNING" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="110" />
+                                <TextBlock Text="Advanced controls" FontSize="17" FontWeight="SemiBold" Foreground="White" />
+                                <TextBlock Text="Adjust only if the preset needs more or less effect." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                            </StackPanel>
+                            <Expander Header="Show advanced controls" IsExpanded="False">
+                                <StackPanel Spacing="8" Margin="0,8,0,0">
+                                    <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#BEC6D6" />
+                                    <Slider x:Name="GateThresholdSlider" Minimum="-60" Maximum="-30" Value="-48" StepFrequency="1" />
+                                    <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#BEC6D6" />
+                                    <Slider x:Name="GateAttenuationSlider" Minimum="-36" Maximum="-6" Value="-18" StepFrequency="1" />
+                                    <TextBlock x:Name="DspGainText" Text="Output gain: 0 dB" Foreground="#BEC6D6" />
+                                    <Slider x:Name="DspGainSlider" Minimum="-24" Maximum="12" Value="0" StepFrequency="1" />
+                                    <TextBlock x:Name="HighPassText" Text="High-pass filter: Off" Foreground="#BEC6D6" />
+                                    <Slider x:Name="HighPassSlider" Minimum="0" Maximum="49" Value="0" StepFrequency="1" />
+                                </StackPanel>
+                            </Expander>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#171D27" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="10">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="3 · PROCESS FILE" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="110" />
+                                <TextBlock Text="Choose a PCM16 WAV and output folder when prompted." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button x:Name="ProcessWavButton" Content="Process WAV…" Click="ProcessWav_Click" Style="{StaticResource PrimaryRecordButton}" />
+                                <Button x:Name="CancelProcessingButton" Content="Cancel" Click="CancelProcessing_Click" IsEnabled="False" />
+                            </StackPanel>
+                            <ProgressBar x:Name="ProcessingProgressBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#77E0B5" />
+                            <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
-            <Border x:Name="ComparePanel" Background="#1C222D" CornerRadius="12" Margin="0,0,0,0" Visibility="Collapsed">
-                <StackPanel Spacing="12" Margin="20">
-                    <TextBlock Text="Preview · compare versions" FontSize="20" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="Switch between the original and processed files to judge the change by ear." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <TextBlock Text="A/B preview" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="Load the original and processed WAV, then switch between them to compare." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button x:Name="ChooseOriginalPreviewButton" Content="Choose original…" Click="ChooseOriginalPreview_Click" />
-                        <Button x:Name="PreviewOriginalButton" Content="Preview original" Click="PreviewOriginal_Click" IsEnabled="False" />
+            <Border x:Name="ComparePanel" Background="#1C222D" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+                <StackPanel Spacing="16" Margin="24">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="COMPARE" FontSize="11" FontWeight="Bold" Foreground="#77E0B5" CharacterSpacing="160" />
+                        <TextBlock Text="Trust your ears" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Compare the same voice take before and after processing. Switch playback between the two files and listen for natural speech, noise reduction, and unwanted artifacts." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     </StackPanel>
-                    <TextBlock x:Name="ProcessedPreviewFileText" Text="Processed: no file selected" TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button x:Name="ChooseProcessedPreviewButton" Content="Choose processed…" Click="ChooseProcessedPreview_Click" />
-                        <Button x:Name="PreviewProcessedButton" Content="Preview processed" Click="PreviewProcessed_Click" IsEnabled="False" />
-                        <Button x:Name="StopPreviewButton" Content="Stop preview" Click="StopPreview_Click" IsEnabled="False" />
-                    </StackPanel>
-                    <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <Border Background="#171D27" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="ORIGINAL RECORDING" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                            <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#F5F7FB" FontSize="15" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Name="ChooseOriginalPreviewButton" Content="Choose original WAV…" Click="ChooseOriginalPreview_Click" />
+                                <Button x:Name="PreviewOriginalButton" Content="Play original" Click="PreviewOriginal_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#171D27" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="PROCESSED COPY" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                            <TextBlock x:Name="ProcessedPreviewFileText" Text="Processed: no file selected" TextWrapping="Wrap" Foreground="#F5F7FB" FontSize="15" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Name="ChooseProcessedPreviewButton" Content="Choose processed WAV…" Click="ChooseProcessedPreview_Click" />
+                                <Button x:Name="PreviewProcessedButton" Content="Play processed" Click="PreviewProcessed_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#171D27" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="PLAYBACK STATUS" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                            <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#F5F7FB" />
+                            <Button x:Name="StopPreviewButton" Content="Stop preview" Click="StopPreview_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="Tip: use files from the same recording. Keep playback volume similar when judging changes, and stop playback before starting another audio operation." TextWrapping="Wrap" Foreground="#BEC6D6" FontSize="12" />
                 </StackPanel>
             </Border>
             <Border x:Name="EditorPanel" Background="#1C222D" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
