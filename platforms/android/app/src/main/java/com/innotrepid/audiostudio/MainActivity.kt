@@ -235,6 +235,14 @@ class MainActivity : Activity() {
                 updateTrimSelectionSummary()
             })
         }
+        waveformView.onTrimHandleMoved = { isStart, fraction ->
+            val requested = (fraction * 1000f).toInt().coerceIn(0, 1000)
+            if (isStart) {
+                trimStartSeekBar.progress = requested.coerceAtMost((trimEndSeekBar.progress - 1).coerceAtLeast(0))
+            } else {
+                trimEndSeekBar.progress = requested.coerceAtLeast((trimStartSeekBar.progress + 1).coerceAtMost(1000))
+            }
+        }
         trimSelectionSummary = TextView(this).apply {
             text = "Selected duration: load a WAV"
             textSize = 13f
