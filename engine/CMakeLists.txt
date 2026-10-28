@@ -4,11 +4,13 @@ add_library(audio_studio_core
     src/wav_reader.cpp
     src/wav_recovery.cpp
     src/noise_gate.cpp
+    src/dsp_effects.cpp
     src/wav_processing.cpp
 )
 
 target_include_directories(audio_studio_core PUBLIC include)
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
+target_link_libraries(audio_studio_core PUBLIC dsp_engine_static)
 
 if(MSVC)
     target_compile_options(audio_studio_core PRIVATE /W4 /WX)
@@ -76,4 +78,14 @@ if(BUILD_TESTING)
         target_compile_options(audio_studio_noise_gate_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME audio_studio_noise_gate_tests COMMAND audio_studio_noise_gate_tests)
+
+    add_executable(audio_studio_dsp_effects_tests tests/dsp_effects_test.cpp)
+    target_link_libraries(audio_studio_dsp_effects_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_dsp_effects_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_dsp_effects_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_dsp_effects_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_dsp_effects_tests COMMAND audio_studio_dsp_effects_tests)
 endif()
