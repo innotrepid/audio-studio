@@ -48,12 +48,12 @@ jobs:
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
       - name: Include native audio engine
         shell: pwsh
-        run: Copy-Item build/Release/audio_studio_native.dll artifacts/windows-self-contained/audio_studio_native.dll
+        run: Copy-Item build/Release/audio_studio_native.dll platforms/windows/AudioStudio/artifacts/windows-self-contained/audio_studio_native.dll
       - name: Upload self-contained Windows application
         uses: actions/upload-artifact@v4
         with:
           name: audio-studio-windows-self-contained
-          path: artifacts/windows-self-contained/
+          path: platforms/windows/AudioStudio/artifacts/windows-self-contained/
           if-no-files-found: error
       - name: Upload Windows application shell
         uses: actions/upload-artifact@v4
