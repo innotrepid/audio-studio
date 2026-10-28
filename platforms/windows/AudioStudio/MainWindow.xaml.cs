@@ -9,7 +9,6 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Shapes;
 using Windows.Foundation;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
@@ -187,8 +186,8 @@ public sealed partial class MainWindow : Window
             {
                 var min = Math.Min(peaks[i * 4], peaks[i * 4 + 2]);
                 var max = Math.Max(peaks[i * 4 + 1], peaks[i * 4 + 3]);
-                var line = new Line { X1 = 0, X2 = 0, Y1 = center - Math.Clamp(max, -1f, 1f) * amplitude, Y2 = center - Math.Clamp(min, -1f, 1f) * amplitude, Stroke = new SolidColorBrush(Microsoft.UI.Colors.LightGreen), StrokeThickness = 1.5 };
-                Canvas.SetLeft(line, i * width / buckets);
+                var line = new Microsoft.UI.Xaml.Shapes.Line { X1 = 0, X2 = 0, Y1 = center - Math.Clamp(max, -1f, 1f) * amplitude, Y2 = center - Math.Clamp(min, -1f, 1f) * amplitude, Stroke = new SolidColorBrush(Microsoft.UI.Colors.LightGreen), StrokeThickness = 1.5 };
+                Microsoft.UI.Xaml.Controls.Canvas.SetLeft(line, i * width / buckets);
                 WaveformCanvas.Children.Add(line);
             }
             WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Original file unchanged.";
