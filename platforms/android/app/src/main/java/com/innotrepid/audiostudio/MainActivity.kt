@@ -281,6 +281,17 @@ class MainActivity : Activity() {
             (20 + (highPassSeekBar.progress - 1) * 10).coerceAtMost(500)
         highPassLabel.text = if (initialHighPass == 0) "High-pass filter: Off" else "High-pass filter: ${initialHighPass} Hz"
 
+        val presetRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        listOf("Natural", "Voice clarity", "Rumble cut").forEach { preset ->
+            presetRow.addView(Button(this).apply {
+                text = preset
+                setOnClickListener { applyProcessingPreset(preset) }
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+
         val notice = TextView(this).apply {
             text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a PCM16 WAV to create a separate noise-gated copy in Music/Audio Studio/Processed. This conservative gate reduces quieter noise between phrases; it is not AI noise cancellation or echo removal."
             textSize = 14f
@@ -311,9 +322,29 @@ class MainActivity : Activity() {
         root.addView(dspGainSeekBar, matchWidth())
         root.addView(highPassLabel, matchWidth())
         root.addView(highPassSeekBar, matchWidth())
+        root.addView(presetRow, matchWidth())
         root.addView(notice, matchWidth())
         setContentView(root)
         root.post { showInterruptedRecordings(showWhenNone = false) }
+    }
+
+    private fun applyProcessingPreset(preset: String) {
+        val values = when (preset) {
+            "Voice clarity" -> intArrayOf(22, 18, 26, 7) // -48 dBFS, -18 dB, +2 dB, 80 Hz
+            "Rumble cut" -> intArrayOf(10, 24, 24, 11) // gentle gate, neutral gain, 120 Hz high-pass
+            else -> intArrayOf(16, 24, 24, 0) // natural: -54 dBFS, -12 dB, neutral gain, no filter
+        }
+        thresholdSeekBar.progress = values[0]
+        attenuationSeekBar.progress = values[1]
+        dspGainSeekBar.progress = values[2]
+        highPassSeekBar.progress = values[3]
+        getSharedPreferences("noise_gate_preferences", MODE_PRIVATE).edit()
+            .putInt("threshold_progress", values[0])
+            .putInt("attenuation_progress", values[1])
+            .putInt("dsp_gain_progress", values[2])
+            .putInt("high_pass_progress", values[3])
+            .apply()
+        statusText.text = "${preset} preset applied. Adjust the sliders to taste; always A/B-check the result."
     }
 
     private fun showInterruptedRecordings(showWhenNone: Boolean = true) {
