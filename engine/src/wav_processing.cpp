@@ -371,4 +371,108 @@ bool analyze_wav_waveform(const std::string& input_path,
     return true;
 }
 
+
+bool trim_wav(const std::string& input_path,
+              const std::string& output_path,
+              std::uint64_t start_frame,
+              std::uint64_t end_frame,
+              std::string* error) {
+    if (error != nullptr) error->clear();
+    if (input_path.empty() || output_path.empty()) {
+        return fail(error, "Input and output paths are required.");
+    }
+    if (start_frame >= end_frame) {
+        return fail(error, "Trim end must be after trim start.");
+    }
+
+    const auto input_fs = std::filesystem::u8path(input_path);
+    const auto output_fs = std::filesystem::u8path(output_path);
+    std::error_code ec;
+    const auto input_absolute = std::filesystem::absolute(input_fs, ec).lexically_normal();
+    if (ec) return fail(error, "Could not resolve the input path.");
+    const auto output_absolute = std::filesystem::absolute(output_fs, ec).lexically_normal();
+    if (ec) return fail(error, "Could not resolve the output path.");
+    if (input_absolute == output_absolute) {
+        return fail(error, "Output must be a separate file; the original is never overwritten.");
+    }
+    if (!std::filesystem::exists(input_fs, ec) || ec) {
+        return fail(error, "Could not inspect the input path.");
+    }
+    if (std::filesystem::exists(output_fs, ec)) {
+        if (ec) return fail(error, "Could not inspect the output path.");
+        const bool same_file = std::filesystem::equivalent(input_fs, output_fs, ec);
+        if (!ec && same_file) {
+            return fail(error, "Output refers to the original file; refusing to overwrite it.");
+        }
+        return fail(error, "Output file already exists; choose a new destination.");
+    }
+    if (ec) return fail(error, "Could not inspect the output path.");
+
+    const auto input_size = std::filesystem::file_size(input_fs, ec);
+    if (ec) return fail(error, "Could not determine the input file size.");
+    std::ifstream input(input_fs, std::ios::binary);
+    if (!input.is_open()) return fail(error, "Could not open the input WAV file.");
+
+    AudioFormat format{};
+    std::uint64_t data_offset = 0U;
+    std::uint32_t data_size = 0U;
+    if (!parse_wav_header(input, input_size, format, data_offset, data_size, error)) return false;
+
+    const std::uint64_t bytes_per_frame =
+        static_cast<std::uint64_t>(format.channel_count) * 2U;
+    const std::uint64_t total_frames = data_size / bytes_per_frame;
+    if (end_frame > total_frames) {
+        return fail(error, "Trim range extends beyond the end of the WAV file.");
+    }
+
+    WavWriter writer;
+    if (!writer.open_path(output_fs, format)) {
+        return fail(error, "Could not create trimmed WAV: " + writer.last_error());
+    }
+
+    const std::uint64_t first_byte = data_offset + start_frame * bytes_per_frame;
+    input.clear();
+    input.seekg(static_cast<std::streamoff>(first_byte), std::ios::beg);
+    if (!input) {
+        writer.abort();
+        return fail(error, "Could not seek to the selected trim start.");
+    }
+
+    const std::size_t channels = format.channel_count;
+    const std::size_t bytes_per_frame_size = channels * 2U;
+    std::vector<unsigned char> raw(kFramesPerBlock * bytes_per_frame_size);
+    std::vector<float> samples(kFramesPerBlock * channels);
+    std::uint64_t remaining = end_frame - start_frame;
+    while (remaining > 0U) {
+        const std::size_t frames = static_cast<std::size_t>(
+            std::min<std::uint64_t>(remaining, kFramesPerBlock));
+        const std::size_t sample_count = frames * channels;
+        const std::size_t bytes_to_read = frames * bytes_per_frame_size;
+        if (!read_exact(input, raw.data(), bytes_to_read)) {
+            writer.abort();
+            return fail(error, "Could not read the selected WAV trim range.");
+        }
+        for (std::size_t i = 0U; i < sample_count; ++i) {
+            const auto bits = read_u16_le(raw.data() + i * 2U);
+            const auto sample = static_cast<std::int16_t>(bits);
+            samples[i] = sample < 0
+                ? static_cast<float>(sample) / 32768.0F
+                : static_cast<float>(sample) / 32767.0F;
+        }
+        if (!writer.write_frames(samples.data(), frames)) {
+            const std::string message = "Could not write trimmed WAV: " + writer.last_error();
+            writer.abort();
+            return fail(error, message);
+        }
+        remaining -= frames;
+    }
+
+    if (!writer.finalize()) {
+        const std::string message = "Could not finalize trimmed WAV: " + writer.last_error();
+        writer.abort();
+        return fail(error, message);
+    }
+    return true;
+}
+
 }  // namespace audio_studio
