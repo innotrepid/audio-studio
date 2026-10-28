@@ -82,3 +82,17 @@ This is a product-level requirement for every screen and interaction. A tap or g
 - Keep cancellation and resource cleanup behavior intact.
 - Require all three CI jobs to pass: Android native shell/APK, Linux C++ core, and Windows C++ core.
 - After visual phases, run focused manual smoke tests on each available platform; CI alone cannot validate visual quality, interaction smoothness, or microphone behavior.
+
+
+## Visual direction update — Resonate-inspired, not glass-heavy
+
+Use the visual language of the Resonate `Resonate-True-Apk` branch as a reference, not as a UI to copy literally:
+
+- Deep near-black / charcoal foundation with layered, **opaque** surfaces; avoid applying blur or glass effects to every card.
+- Violet as the main interactive accent, pink/orange as rare secondary highlights, and mint reserved for live recording/healthy signal states.
+- Strong typographic hierarchy, generous but efficient spacing, confident waveform scale, and clearly differentiated primary versus secondary actions.
+- Keep the studio visually distinctive and finished: purposeful status treatments, subtle borders, consistent corner radii, and clear control grouping rather than generic Windows utility styling.
+- Edit and Process on Android should request sensor landscape when selected; Record and other workflows should release that request. The same activity and existing views must remain alive through orientation changes. If the system cannot honor the request, all controls must remain usable.
+- Preserve incremental updates: changing a trim handle should update the selection and summary only; slider drags should update their value labels; neither should reload the file or rebuild the screen.
+
+This visual direction supersedes the earlier mint-only visual treatment as the long-term target. Keep the visual redesign in small reviewable slices and do not change recording/DSP semantics just to style the interface.
