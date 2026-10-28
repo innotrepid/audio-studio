@@ -14,6 +14,12 @@ constexpr std::uint64_t kMaxDataBytes =
     static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) - 36U;
 std::atomic<std::uint64_t> g_temporary_file_counter{0U};
 
+void write_u16_le(std::ofstream& stream, std::uint16_t value) {
+    const char bytes[2] = {static_cast<char>(value & 0xffU),
+                           static_cast<char>((value >> 8U) & 0xffU)};
+    stream.write(bytes, 2);
+}
+
 void write_u32_le(std::ofstream& stream, std::uint32_t value) {
     const char bytes[4] = {static_cast<char>(value & 0xffU),
                            static_cast<char>((value >> 8U) & 0xffU),
