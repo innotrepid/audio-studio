@@ -51,7 +51,7 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 
 Reliability work is tracked in [HARDENING_BACKLOG.md](HARDENING_BACKLOG.md). Fix confirmed data-loss, corruption, security, and crash risks promptly. Park lower-priority concerns with a revisit trigger. After the current in-flight hardening item is merged, resume product implementation; do not start another broad hardening sweep without a trigger.
 
-**Current product milestone:** verified non-destructive trim export is implemented on Android and Windows. Both platforms support precise in/out timecodes (`MM:SS.mmm`) mapped to audio-frame positions for preview and export; slider adjustments remain available and intentionally replace precision for the moved endpoint. Windows supports selected-range preview, and Android preserves the exact selected frames through native export. The original file remains unchanged. Next, continue editing workflow capability work without broadening into a visual redesign.
+**Current product milestone:** verified non-destructive trim export is implemented on Android and Windows. Both platforms support precise in/out timecodes (`MM:SS.mmm`) mapped to audio-frame positions for preview and export; slider adjustments remain available and intentionally replace precision for the moved endpoint. Windows supports selected-range preview, and Android preserves the exact selected frames through native export. Direct waveform trim-handle dragging is implemented on Android and is being brought to Windows in the current change. The original file remains unchanged. Continue editing workflow capability work without broadening into a visual redesign.
 
 ## Definition of done
 
