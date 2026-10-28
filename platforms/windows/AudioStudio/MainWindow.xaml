@@ -4,7 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Audio Studio">
     <Grid Background="#101218">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16" MaxWidth="620" Margin="36">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Padding="24,20">
+        <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Spacing="16" MaxWidth="760" Margin="12,8,12,28">
             <TextBlock Text="Audio Studio" FontSize="36" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
             <TextBlock Text="Your voice. Your studio." FontSize="20" Foreground="#BEC6D6" HorizontalAlignment="Center" />
             <Border Background="#1C222D" CornerRadius="12" Margin="0,12,0,0">
@@ -79,5 +82,6 @@
                 </StackPanel>
             </Border>
         </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Window>
