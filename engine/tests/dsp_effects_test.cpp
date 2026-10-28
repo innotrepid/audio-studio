@@ -51,8 +51,8 @@ void test_high_pass_reduces_low_frequency_rumble() {
     audio_studio::AudioBuffer buffer{audio_studio::AudioFormat{rate, 1U}, {}};
     buffer.samples.resize(rate);
     for (std::size_t i = 0; i < buffer.samples.size(); ++i) {
-        buffer.samples[i] = 0.2F * std::sin(2.0 * kPi * 50.0 *
-            static_cast<double>(i) / static_cast<double>(rate));
+        buffer.samples[i] = static_cast<float>(0.2 * std::sin(2.0 * kPi * 50.0 *
+            static_cast<double>(i) / static_cast<double>(rate)));
     }
     audio_studio::DspEffects effects;
     std::string error;
