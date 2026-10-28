@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.Storage.Pickers;
@@ -374,6 +375,36 @@ public sealed partial class MainWindow : Window
         EditorPanel.Visibility = selected == EditorPanel ? Visibility.Visible : Visibility.Collapsed;
         ProcessingPanel.Visibility = selected == ProcessingPanel ? Visibility.Visible : Visibility.Collapsed;
         ComparePanel.Visibility = selected == ComparePanel ? Visibility.Visible : Visibility.Collapsed;
+
+        // Update only the four existing navigation controls; workflow panels and their state stay alive.
+        NavigateRecordButton.IsChecked = selected == RecordPanel;
+        NavigateEditorButton.IsChecked = selected == EditorPanel;
+        NavigateProcessingButton.IsChecked = selected == ProcessingPanel;
+        NavigateCompareButton.IsChecked = selected == ComparePanel;
+
+        SetNavigationAppearance(NavigateRecordButton, selected == RecordPanel);
+        SetNavigationAppearance(NavigateEditorButton, selected == EditorPanel);
+        SetNavigationAppearance(NavigateProcessingButton, selected == ProcessingPanel);
+        SetNavigationAppearance(NavigateCompareButton, selected == ComparePanel);
+    }
+
+    private static void SetNavigationAppearance(ToggleButton button, bool isSelected)
+    {
+        button.Background = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255,
+                isSelected ? (byte)178 : (byte)34,
+                isSelected ? (byte)155 : (byte)34,
+                isSelected ? (byte)255 : (byte)48));
+        button.Foreground = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255,
+                isSelected ? (byte)12 : (byte)243,
+                isSelected ? (byte)12 : (byte)240,
+                isSelected ? (byte)20 : (byte)255));
+        button.BorderBrush = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(255,
+                isSelected ? (byte)178 : (byte)58,
+                isSelected ? (byte)155 : (byte)54,
+                isSelected ? (byte)255 : (byte)80));
     }
 
     private void NavigateRecord_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(RecordPanel);
