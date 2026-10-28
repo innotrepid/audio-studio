@@ -519,7 +519,7 @@ public sealed partial class MainWindow : Window
             if (!string.IsNullOrWhiteSpace(_currentRecordingPath))
             {
                 var takeDetails = await Task.Run(() => ReadRecordingTakeDetails(_currentRecordingPath));
-                if (takeDetails is not null && RecordingStatusText.Text.StartsWith("Saved recording:", StringComparison.OrdinalIgnoreCase))
+                if (takeDetails is not null && RecordingStatusText.Text.Contains("saved", StringComparison.OrdinalIgnoreCase))
                     RecordingStatusText.Text += Environment.NewLine + Environment.NewLine + takeDetails;
             }
             _currentRecordingPath = null;
