@@ -86,6 +86,9 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherTimer _trimPreviewTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private readonly MediaPlayer _previewPlayer = new();
     private TimeSpan _trimPreviewEndPosition;
+    private ulong? _trimExactStartFrame;
+    private ulong? _trimExactEndFrame;
+    private bool _applyingTrimTimecodes;
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
     private string? _currentRecordingPath;
@@ -139,11 +142,13 @@ public sealed partial class MainWindow : Window
         };
         TrimStartSlider.ValueChanged += (_, _) =>
         {
+            if (!_applyingTrimTimecodes) _trimExactStartFrame = null;
             TrimStartText.Text = $"Trim start: {TrimStartSlider.Value / 10.0:0.0}%";
             UpdateWaveformSelectionMarkers();
         };
         TrimEndSlider.ValueChanged += (_, _) =>
         {
+            if (!_applyingTrimTimecodes) _trimExactEndFrame = null;
             TrimEndText.Text = $"Trim end: {TrimEndSlider.Value / 10.0:0.0}%";
             UpdateWaveformSelectionMarkers();
         };
@@ -273,6 +278,8 @@ public sealed partial class MainWindow : Window
             _waveformFilePath = file.Path;
             _waveformTotalFrames = analysis.frames;
             _waveformSampleRate = analysis.rate;
+            _trimExactStartFrame = null;
+            _trimExactEndFrame = null;
             TrimStartSlider.Value = 0;
             TrimEndSlider.Value = 1000;
             _trimStartMarker = new Microsoft.UI.Xaml.Shapes.Line
@@ -302,27 +309,116 @@ public sealed partial class MainWindow : Window
 
 
 
+    private (ulong StartFrame, ulong EndFrame) GetTrimRangeFrames()
+    {
+        var startFrame = _trimExactStartFrame ??
+            (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
+        var endFrame = _trimExactEndFrame ??
+            (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
+        return (Math.Min(startFrame, _waveformTotalFrames), Math.Min(endFrame, _waveformTotalFrames));
+    }
+
+    private static string FormatTrimTime(ulong frame, uint sampleRate)
+    {
+        if (sampleRate == 0) return "00:00.000";
+        var time = TimeSpan.FromSeconds((double)frame / sampleRate);
+        return $"{(long)time.TotalMinutes:00}:{time.Seconds:00}.{time.Milliseconds:000}";
+    }
+
+    private static bool TryParseTrimTime(string text, out TimeSpan time)
+    {
+        time = TimeSpan.Zero;
+        var parts = text.Trim().Split(':');
+        if (parts.Length != 2 || !ulong.TryParse(parts[0], out var minutes))
+            return false;
+
+        var secondsParts = parts[1].Split('.');
+        if (secondsParts.Length < 1 || secondsParts.Length > 2 ||
+            !int.TryParse(secondsParts[0], out var seconds) || seconds < 0 || seconds > 59)
+            return false;
+
+        var milliseconds = 0;
+        if (secondsParts.Length == 2)
+        {
+            var fraction = secondsParts[1];
+            if (fraction.Length < 1 || fraction.Length > 3 || !int.TryParse(fraction, out milliseconds))
+                return false;
+            milliseconds *= fraction.Length == 1 ? 100 : fraction.Length == 2 ? 10 : 1;
+        }
+
+        try
+        {
+            time = TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(seconds) +
+                TimeSpan.FromMilliseconds(milliseconds);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            return false;
+        }
+    }
+
+    private void ApplyTrimTimes_Click(object sender, RoutedEventArgs e)
+    {
+        if (_waveformTotalFrames < 2 || _waveformSampleRate == 0)
+        {
+            WaveformStatusText.Text = "Load a WAV waveform before setting exact in/out points.";
+            return;
+        }
+        if (!TryParseTrimTime(TrimStartTimeBox.Text, out var startTime) ||
+            !TryParseTrimTime(TrimEndTimeBox.Text, out var endTime))
+        {
+            WaveformStatusText.Text = "Use minutes:seconds.milliseconds, for example 02:14.350.";
+            return;
+        }
+
+        var durationSeconds = (double)_waveformTotalFrames / _waveformSampleRate;
+        if (endTime <= startTime || endTime.TotalSeconds > durationSeconds)
+        {
+            WaveformStatusText.Text = $"Choose an in point before the out point, both within the file (duration {FormatTrimTime(_waveformTotalFrames, _waveformSampleRate)}).";
+            return;
+        }
+
+        var startFrame = (ulong)Math.Round(startTime.TotalSeconds * _waveformSampleRate, MidpointRounding.AwayFromZero);
+        var endFrame = (ulong)Math.Round(endTime.TotalSeconds * _waveformSampleRate, MidpointRounding.AwayFromZero);
+        if (endFrame <= startFrame || endFrame > _waveformTotalFrames)
+        {
+            WaveformStatusText.Text = "The selected times do not contain a valid audio-frame range.";
+            return;
+        }
+
+        _applyingTrimTimecodes = true;
+        try
+        {
+            TrimStartSlider.Value = Math.Clamp((double)startFrame / _waveformTotalFrames * 1000.0, 0.0, 1000.0);
+            TrimEndSlider.Value = Math.Clamp((double)endFrame / _waveformTotalFrames * 1000.0, 0.0, 1000.0);
+        }
+        finally
+        {
+            _applyingTrimTimecodes = false;
+        }
+        _trimExactStartFrame = startFrame;
+        _trimExactEndFrame = endFrame;
+        UpdateWaveformSelectionMarkers();
+        WaveformStatusText.Text = "Exact in/out points applied. Preview or export uses these frame positions; moving a slider adjusts that endpoint.";
+    }
+
     private void UpdateWaveformSelectionMarkers()
     {
         if (_trimStartMarker is null || _trimEndMarker is null || _waveformTotalFrames == 0)
             return;
+        var (startFrame, endFrame) = GetTrimRangeFrames();
         var width = WaveformCanvas.Width;
-        var startFraction = TrimStartSlider.Value / 1000.0;
-        var endFraction = TrimEndSlider.Value / 1000.0;
-        _trimStartMarker.X1 = _trimStartMarker.X2 = width * startFraction;
-        _trimEndMarker.X1 = _trimEndMarker.X2 = width * endFraction;
+        _trimStartMarker.X1 = _trimStartMarker.X2 = width * startFrame / _waveformTotalFrames;
+        _trimEndMarker.X1 = _trimEndMarker.X2 = width * endFrame / _waveformTotalFrames;
 
         if (_waveformSampleRate > 0)
         {
-            var startFrame = (ulong)Math.Floor(_waveformTotalFrames * startFraction);
-            var endFrame = (ulong)Math.Floor(_waveformTotalFrames * endFraction);
-            var start = TimeSpan.FromSeconds((double)startFrame / _waveformSampleRate);
-            var end = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
-            var duration = TimeSpan.FromSeconds((double)(endFrame - Math.Min(endFrame, startFrame)) / _waveformSampleRate);
-            // Use total minutes rather than TimeSpan's minute component so recordings over one hour stay monotonic.
-            var startText = $"{(long)start.TotalMinutes:00}:{start.Seconds:00}.{start.Milliseconds:000}";
-            var endText = $"{(long)end.TotalMinutes:00}:{end.Seconds:00}.{end.Milliseconds:000}";
-            WaveformSelectionText.Text = $"Selection: {startText} – {endText} · {duration.TotalSeconds:0.00}s";
+            var durationFrames = endFrame > startFrame ? endFrame - startFrame : 0;
+            var duration = TimeSpan.FromSeconds((double)durationFrames / _waveformSampleRate);
+            TrimStartTimeBox.Text = FormatTrimTime(startFrame, _waveformSampleRate);
+            TrimEndTimeBox.Text = FormatTrimTime(endFrame, _waveformSampleRate);
+            WaveformSelectionText.Text = $"Selection: {TrimStartTimeBox.Text} – {TrimEndTimeBox.Text} · {duration.TotalSeconds:0.00}s";
         }
     }
 
@@ -340,8 +436,7 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        var startFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
-        var endFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
+        var (startFrame, endFrame) = GetTrimRangeFrames();
         if (endFrame <= startFrame)
         {
             WaveformStatusText.Text = "Choose a range with at least one audio frame.";
@@ -395,7 +490,8 @@ public sealed partial class MainWindow : Window
             WaveformStatusText.Text = "Load a WAV waveform before trimming.";
             return;
         }
-        if (TrimStartSlider.Value >= TrimEndSlider.Value)
+        var (selectedStartFrame, selectedEndFrame) = GetTrimRangeFrames();
+        if (selectedStartFrame >= selectedEndFrame)
         {
             WaveformStatusText.Text = "Trim start must be before trim end.";
             return;
@@ -417,8 +513,7 @@ public sealed partial class MainWindow : Window
             outputPath = Path.Combine(folder.Path, $"{baseName}-trimmed-{suffix}.wav");
 
         var sourcePath = _waveformFilePath!;
-        var startFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
-        var endFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
+        var (startFrame, endFrame) = GetTrimRangeFrames();
         if (endFrame <= startFrame)
         {
             WaveformStatusText.Text = "The selected range is too short to contain an audio frame.";

@@ -265,6 +265,25 @@
                                 <TextBlock x:Name="TrimEndText" Text="Trim end: 100%" Foreground="#F3F0FF" FontWeight="SemiBold" />
                                 <Slider x:Name="TrimEndSlider" Minimum="0" Maximum="1000" Value="1000" StepFrequency="1" />
                             </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="PRECISE TIME CODES" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="100" />
+                                <TextBlock Text="Enter minutes:seconds.milliseconds (for example, 02:14.350). Exact frame positions are retained for preview and export." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Spacing="4">
+                                        <TextBlock Text="IN POINT" Foreground="#F3F0FF" FontSize="12" />
+                                        <TextBox x:Name="TrimStartTimeBox" Text="00:00.000" PlaceholderText="00:00.000" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="4">
+                                        <TextBlock Text="OUT POINT" Foreground="#F3F0FF" FontSize="12" />
+                                        <TextBox x:Name="TrimEndTimeBox" Text="00:00.000" PlaceholderText="00:00.000" />
+                                    </StackPanel>
+                                </Grid>
+                                <Button x:Name="ApplyTrimTimesButton" Content="Apply exact in/out points" Click="ApplyTrimTimes_Click" HorizontalAlignment="Left" />
+                            </StackPanel>
                             <Border Background="#0C0C14" CornerRadius="8" Padding="12">
                                 <StackPanel Spacing="4">
                                     <TextBlock Text="SELECTED AUDIO" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="100" />
