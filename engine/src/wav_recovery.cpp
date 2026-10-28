@@ -59,7 +59,15 @@ bool recover_partial_wav(const std::filesystem::path& partial_path,
         return fail("The recovery destination does not match the original recording path.");
     }
 
+    // Do not follow symbolic links during recovery: repairing a header through a
+    // link would mutate a different file that merely happens to be targeted by
+    // a writer-owned-looking temporary filename.
     std::error_code path_error;
+    const auto source_status = std::filesystem::symlink_status(partial_path, path_error);
+    if (path_error || !std::filesystem::is_regular_file(source_status)) {
+        return fail("The recovery source must be a regular file, not a link or special file.");
+    }
+
     if (std::filesystem::exists(output_path, path_error)) {
         return fail("The recovery destination already exists; it was not changed.");
     }
