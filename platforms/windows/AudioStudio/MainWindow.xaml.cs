@@ -257,7 +257,9 @@ public sealed partial class MainWindow : Window
             var start = TimeSpan.FromSeconds((double)startFrame / _waveformSampleRate);
             var end = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
             var duration = TimeSpan.FromSeconds((double)(endFrame - Math.Min(endFrame, startFrame)) / _waveformSampleRate);
-            WaveformSelectionText.Text = $"Selection: {start:mm\\:ss\.fff} – {end:mm\\:ss\.fff} · {duration.TotalSeconds:0.00}s";
+            var startText = start.ToString(@"mm\:ss\.fff");
+            var endText = end.ToString(@"mm\:ss\.fff");
+            WaveformSelectionText.Text = $"Selection: {startText} – {endText} · {duration.TotalSeconds:0.00}s";
         }
     }
 
