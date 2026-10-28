@@ -4,7 +4,8 @@
 
 Use a native, layered architecture rather than Flutter. Audio Studio targets Android and Windows, but those operating systems have different audio APIs, permission models, device lifecycles, and user-interface conventions.
 
-- **Shared C++ core:** audio data types, DSP primitives, deterministic processing, file-format logic, and platform-independent project/audio rules.
+- **Shared C++ core:** audio data types, DSP primitives, deterministic processing, file-format logic, and platform-independent project/audio rules. The offline WAV-effects adapter uses DSP-ENGINE at pinned commit `05c050c8ebfe3351612cde8cd7d7c94a7d3b1ec3`; it links the static core only and does not use DSP-ENGINE device backends.
+- **Dependency note:** first CMake configure requires network access to fetch the pinned DSP-ENGINE revision. The exact commit pin prevents silent upstream changes; builds should be tested with the pin before updating it.
 - **Android shell:** Kotlin for UI, permissions, lifecycle, and Android integration; C++ through the Android NDK; Oboe for low-latency audio I/O where suitable.
 - **Windows shell:** C# and WinUI 3 for the desktop interface; native C++ for shared processing and Windows audio integration, using WASAPI where appropriate.
 - **Boundary:** keep platform audio capture and lifecycle details behind small interfaces. Avoid passing audio sample buffers through UI events or high-level UI bindings.
