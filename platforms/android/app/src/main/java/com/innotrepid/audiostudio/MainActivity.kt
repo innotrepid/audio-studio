@@ -461,11 +461,33 @@ class MainActivity : Activity() {
         fun sectionLayoutParams() = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = 18 }
+        recordSection.visibility = android.view.View.VISIBLE
+        editSection.visibility = android.view.View.GONE
+        processingSection.visibility = android.view.View.GONE
         root.addView(recordSection, sectionLayoutParams())
         root.addView(editSection, sectionLayoutParams())
         root.addView(processingSection, sectionLayoutParams())
-        // Keep the current workflow intact while ensuring every control is reachable
-        // on smaller phones as the navigation shell is introduced in later UI phases.
+
+        val navBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(8, 8, 8, 8)
+            setBackgroundColor(Color.rgb(28, 34, 45))
+        }
+        fun navButton(label: String, target: LinearLayout): Button = Button(this).apply {
+            text = label
+            setOnClickListener {
+                recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
+                editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
+                processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
+            }
+        }
+        listOf(
+            navButton("Record", recordSection),
+            navButton("Edit", editSection),
+            navButton("Process", processingSection)
+        ).forEach { navBar.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
+
         val screenScroll = ScrollView(this).apply {
             isFillViewport = true
             clipToPadding = false
@@ -475,7 +497,17 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
-        setContentView(screenScroll)
+        val appShell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.rgb(16, 18, 24))
+            addView(screenScroll, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            ))
+            addView(navBar, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        setContentView(appShell)
         root.post { showInterruptedRecordings(showWhenNone = false) }
     }
 
