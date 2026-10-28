@@ -38,6 +38,7 @@ class MainActivity : Activity() {
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
+    private external fun nativeTrimWav(inputPath: String, outputPath: String, startFraction: Long, endFraction: Long): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
@@ -53,6 +54,12 @@ class MainActivity : Activity() {
     private lateinit var waveformButton: Button
     private lateinit var waveformStatus: TextView
     private lateinit var waveformView: WaveformView
+    private lateinit var trimStartLabel: TextView
+    private lateinit var trimEndLabel: TextView
+    private lateinit var trimStartSeekBar: SeekBar
+    private lateinit var trimEndSeekBar: SeekBar
+    private lateinit var trimWaveformButton: Button
+    @Volatile private var waveformSourceFile: File? = null
     private lateinit var recoverButton: Button
     private lateinit var playOriginalButton: Button
     private lateinit var playProcessedButton: Button
@@ -171,6 +178,31 @@ class MainActivity : Activity() {
         }
         waveformStatus = TextView(this).apply { text = "No waveform loaded."; textSize = 13f; setTextColor(Color.rgb(190, 198, 214)); gravity = Gravity.CENTER }
         waveformView = WaveformView(this)
+        trimStartLabel = TextView(this).apply {
+            text = "Trim start: 0%"
+            textSize = 13f
+            setTextColor(Color.rgb(190, 198, 214))
+        }
+        trimStartSeekBar = SeekBar(this).apply {
+            max = 1000
+            progress = 0
+            setOnSeekBarChangeListener(trimRangeListener { trimStartLabel.text = "Trim start: \${it / 10.0f}%" })
+        }
+        trimEndLabel = TextView(this).apply {
+            text = "Trim end: 100%"
+            textSize = 13f
+            setTextColor(Color.rgb(190, 198, 214))
+        }
+        trimEndSeekBar = SeekBar(this).apply {
+            max = 1000
+            progress = 1000
+            setOnSeekBarChangeListener(trimRangeListener { trimEndLabel.text = "Trim end: \${it / 10.0f}%" })
+        }
+        trimWaveformButton = Button(this).apply {
+            text = "Trim selected range to new WAV"
+            isEnabled = false
+            setOnClickListener { chooseTrimOutput() }
+        }
         waveformButton = Button(this).apply {
             text = "Load WAV waveform"
             setOnClickListener { chooseWavWaveform() }
@@ -320,6 +352,11 @@ class MainActivity : Activity() {
         root.addView(processButton, matchWidth())
         root.addView(waveformButton, matchWidth())
         root.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180))
+        root.addView(trimStartLabel, matchWidth())
+        root.addView(trimStartSeekBar, matchWidth())
+        root.addView(trimEndLabel, matchWidth())
+        root.addView(trimEndSeekBar, matchWidth())
+        root.addView(trimWaveformButton, matchWidth())
         root.addView(waveformStatus, matchWidth())
         root.addView(recoverButton, matchWidth())
         root.addView(processingProgress, matchWidth())
@@ -610,13 +647,102 @@ class MainActivity : Activity() {
                 if (peaks.size != 960) throw IOException("Could not analyze this file. Choose a valid PCM16 WAV.")
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
+                        waveformSourceFile?.takeIf { it != file }?.delete()
+                        waveformSourceFile = file
                         waveformView.setPeaks(peaks)
-                        waveformStatus.text = "Waveform loaded · 240 peak buckets · original file unchanged."
+                        trimStartSeekBar.progress = 0
+                        trimEndSeekBar.progress = 1000
+                        trimWaveformButton.isEnabled = true
+                        waveformStatus.text = "Waveform loaded · select a range below. Original file unchanged."
                     }
                 }
             } catch (exception: Exception) {
                 mainHandler.post { if (!isFinishing && !isDestroyed) waveformStatus.text = exception.message ?: "Waveform analysis failed." }
-            } finally { staged?.delete() }
+            } finally {
+                if (staged != waveformSourceFile) staged?.delete()
+            }
+        }.start()
+    }
+
+    private fun trimRangeListener(onProgress: (Int) -> Unit) =
+        object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                onProgress(progress)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        }
+
+    private fun chooseTrimOutput() {
+        if (recording || processing || wavPickerActive) {
+            waveformStatus.text = "Finish the current operation before trimming."
+            return
+        }
+        if (waveformSourceFile == null || trimStartSeekBar.progress >= trimEndSeekBar.progress) {
+            waveformStatus.text = "Choose a loaded waveform and a non-empty trim range."
+            return
+        }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/wav"
+            putExtra(Intent.EXTRA_TITLE, "AudioStudio-trimmed.wav")
+        }
+        wavPickerActive = true
+        trimWaveformButton.isEnabled = false
+        try {
+            startActivityForResult(intent, REQUEST_TRIM_OUTPUT)
+        } catch (exception: Exception) {
+            wavPickerActive = false
+            trimWaveformButton.isEnabled = waveformSourceFile != null
+            waveformStatus.text = "Could not choose trim destination: \${exception.message ?: "unknown error"}"
+        }
+    }
+
+    private fun trimSelectedWaveform(destination: Uri) {
+        val source = waveformSourceFile ?: run {
+            waveformStatus.text = "Load a waveform before trimming."
+            trimWaveformButton.isEnabled = false
+            return
+        }
+        val startFraction = trimStartSeekBar.progress.toLong()
+        val endFraction = trimEndSeekBar.progress.toLong()
+        if (startFraction >= endFraction) {
+            waveformStatus.text = "Trim start must be before trim end."
+            trimWaveformButton.isEnabled = true
+            return
+        }
+        waveformStatus.text = "Trimming selected range…"
+        Thread {
+            val stagedOutput = File(filesDir, "waveform-trimmed-\${System.currentTimeMillis()}.wav")
+            try {
+                val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFraction, endFraction)
+                if (result != "TRIMMED") throw IOException(result)
+                contentResolver.openOutputStream(destination, "w")?.use { output ->
+                    FileInputStream(stagedOutput).use { input ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                } ?: throw IOException("Could not open the chosen output file.")
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed)
+                        waveformStatus.text = "Trimmed WAV saved. Original recording preserved."
+                }
+            } catch (exception: Exception) {
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed)
+                        waveformStatus.text = exception.message ?: "Trim failed. Original file preserved."
+                }
+            } finally {
+                stagedOutput.delete()
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed)
+                        trimWaveformButton.isEnabled = waveformSourceFile != null
+                }
+            }
         }.start()
     }
 
@@ -645,6 +771,15 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform document picker result API for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_TRIM_OUTPUT) {
+            wavPickerActive = false
+            if (resultCode == RESULT_OK && data?.data != null) trimSelectedWaveform(data.data!!)
+            else {
+                waveformStatus.text = "Trim cancelled. No files were changed."
+                trimWaveformButton.isEnabled = waveformSourceFile != null
+            }
+            return
+        }
         if (requestCode == REQUEST_WAVEFORM) {
             wavPickerActive = false
             if (resultCode == RESULT_OK && data?.data != null) analyzeSelectedWaveform(data.data!!)
@@ -994,6 +1129,7 @@ class MainActivity : Activity() {
         private const val REQUEST_RECORD_AUDIO = 1001
         private const val REQUEST_PROCESS_WAV = 1002
         private const val REQUEST_WAVEFORM = 1003
+        private const val REQUEST_TRIM_OUTPUT = 1004
         private const val WAV_HEADER_BYTES = 44L
         private const val STALE_PROCESSING_FILE_AGE_MS = 24L * 60L * 60L * 1000L
     }
