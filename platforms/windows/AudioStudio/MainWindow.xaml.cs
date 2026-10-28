@@ -835,11 +835,12 @@ public sealed partial class MainWindow : Window
             var result = NativeAnalyzeWavWaveform(path, 1U, peaks, out var frames, out var sampleRate, out var channels);
             if (result <= 0 || frames == 0 || sampleRate == 0 || (channels != 1 && channels != 2))
                 return null;
-            var seconds = (long)(frames / sampleRate);
-            var duration = TimeSpan.FromSeconds(seconds);
+            var totalSeconds = frames / sampleRate;
+            var totalMinutes = totalSeconds / 60UL;
+            var remainingSeconds = totalSeconds % 60UL;
             var fileSizeMb = new FileInfo(path).Length / (1024.0 * 1024.0);
             var channelLabel = channels == 1 ? "Mono" : "Stereo";
-            return $"Take details: {duration:mm\\:ss} · {sampleRate / 1000.0:0.#} kHz · {channelLabel} · {fileSizeMb:0.00} MB";
+            return $"Take details: {totalMinutes:00}:{remainingSeconds:00} · {sampleRate / 1000.0:0.#} kHz · {channelLabel} · {fileSizeMb:0.00} MB";
         }
         catch
         {
