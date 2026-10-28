@@ -1,6 +1,7 @@
 #include "audio_studio/wav_writer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <system_error>
 #include <cmath>
@@ -12,12 +13,6 @@ namespace {
 constexpr std::uint64_t kMaxDataBytes =
     static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) - 36U;
 std::atomic<std::uint64_t> g_temporary_file_counter{0U};
-
-void write_u16_le(std::ofstream& stream, std::uint16_t value) {
-    const char bytes[2] = {static_cast<char>(value & 0xffU),
-                           static_cast<char>((value >> 8U) & 0xffU)};
-    stream.write(bytes, 2);
-}
 
 void write_u32_le(std::ofstream& stream, std::uint32_t value) {
     const char bytes[4] = {static_cast<char>(value & 0xffU),
@@ -152,15 +147,29 @@ bool WavWriter::write_frames(const float* samples, std::size_t frame_count) {
         }
     }
 
-    for (std::uint64_t i = 0; i < sample_count; ++i) {
-        const float clipped = std::clamp(samples[i], -1.0F, 1.0F);
-        const auto pcm = static_cast<std::int16_t>(
-            clipped <= -1.0F ? -32768 : std::lround(clipped * 32767.0F));
-        write_u16_le(stream_, static_cast<std::uint16_t>(pcm));
-    }
-    if (!stream_) {
-        set_error("Failed while writing audio samples.");
-        return false;
+    // Batch PCM conversion and file writes. A separate stream.write() for every
+    // sample made long recordings needlessly expensive (millions of tiny writes).
+    // The fixed-size buffer bounds memory use regardless of recording duration.
+    constexpr std::size_t kSamplesPerBatch = 4096U;
+    std::array<char, kSamplesPerBatch * 2U> encoded{};
+    std::uint64_t offset = 0U;
+    while (offset < sample_count) {
+        const auto count = static_cast<std::size_t>(
+            std::min<std::uint64_t>(kSamplesPerBatch, sample_count - offset));
+        for (std::size_t i = 0U; i < count; ++i) {
+            const float clipped = std::clamp(samples[offset + i], -1.0F, 1.0F);
+            const auto pcm = static_cast<std::int16_t>(
+                clipped <= -1.0F ? -32768 : std::lround(clipped * 32767.0F));
+            const auto bits = static_cast<std::uint16_t>(pcm);
+            encoded[i * 2U] = static_cast<char>(bits & 0xffU);
+            encoded[i * 2U + 1U] = static_cast<char>((bits >> 8U) & 0xffU);
+        }
+        stream_.write(encoded.data(), static_cast<std::streamsize>(count * 2U));
+        if (!stream_) {
+            set_error("Failed while writing audio samples.");
+            return false;
+        }
+        offset += count;
     }
     frames_written_ += frame_count;
     return true;
