@@ -169,3 +169,14 @@ extern "C" AUDIO_STUDIO_API float audio_studio_processing_progress(void) {
 extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_processing_status(void) {
     return processor().status();
 }
+
+
+extern "C" AUDIO_STUDIO_API int audio_studio_trim_wav(
+    const wchar_t* input_path, const wchar_t* output_path,
+    unsigned long long start_frame, unsigned long long end_frame) {
+    const std::string input = utf8_path(input_path);
+    const std::string output = utf8_path(output_path);
+    if (input.empty() || output.empty() || start_frame >= end_frame) return 0;
+    std::string error;
+    return audio_studio::trim_wav(input, output, start_frame, end_frame, &error) ? 1 : 0;
+}
