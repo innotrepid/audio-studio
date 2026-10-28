@@ -186,6 +186,8 @@ public sealed partial class MainWindow : Window
             {
                 StartRecordingButton.IsEnabled = false;
                 StopRecordingButton.IsEnabled = true;
+                InputDeviceComboBox.IsEnabled = false;
+                RefreshInputDevicesButton.IsEnabled = false;
                 ClippingWarningText.Text = "";
                 _meterTimer.Start();
             }
@@ -197,7 +199,11 @@ public sealed partial class MainWindow : Window
         finally
         {
             if (NativeRecordingActive() == 0)
-                StartRecordingButton.IsEnabled = true;
+            {
+                StartRecordingButton.IsEnabled = NativeProcessingActive() == 0;
+                InputDeviceComboBox.IsEnabled = true;
+                RefreshInputDevicesButton.IsEnabled = true;
+            }
         }
     }
 
@@ -218,8 +224,10 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            StartRecordingButton.IsEnabled = true;
+            StartRecordingButton.IsEnabled = NativeProcessingActive() == 0;
             StopRecordingButton.IsEnabled = false;
+            InputDeviceComboBox.IsEnabled = true;
+            RefreshInputDevicesButton.IsEnabled = true;
             InputLevelBar.Value = 0;
             InputLevelText.Text = "Input level: 0%";
         }
@@ -487,6 +495,22 @@ public sealed partial class MainWindow : Window
             InputLevelText.Text = $"Input level: {peak:P0}";
             if (NativeRecordingClipping() != 0)
                 ClippingWarningText.Text = "CLIPPING DETECTED — lower your microphone/input gain.";
+
+            // A disconnected microphone can stop capture without the user pressing Stop.
+            // Reconcile the UI from the native state instead of leaving a stale meter
+            // and a disabled Start button indefinitely.
+            if (NativeRecordingActive() == 0 && StopRecordingButton.IsEnabled)
+            {
+                _meterTimer.Stop();
+                StopRecordingButton.IsEnabled = false;
+                StartRecordingButton.IsEnabled = NativeProcessingActive() == 0;
+                InputDeviceComboBox.IsEnabled = true;
+                RefreshInputDevicesButton.IsEnabled = true;
+                InputLevelBar.Value = 0;
+                InputLevelText.Text = "Input level: 0%";
+                RecordingStatusText.Text = ReadRecordingStatus();
+                RefreshInputDevices();
+            }
         }
         catch (Exception exception)
         {
