@@ -55,7 +55,8 @@ public sealed partial class MainWindow : Window
 
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_start", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern int NativeProcessingStart([MarshalAs(UnmanagedType.LPWStr)] string inputPath,
-        [MarshalAs(UnmanagedType.LPWStr)] string outputPath, float thresholdDbfs, float attenuationDb);
+        [MarshalAs(UnmanagedType.LPWStr)] string outputPath, float thresholdDbfs, float attenuationDb,
+        float gainDb, float highPassHz);
 
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_cancel", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeProcessingCancel();
@@ -104,6 +105,13 @@ public sealed partial class MainWindow : Window
             GateThresholdText.Text = $"Noise threshold: {GateThresholdSlider.Value:0} dBFS";
         GateAttenuationSlider.ValueChanged += (_, _) =>
             GateAttenuationText.Text = $"Noise attenuation: {GateAttenuationSlider.Value:0} dB";
+        DspGainSlider.ValueChanged += (_, _) =>
+            DspGainText.Text = $"Output gain: {DspGainSlider.Value:0} dB";
+        HighPassSlider.ValueChanged += (_, _) =>
+        {
+            var cutoff = HighPassSlider.Value < 1 ? 0 : Math.Min(500, 20 + ((int)HighPassSlider.Value - 1) * 10);
+            HighPassText.Text = cutoff == 0 ? "High-pass filter: Off" : $"High-pass filter: {cutoff} Hz";
+        };
         Closed += (_, _) =>
         {
             _meterTimer.Stop();
@@ -342,8 +350,10 @@ public sealed partial class MainWindow : Window
             var outputPath = Path.Combine(folder.Path, outputName);
             StopPreview();
             ProcessingStatusText.Text = "Starting streamed WAV processing…";
+            var highPassHz = HighPassSlider.Value < 1 ? 0 : Math.Min(500, 20 + ((int)HighPassSlider.Value - 1) * 10);
             var started = NativeProcessingStart(input.Path, outputPath,
-                (float)GateThresholdSlider.Value, (float)GateAttenuationSlider.Value);
+                (float)GateThresholdSlider.Value, (float)GateAttenuationSlider.Value,
+                (float)DspGainSlider.Value, highPassHz);
             if (started == 0)
             {
                 ProcessingStatusText.Text = ReadProcessingStatus();
