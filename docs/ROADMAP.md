@@ -51,7 +51,7 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 
 Reliability work is tracked in [HARDENING_BACKLOG.md](HARDENING_BACKLOG.md). Fix confirmed data-loss, corruption, security, and crash risks promptly. Park lower-priority concerns with a revisit trigger. After the current in-flight hardening item is merged, resume product implementation; do not start another broad hardening sweep without a trigger.
 
-**Current product milestone:** verified non-destructive trim export is implemented. Windows now also supports previewing only the selected trim range before export, using cached waveform frame metadata and stopping playback at the selected out point. The original file remains unchanged. Next, continue editing workflow capability work without broadening into a visual redesign.
+**Current product milestone:** verified non-destructive trim export is implemented. Windows supports selected-range preview and precise in/out timecodes (`MM:SS.mmm`) that map to exact audio frames for preview and export; slider adjustments remain available and intentionally replace precision for the moved endpoint. The original file remains unchanged. Next, continue editing workflow capability work without broadening into a visual redesign.
 
 ## Definition of done
 
