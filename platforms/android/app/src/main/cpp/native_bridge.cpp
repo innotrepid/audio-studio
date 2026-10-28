@@ -402,6 +402,32 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeCancelNoiseGateProcessing(
     g_cancel_noise_gate.store(true, std::memory_order_release);
 }
 
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
+    JNIEnv* env, jobject /* thiz */, jstring input_path, jint bucket_count) {
+    if (input_path == nullptr || bucket_count <= 0 || bucket_count > 1000000) return env->NewFloatArray(0);
+    const char* chars = env->GetStringUTFChars(input_path, nullptr);
+    if (chars == nullptr) return env->NewFloatArray(0);
+    const std::string input(chars);
+    env->ReleaseStringUTFChars(input_path, chars);
+    std::vector<audio_studio::WaveformPeak> peaks;
+    std::string error;
+    if (!audio_studio::analyze_wav_waveform(input, static_cast<std::size_t>(bucket_count), peaks, nullptr, nullptr, &error))
+        return env->NewFloatArray(0);
+    std::vector<jfloat> values;
+    values.reserve(peaks.size() * 4U);
+    for (const auto& peak : peaks) {
+        values.push_back(peak.min_left);
+        values.push_back(peak.max_left);
+        values.push_back(peak.min_right);
+        values.push_back(peak.max_right);
+    }
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(values.size()));
+    if (result != nullptr && !values.empty())
+        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+    return result;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
     JNIEnv* env, jobject /* thiz */, jstring partial_path, jstring output_path) {
