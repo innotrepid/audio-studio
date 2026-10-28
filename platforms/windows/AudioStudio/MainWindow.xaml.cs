@@ -521,7 +521,7 @@ public sealed partial class MainWindow : Window
             {
                 var takePath = _currentRecordingPath;
                 var takeDetails = await Task.Run(() => ReadRecordingTakeDetails(takePath));
-                var nativeReportedSaved = nativeStatus.Contains("saved", StringComparison.OrdinalIgnoreCase);
+                var nativeReportedSaved = nativeStatus.StartsWith("Recording saved", StringComparison.OrdinalIgnoreCase);
                 if (stopResult != 0 && nativeReportedSaved && takeDetails is not null)
                 {
                     RecordingStatusText.Text = $"FINALIZED AND VERIFIED — {nativeStatus}" +
@@ -541,7 +541,8 @@ public sealed partial class MainWindow : Window
                 }
                 else if (takeDetails is not null)
                 {
-                    RecordingStatusText.Text = $"WAV VERIFIED — {nativeStatus}" +
+                    RecordingStatusText.Text = "UNVERIFIED TAKE — the WAV can be read, but native finalization did not confirm a successful save. The file was not deleted; inspect it before relying on it." +
+                        Environment.NewLine + Environment.NewLine + nativeStatus +
                         Environment.NewLine + Environment.NewLine + takeDetails;
                 }
             }
