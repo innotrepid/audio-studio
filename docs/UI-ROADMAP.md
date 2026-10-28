@@ -47,6 +47,24 @@ Audio Studio should feel like a focused voice-production tool, not a collection 
 - Preserve platform conventions: bottom navigation on Android, adaptive navigation/tabs on Windows.
 - Support narrow windows, larger text, keyboard navigation on Windows, and scrolling on small screens.
 
+## UI performance contract: update only what changed
+
+This is a product-level requirement for every screen and interaction. A tap or gesture must not trigger a full screen rebuild, full data reload, or expensive work unless the operation genuinely requires it.
+
+- **Keep screen instances alive.** On Android, build the view hierarchy once and update existing views; on Windows, switch existing workflow panels and preserve their controls/state. Do not recreate the activity/window or replace the full content tree to update a label, slider, selection, progress value, or playback state.
+- **Use the smallest update scope.** Update the affected text, enabled state, progress indicator, selected range, or custom view only. For waveform trim gestures, redraw the waveform view with cached peak data; never re-read or re-analyze the WAV while the user drags a selection.
+- **Separate data work from rendering.** File I/O, waveform analysis, and native processing must not run synchronously on the UI thread. Show operation state and progress without repeatedly reconstructing the page.
+- **Keep gesture handlers cheap.** Slider/drag handlers should only update in-memory selection and the relevant labels/visual overlay. Persist preferences only when appropriate, and debounce/throttle expensive work rather than doing it on every movement.
+- **Do not poll unrelated state.** Timers should update only the live meter, elapsed time, or active processing progress. Stop timers when the operation ends or the screen is destroyed.
+- **Preserve navigation state.** Switching Record/Edit/Process/Compare should not discard loaded waveform peaks, selected files, slider values, or processing configuration. Do not reinitialize audio resources merely because a panel becomes visible.
+- **No blanket refresh APIs.** Avoid calling setContentView again, rebuilding all child views, reloading the library, or forcing global invalidation/layout as a shortcut for local state changes.
+- **Prove it with interaction checks.** Verify that repeated taps, slider drags, navigation, and scrolling do not reset unrelated values, reload files, restart audio resources, or cause visible flicker. Check UI responsiveness while waveform analysis and processing run.
+
+### Current architecture observations
+- Android currently constructs its screen hierarchy in MainActivity.onCreate() and calls setContentView(appShell) once. WaveformView.setSelection() updates its selection state and invalidates only that custom view; it uses cached peaks for drawing.
+- Windows currently constructs the workflow panels in XAML once. ShowWorkflowPanel() toggles their visibility rather than rebuilding the window.
+- These are useful foundations, not proof that every path is optimal. Preserve them and add targeted profiling/tests before any architecture change.
+
 ## Delivery phases
 
 1. **Navigation foundation:** completed in PR #68; connect existing workflows without duplicating audio state.
@@ -54,7 +72,8 @@ Audio Studio should feel like a focused voice-production tool, not a collection 
 3. **Record screen polish:** make input meter, recording state, clipping, and recovery easier to read.
 4. **Edit screen polish:** improve waveform sizing, selection feedback, and trim confirmation.
 5. **Process and Compare polish:** make presets, advanced controls, progress/cancel, and A/B preview clearer.
-6. **Library and Settings:** design and implement only after requirements and persistence behavior are agreed.
+6. **Incremental-update hardening:** audit interaction handlers and add targeted checks so routine taps/gestures update only the affected controls.
+7. **Library and Settings:** design and implement only after requirements and persistence behavior are agreed.
 
 ## Safety and validation gates
 
@@ -62,4 +81,4 @@ Audio Studio should feel like a focused voice-production tool, not a collection 
 - Never overwrite original recordings during trim or processing.
 - Keep cancellation and resource cleanup behavior intact.
 - Require all three CI jobs to pass: Android native shell/APK, Linux C++ core, and Windows C++ core.
-- After visual phases, run focused manual smoke tests on each available platform; CI alone cannot validate visual quality or microphone behavior.
+- After visual phases, run focused manual smoke tests on each available platform; CI alone cannot validate visual quality, interaction smoothness, or microphone behavior.
