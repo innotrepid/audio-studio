@@ -27,6 +27,14 @@ std::vector<unsigned char> load_bytes(const std::string& path) {
     return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 }
 
+bool has_partial_file_for(const std::string& path) {
+    const auto prefix = std::filesystem::path(path).filename().string() + ".partial-";
+    for (const auto& entry : std::filesystem::directory_iterator(".")) {
+        if (entry.path().filename().string().rfind(prefix, 0U) == 0U) return true;
+    }
+    return false;
+}
+
 void test_processes_to_separate_file_and_preserves_source() {
     const std::string input = "audio_studio_processing_source.wav";
     const std::string output = "audio_studio_processing_result.wav";
@@ -85,6 +93,44 @@ void test_processes_to_separate_file_and_preserves_source() {
     std::remove(output.c_str());
 }
 
+
+
+void test_truncated_source_does_not_publish_or_leave_partial_output() {
+    const std::string input = "audio_studio_processing_truncated_source.wav";
+    const std::string output = "audio_studio_processing_truncated_result.wav";
+    const std::array<float, 64U> samples{};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create source for truncation test");
+        require(writer.write_frames(samples.data(), samples.size()), "write truncation-test source");
+        require(writer.finalize(), "finalize truncation-test source");
+    }
+
+    auto malformed = load_bytes(input);
+    require(malformed.size() > 44U, "truncation fixture should contain audio payload");
+    malformed.pop_back();
+    {
+        std::ofstream file(input, std::ios::binary | std::ios::trunc);
+        file.write(reinterpret_cast<const char*>(malformed.data()),
+                   static_cast<std::streamsize>(malformed.size()));
+        require(static_cast<bool>(file), "write truncated source fixture");
+    }
+    const auto source_before = load_bytes(input);
+
+    std::string error;
+    require(!audio_studio::process_wav_with_noise_gate(input, output, {}, &error),
+            "processing must reject a source truncated inside its declared RIFF data");
+    require(!error.empty(), "truncated input rejection should provide an explanation");
+    require(load_bytes(input) == source_before,
+            "processing failure must not modify the malformed source");
+    require(!std::filesystem::exists(output),
+            "truncated input must not publish a final processed WAV");
+    require(!has_partial_file_for(output),
+            "truncated input must not leave an orphaned output partial");
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
 
 void test_cancellation_cleans_partial_output() {
     const std::string input = "audio_studio_processing_cancel_source.wav";
@@ -208,6 +254,7 @@ void test_refuses_relative_absolute_alias_of_input() {
 
 int main() {
     test_processes_to_separate_file_and_preserves_source();
+    test_truncated_source_does_not_publish_or_leave_partial_output();
     test_cancellation_cleans_partial_output();
     test_cancellation_during_progress_cleans_partial_output();
     test_refuses_to_overwrite_input();
