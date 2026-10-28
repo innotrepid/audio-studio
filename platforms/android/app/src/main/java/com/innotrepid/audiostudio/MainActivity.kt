@@ -294,10 +294,11 @@ class MainActivity : Activity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     thresholdLabel.text = "Noise threshold: ${progress - 70} dBFS"
-                    if (fromUser) gatePreferences.edit().putInt("threshold_progress", progress).apply()
-                }
+                    }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.let { gatePreferences.edit().putInt("threshold_progress", it.progress).apply() }
+                }
             })
         }
         attenuationLabel = TextView(this).apply {
@@ -311,10 +312,11 @@ class MainActivity : Activity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     attenuationLabel.text = "Noise reduction strength: ${progress - 36} dB"
-                    if (fromUser) gatePreferences.edit().putInt("attenuation_progress", progress).apply()
-                }
+                    }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.let { gatePreferences.edit().putInt("attenuation_progress", it.progress).apply() }
+                }
             })
         }
         thresholdLabel.text = "Noise threshold: ${thresholdSeekBar.progress - 70} dBFS"
@@ -331,10 +333,11 @@ class MainActivity : Activity() {
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     dspGainLabel.text = "Output gain: ${progress - 24} dB"
-                    if (fromUser) gatePreferences.edit().putInt("dsp_gain_progress", progress).apply()
-                }
+                    }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.let { gatePreferences.edit().putInt("dsp_gain_progress", it.progress).apply() }
+                }
             })
         }
         highPassLabel = TextView(this).apply {
@@ -349,10 +352,11 @@ class MainActivity : Activity() {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val cutoff = if (progress == 0) 0 else (20 + (progress - 1) * 10).coerceAtMost(500)
                     highPassLabel.text = if (cutoff == 0) "High-pass filter: Off" else "High-pass filter: ${cutoff} Hz"
-                    if (fromUser) gatePreferences.edit().putInt("high_pass_progress", progress).apply()
-                }
+                    }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.let { gatePreferences.edit().putInt("high_pass_progress", it.progress).apply() }
+                }
             })
         }
         dspGainLabel.text = "Output gain: ${dspGainSeekBar.progress - 24} dB"
