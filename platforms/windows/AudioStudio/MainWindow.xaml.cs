@@ -20,6 +20,10 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_analyze_wav_waveform", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern int NativeAnalyzeWavWaveform([MarshalAs(UnmanagedType.LPWStr)] string inputPath, uint bucketCount, [Out] float[] interleavedPeaks, out ulong totalFrames, out uint sampleRate, out ushort channels);
 
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_trim_wav", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+    private static extern int NativeTrimWav([MarshalAs(UnmanagedType.LPWStr)] string inputPath,
+        [MarshalAs(UnmanagedType.LPWStr)] string outputPath, ulong startFrame, ulong endFrame);
+
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_engine_status", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr NativeEngineStatus();
 
@@ -80,6 +84,8 @@ public sealed partial class MainWindow : Window
     private readonly MediaPlayer _previewPlayer = new();
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
+    private string? _waveformFilePath;
+    private ulong _waveformTotalFrames;
     private readonly List<CaptureDeviceChoice> _captureDevices = new();
 
     private sealed record CaptureDeviceChoice(string Name, string Id)
@@ -117,6 +123,10 @@ public sealed partial class MainWindow : Window
             var cutoff = HighPassSlider.Value < 1 ? 0 : Math.Min(500, 20 + ((int)HighPassSlider.Value - 1) * 10);
             HighPassText.Text = cutoff == 0 ? "High-pass filter: Off" : $"High-pass filter: {cutoff} Hz";
         };
+        TrimStartSlider.ValueChanged += (_, _) =>
+            TrimStartText.Text = $"Trim start: {TrimStartSlider.Value / 10.0:0.0}%";
+        TrimEndSlider.ValueChanged += (_, _) =>
+            TrimEndText.Text = $"Trim end: {TrimEndSlider.Value / 10.0:0.0}%";
         Closed += (_, _) =>
         {
             _meterTimer.Stop();
@@ -190,11 +200,72 @@ public sealed partial class MainWindow : Window
                 Microsoft.UI.Xaml.Controls.Canvas.SetLeft(line, i * width / buckets);
                 WaveformCanvas.Children.Add(line);
             }
-            WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Original file unchanged.";
+            _waveformFilePath = file.Path;
+            _waveformTotalFrames = analysis.frames;
+            TrimStartSlider.Value = 0;
+            TrimEndSlider.Value = 1000;
+            TrimWaveformButton.IsEnabled = _waveformTotalFrames > 1;
+            WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Select a range below; original unchanged.";
         }
         catch (Exception exception)
         {
             WaveformStatusText.Text = $"Waveform analysis failed: {exception.Message}";
+        }
+    }
+
+
+    private async void TrimWaveform_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_waveformFilePath) || _waveformTotalFrames < 2)
+        {
+            WaveformStatusText.Text = "Load a WAV waveform before trimming.";
+            return;
+        }
+        if (TrimStartSlider.Value >= TrimEndSlider.Value)
+        {
+            WaveformStatusText.Text = "Trim start must be before trim end.";
+            return;
+        }
+
+        var folderPicker = new FolderPicker();
+        folderPicker.FileTypeFilter.Add("*");
+        InitializeWithWindow.Initialize(folderPicker, WindowNative.GetWindowHandle(this));
+        var folder = await folderPicker.PickSingleFolderAsync();
+        if (folder is null)
+        {
+            WaveformStatusText.Text = "Trim cancelled. No files were changed.";
+            return;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(_waveformFilePath);
+        var outputPath = Path.Combine(folder.Path, $"{baseName}-trimmed.wav");
+        for (var suffix = 2; File.Exists(outputPath); suffix++)
+            outputPath = Path.Combine(folder.Path, $"{baseName}-trimmed-{suffix}.wav");
+
+        var startFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
+        var endFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
+        if (endFrame <= startFrame)
+        {
+            WaveformStatusText.Text = "The selected range is too short to contain an audio frame.";
+            return;
+        }
+
+        TrimWaveformButton.IsEnabled = false;
+        WaveformStatusText.Text = "Trimming selected frames to a separate WAV…";
+        try
+        {
+            var succeeded = await Task.Run(() => NativeTrimWav(_waveformFilePath, outputPath, startFrame, endFrame) != 0);
+            WaveformStatusText.Text = succeeded
+                ? $"Trimmed WAV saved: {Path.GetFileName(outputPath)}. Original file preserved."
+                : "Trim failed. The source was preserved; check the range and destination.";
+        }
+        catch (Exception exception)
+        {
+            WaveformStatusText.Text = $"Trim failed: {exception.Message}. Original file preserved.";
+        }
+        finally
+        {
+            TrimWaveformButton.IsEnabled = _waveformTotalFrames > 1;
         }
     }
 
