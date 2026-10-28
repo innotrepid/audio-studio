@@ -73,6 +73,7 @@
                     <Slider x:Name="TrimStartSlider" Minimum="0" Maximum="1000" Value="0" StepFrequency="1" />
                     <TextBlock x:Name="TrimEndText" Text="Trim end: 100%" Foreground="#BEC6D6" />
                     <Slider x:Name="TrimEndSlider" Minimum="0" Maximum="1000" Value="1000" StepFrequency="1" />
+                    <TextBlock x:Name="WaveformSelectionText" Text="Selected duration: full file" TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <Button x:Name="TrimWaveformButton" Content="Trim selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" HorizontalAlignment="Center" />
                     <TextBlock x:Name="WaveformStatusText" Text="No waveform loaded." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>

@@ -186,7 +186,10 @@ class MainActivity : Activity() {
         trimStartSeekBar = SeekBar(this).apply {
             max = 1000
             progress = 0
-            setOnSeekBarChangeListener(trimRangeListener { trimStartLabel.text = "Trim start: ${it / 10.0f}%" })
+            setOnSeekBarChangeListener(trimRangeListener {
+                trimStartLabel.text = "Trim start: ${it / 10.0f}%"
+                waveformView.setSelection(it / 1000f, trimEndSeekBar.progress / 1000f)
+            })
         }
         trimEndLabel = TextView(this).apply {
             text = "Trim end: 100%"
@@ -196,7 +199,10 @@ class MainActivity : Activity() {
         trimEndSeekBar = SeekBar(this).apply {
             max = 1000
             progress = 1000
-            setOnSeekBarChangeListener(trimRangeListener { trimEndLabel.text = "Trim end: ${it / 10.0f}%" })
+            setOnSeekBarChangeListener(trimRangeListener {
+                trimEndLabel.text = "Trim end: ${it / 10.0f}%"
+                waveformView.setSelection(trimStartSeekBar.progress / 1000f, it / 1000f)
+            })
         }
         trimWaveformButton = Button(this).apply {
             text = "Trim selected range to new WAV"
@@ -653,6 +659,7 @@ class MainActivity : Activity() {
                         waveformView.setPeaks(peaks)
                         trimStartSeekBar.progress = 0
                         trimEndSeekBar.progress = 1000
+                        waveformView.setSelection(0f, 1f)
                         trimWaveformButton.isEnabled = true
                         waveformStatus.text = "Waveform loaded · select a range below. Original file unchanged."
                     }

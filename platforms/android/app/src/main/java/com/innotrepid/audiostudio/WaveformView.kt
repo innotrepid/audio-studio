@@ -17,7 +17,23 @@ class WaveformView(context: Context) : View(context) {
         color = 0xFF38404D.toInt()
         strokeWidth = 1f
     }
+    private val selectionFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x333FA9F5
+        style = Paint.Style.FILL
+    }
+    private val selectionMarker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFC857.toInt()
+        strokeWidth = 2f
+    }
+    private var selectionStart = 0f
+    private var selectionEnd = 1f
     private var peaks = FloatArray(0)
+
+    fun setSelection(startFraction: Float, endFraction: Float) {
+        selectionStart = startFraction.coerceIn(0f, 1f)
+        selectionEnd = endFraction.coerceIn(selectionStart, 1f)
+        invalidate()
+    }
 
     fun setPeaks(values: FloatArray) {
         peaks = values.copyOf()
@@ -28,8 +44,12 @@ class WaveformView(context: Context) : View(context) {
         super.onDraw(canvas)
         val center = height / 2f
         canvas.drawColor(0xFF171D27.toInt())
+        if (width <= 0 || height <= 0) return
+        val startX = selectionStart * width
+        val endX = selectionEnd * width
+        canvas.drawRect(startX, 0f, endX, height.toFloat(), selectionFill)
         canvas.drawLine(0f, center, width.toFloat(), center, centerPaint)
-        if (peaks.size < 4 || width <= 0 || height <= 0) return
+        if (peaks.size < 4) return
         val buckets = peaks.size / 4
         val amplitude = max(1f, center - 6f)
         for (i in 0 until buckets) {
@@ -38,5 +58,7 @@ class WaveformView(context: Context) : View(context) {
             val x = (i.toFloat() / buckets) * width
             canvas.drawLine(x, center - maxPeak * amplitude, x, center - minPeak * amplitude, paint)
         }
+        canvas.drawLine(startX, 0f, startX, height.toFloat(), selectionMarker)
+        canvas.drawLine(endX, 0f, endX, height.toFloat(), selectionMarker)
     }
 }

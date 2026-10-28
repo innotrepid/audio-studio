@@ -86,6 +86,9 @@ public sealed partial class MainWindow : Window
     private StorageFile? _processedPreviewFile;
     private string? _waveformFilePath;
     private ulong _waveformTotalFrames;
+    private uint _waveformSampleRate;
+    private Microsoft.UI.Xaml.Shapes.Line? _trimStartMarker;
+    private Microsoft.UI.Xaml.Shapes.Line? _trimEndMarker;
     private readonly List<CaptureDeviceChoice> _captureDevices = new();
 
     private sealed record CaptureDeviceChoice(string Name, string Id)
@@ -124,9 +127,15 @@ public sealed partial class MainWindow : Window
             HighPassText.Text = cutoff == 0 ? "High-pass filter: Off" : $"High-pass filter: {cutoff} Hz";
         };
         TrimStartSlider.ValueChanged += (_, _) =>
+        {
             TrimStartText.Text = $"Trim start: {TrimStartSlider.Value / 10.0:0.0}%";
+            UpdateWaveformSelectionMarkers();
+        };
         TrimEndSlider.ValueChanged += (_, _) =>
+        {
             TrimEndText.Text = $"Trim end: {TrimEndSlider.Value / 10.0:0.0}%";
+            UpdateWaveformSelectionMarkers();
+        };
         Closed += (_, _) =>
         {
             _meterTimer.Stop();
@@ -202,8 +211,24 @@ public sealed partial class MainWindow : Window
             }
             _waveformFilePath = file.Path;
             _waveformTotalFrames = analysis.frames;
+            _waveformSampleRate = analysis.rate;
             TrimStartSlider.Value = 0;
             TrimEndSlider.Value = 1000;
+            _trimStartMarker = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Y1 = 0, Y2 = WaveformCanvas.Height,
+                Stroke = new SolidColorBrush(Microsoft.UI.Colors.Gold),
+                StrokeThickness = 2
+            };
+            _trimEndMarker = new Microsoft.UI.Xaml.Shapes.Line
+            {
+                Y1 = 0, Y2 = WaveformCanvas.Height,
+                Stroke = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed),
+                StrokeThickness = 2
+            };
+            WaveformCanvas.Children.Add(_trimStartMarker);
+            WaveformCanvas.Children.Add(_trimEndMarker);
+            UpdateWaveformSelectionMarkers();
             TrimWaveformButton.IsEnabled = _waveformTotalFrames > 1;
             WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Select a range below; original unchanged.";
         }
@@ -213,6 +238,30 @@ public sealed partial class MainWindow : Window
         }
     }
 
+
+
+    private void UpdateWaveformSelectionMarkers()
+    {
+        if (_trimStartMarker is null || _trimEndMarker is null || _waveformTotalFrames == 0)
+            return;
+        var width = WaveformCanvas.Width;
+        var startFraction = TrimStartSlider.Value / 1000.0;
+        var endFraction = TrimEndSlider.Value / 1000.0;
+        _trimStartMarker.X1 = _trimStartMarker.X2 = width * startFraction;
+        _trimEndMarker.X1 = _trimEndMarker.X2 = width * endFraction;
+
+        if (_waveformSampleRate > 0)
+        {
+            var startFrame = (ulong)Math.Floor(_waveformTotalFrames * startFraction);
+            var endFrame = (ulong)Math.Floor(_waveformTotalFrames * endFraction);
+            var start = TimeSpan.FromSeconds((double)startFrame / _waveformSampleRate);
+            var end = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
+            var duration = TimeSpan.FromSeconds((double)(endFrame - Math.Min(endFrame, startFrame)) / _waveformSampleRate);
+            var startText = start.ToString(@"mm\:ss\.fff");
+            var endText = end.ToString(@"mm\:ss\.fff");
+            WaveformSelectionText.Text = $"Selection: {startText} – {endText} · {duration.TotalSeconds:0.00}s";
+        }
+    }
 
     private async void TrimWaveform_Click(object sender, RoutedEventArgs e)
     {
