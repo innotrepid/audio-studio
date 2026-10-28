@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
+    private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
@@ -49,6 +50,9 @@ class MainActivity : Activity() {
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private lateinit var processButton: Button
+    private lateinit var waveformButton: Button
+    private lateinit var waveformStatus: TextView
+    private lateinit var waveformView: WaveformView
     private lateinit var recoverButton: Button
     private lateinit var playOriginalButton: Button
     private lateinit var playProcessedButton: Button
@@ -164,6 +168,12 @@ class MainActivity : Activity() {
         processButton = Button(this).apply {
             text = "Reduce background noise in a WAV"
             setOnClickListener { chooseWavToProcess() }
+        }
+        waveformStatus = TextView(this).apply { text = "No waveform loaded."; textSize = 13f; setTextColor(Color.rgb(190, 198, 214)); gravity = Gravity.CENTER }
+        waveformView = WaveformView(this)
+        waveformButton = Button(this).apply {
+            text = "Load WAV waveform"
+            setOnClickListener { chooseWavWaveform() }
         }
         recoverButton = Button(this).apply {
             text = "Check for interrupted recordings"
@@ -308,6 +318,9 @@ class MainActivity : Activity() {
         root.addView(startButton, matchWidth())
         root.addView(stopButton, matchWidth())
         root.addView(processButton, matchWidth())
+        root.addView(waveformButton, matchWidth())
+        root.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180))
+        root.addView(waveformStatus, matchWidth())
         root.addView(recoverButton, matchWidth())
         root.addView(processingProgress, matchWidth())
         root.addView(cancelProcessingButton, matchWidth())
@@ -557,6 +570,56 @@ class MainActivity : Activity() {
     }
 
 
+    private fun chooseWavWaveform() {
+        if (recording || processing || wavPickerActive || startAfterPermission) {
+            statusText.text = "Finish the current operation before loading a waveform."
+            return
+        }
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+        }
+        wavPickerActive = true
+        waveformButton.isEnabled = false
+        processButton.isEnabled = false
+        startButton.isEnabled = false
+        try { startActivityForResult(picker, REQUEST_WAVEFORM) }
+        catch (exception: Exception) {
+            wavPickerActive = false
+            waveformButton.isEnabled = true
+            processButton.isEnabled = true
+            startButton.isEnabled = true
+            waveformStatus.text = "Could not open file picker: ${exception.message ?: "unknown error"}"
+        }
+    }
+
+    private fun analyzeSelectedWaveform(uri: Uri) {
+        waveformStatus.text = "Analyzing WAV in bounded memory…"
+        Thread {
+            var staged: File? = null
+            try {
+                val file = File(filesDir, "waveform-source-${System.currentTimeMillis()}.wav")
+                staged = file
+                contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) { val count = input.read(buffer); if (count < 0) break; output.write(buffer, 0, count) }
+                    }
+                } ?: throw IOException("Could not open the selected file.")
+                val peaks = nativeAnalyzeWavWaveform(file.absolutePath, 240)
+                if (peaks.size != 960) throw IOException("Could not analyze this file. Choose a valid PCM16 WAV.")
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) {
+                        waveformView.setPeaks(peaks)
+                        waveformStatus.text = "Waveform loaded · 240 peak buckets · original file unchanged."
+                    }
+                }
+            } catch (exception: Exception) {
+                mainHandler.post { if (!isFinishing && !isDestroyed) waveformStatus.text = exception.message ?: "Waveform analysis failed." }
+            } finally { staged?.delete() }
+        }.start()
+    }
+
     private fun chooseWavToProcess() {
         if (recording || processing || wavPickerActive || startAfterPermission) {
             statusText.text = "Stop the current operation before processing a WAV."
@@ -582,6 +645,15 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform document picker result API for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_WAVEFORM) {
+            wavPickerActive = false
+            if (resultCode == RESULT_OK && data?.data != null) analyzeSelectedWaveform(data.data!!)
+            else waveformStatus.text = "Waveform selection cancelled."
+            processButton.isEnabled = !recording && !processing
+            startButton.isEnabled = !recording && !processing
+            waveformButton.isEnabled = !recording && !processing
+            return
+        }
         if (requestCode != REQUEST_PROCESS_WAV) return
         wavPickerActive = false
         if (resultCode != RESULT_OK) {
@@ -921,6 +993,7 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_RECORD_AUDIO = 1001
         private const val REQUEST_PROCESS_WAV = 1002
+        private const val REQUEST_WAVEFORM = 1003
         private const val WAV_HEADER_BYTES = 44L
         private const val STALE_PROCESSING_FILE_AGE_MS = 24L * 60L * 60L * 1000L
     }
