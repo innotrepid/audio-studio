@@ -41,7 +41,7 @@ This shares the code where sharing is valuable without pretending Android and Wi
 4. **Creator studio:** scripts, teleprompter, timing, captions, production markers, templates, and batch export.
 5. **Optional AI and advanced intelligence:** provider adapters, enhancement, session consistency checks, quality recommendations, and production blueprints.
 
-See [the roadmap](docs/ROADMAP.md), [product requirements](docs/PRODUCT_REQUIREMENTS.md), and [architecture](docs/ARCHITECTURE.md).
+See [the roadmap](docs/ROADMAP.md), [hardening backlog](docs/HARDENING_BACKLOG.md), [product requirements](docs/PRODUCT_REQUIREMENTS.md), and [architecture](docs/ARCHITECTURE.md).
 
 ## Repository structure
 
