@@ -132,6 +132,46 @@ void test_truncated_source_does_not_publish_or_leave_partial_output() {
     std::remove(output.c_str());
 }
 
+void test_cancellation_does_not_remove_concurrent_destination() {
+    const std::string input = "audio_studio_processing_concurrent_cancel_source.wav";
+    const std::string output = "audio_studio_processing_concurrent_cancel_result.wav";
+    const std::array<float, 128U> samples{};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create concurrent-destination cancellation source");
+        require(writer.write_frames(samples.data(), samples.size()),
+                "write concurrent-destination cancellation source");
+        require(writer.finalize(), "finalize concurrent-destination cancellation source");
+    }
+    const auto source_before = load_bytes(input);
+    const std::vector<unsigned char> sentinel{'u','n','r','e','l','a','t','e','d'};
+    std::atomic<bool> cancel{false};
+    std::string error;
+    const auto progress = [&](std::uint64_t processed, std::uint64_t /* total */) {
+        if (processed == 0U) {
+            std::ofstream file(output, std::ios::binary | std::ios::trunc);
+            file.write(reinterpret_cast<const char*>(sentinel.data()),
+                       static_cast<std::streamsize>(sentinel.size()));
+            require(static_cast<bool>(file), "create concurrent destination sentinel");
+            cancel.store(true, std::memory_order_release);
+        }
+    };
+    require(!audio_studio::process_wav_with_noise_gate(
+                input, output, {}, &error, &cancel, progress),
+            "cancellation after another actor creates the destination must stop processing");
+    require(error.find("cancelled") != std::string::npos,
+            "concurrent-destination cancellation should be described");
+    require(load_bytes(input) == source_before,
+            "concurrent-destination cancellation must preserve source bytes");
+    require(load_bytes(output) == sentinel,
+            "failure cleanup must not delete an unrelated file at the destination path");
+    require(!has_partial_file_for(output),
+            "failure cleanup must still remove the writer-owned temporary file");
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
 void test_cancellation_at_initial_progress_cleans_partial_output() {
     const std::string input = "audio_studio_processing_initial_cancel_source.wav";
     const std::string output = "audio_studio_processing_initial_cancel_result.wav";
@@ -290,6 +330,7 @@ void test_refuses_relative_absolute_alias_of_input() {
 int main() {
     test_processes_to_separate_file_and_preserves_source();
     test_truncated_source_does_not_publish_or_leave_partial_output();
+    test_cancellation_does_not_remove_concurrent_destination();
     test_cancellation_at_initial_progress_cleans_partial_output();
     test_cancellation_cleans_partial_output();
     test_cancellation_during_progress_cleans_partial_output();

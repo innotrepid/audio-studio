@@ -205,7 +205,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     input.seekg(static_cast<std::streamoff>(data_offset), std::ios::beg);
     if (!input) {
         writer.abort();
-        std::filesystem::remove(output_fs, ec);
+
         return fail(error, "Could not seek to WAV audio data.");
     }
 
@@ -214,7 +214,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     while (frames_remaining > 0U) {
         if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
             writer.abort();
-            std::filesystem::remove(output_path, ec);
+
             return fail(error, "Processing cancelled by user.");
         }
         const std::size_t frames = static_cast<std::size_t>(
@@ -223,7 +223,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
         const std::size_t bytes_to_read = frames * bytes_per_frame;
         if (!read_exact(input, raw.data(), bytes_to_read)) {
             writer.abort();
-            std::filesystem::remove(output_path, ec);
+
             return fail(error, "Could not read the complete WAV audio data.");
         }
 
@@ -237,13 +237,13 @@ bool process_wav_with_noise_gate(const std::string& input_path,
         }
         if (!gate.process(block)) {
             writer.abort();
-            std::filesystem::remove(output_path, ec);
+
             return fail(error, "Noise gate rejected a decoded audio block.");
         }
         if (!writer.write_frames(block.samples.data(), frames)) {
             const std::string message = "Could not write processed WAV: " + writer.last_error();
             writer.abort();
-            std::filesystem::remove(output_path, ec);
+
             return fail(error, message);
         }
         frames_remaining -= frames;
@@ -252,13 +252,13 @@ bool process_wav_with_noise_gate(const std::string& input_path,
 
     if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
         writer.abort();
-        std::filesystem::remove(output_path, ec);
+
         return fail(error, "Processing cancelled by user.");
     }
     if (!writer.finalize()) {
         const std::string message = "Could not finalize processed WAV: " + writer.last_error();
         writer.abort();
-        std::filesystem::remove(output_path, ec);
+
         return fail(error, message);
     }
     return true;
