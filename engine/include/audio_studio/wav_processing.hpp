@@ -28,6 +28,15 @@ struct WaveformPeak {
     std::uint64_t* total_frames = nullptr,
     std::string* error = nullptr);
 
+// Writes the half-open frame range [start_frame, end_frame) to a separate WAV.
+// The source is never modified and memory use is bounded independently of duration.
+[[nodiscard]] bool trim_wav(
+    const std::string& input_path,
+    const std::string& output_path,
+    std::uint64_t start_frame,
+    std::uint64_t end_frame,
+    std::string* error = nullptr);
+
 // Streams PCM16 WAV audio through the gate in bounded blocks and writes a
 // separate PCM16 WAV. Memory use is independent of recording duration; the
 // source file is never modified.
