@@ -271,7 +271,10 @@
                                     <TextBlock x:Name="WaveformSelectionText" Text="Selected duration: full file" TextWrapping="Wrap" Foreground="#B29BFF" FontSize="16" FontWeight="SemiBold" />
                                 </StackPanel>
                             </Border>
-                            <Button x:Name="TrimWaveformButton" Content="Export selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Name="PreviewTrimRangeButton" Content="Preview selected range" Click="PreviewTrimRange_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                                <Button x:Name="TrimWaveformButton" Content="Export selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" HorizontalAlignment="Left" />
+                            </StackPanel>
                             <TextBlock Text="Export creates a new file and adds a suffix if a file with that name already exists." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
                         </StackPanel>
                     </Border>
