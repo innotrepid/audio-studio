@@ -300,6 +300,7 @@ void test_five_minute_recording_integrity() {
 int main() {
     test_wav_header_and_samples();
     test_existing_destination_is_never_overwritten();
+    test_destination_created_after_open_is_never_overwritten();
     test_rejects_invalid_input();
     test_rejects_unrepresentable_frame_count_without_reading_past_buffer();
     test_abort_discards_partial_output();
