@@ -427,14 +427,30 @@ class MainActivity : Activity() {
         val processingSection = makeSection("Clean up audio", "Choose a preset first. Advanced controls are available below; processing creates a separate copy.")
         processingSection.addView(processButton, matchWidth())
         processingSection.addView(presetRow, matchWidth())
-        processingSection.addView(thresholdLabel, matchWidth())
-        processingSection.addView(thresholdSeekBar, matchWidth())
-        processingSection.addView(attenuationLabel, matchWidth())
-        processingSection.addView(attenuationSeekBar, matchWidth())
-        processingSection.addView(dspGainLabel, matchWidth())
-        processingSection.addView(dspGainSeekBar, matchWidth())
-        processingSection.addView(highPassLabel, matchWidth())
-        processingSection.addView(highPassSeekBar, matchWidth())
+
+        val advancedControls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = ViewGroup.GONE
+        }
+        val advancedControlsToggle = Button(this).apply {
+            text = "Show advanced controls"
+            contentDescription = "Show or hide noise gate, gain, and high-pass settings"
+            setOnClickListener {
+                val show = advancedControls.visibility != ViewGroup.VISIBLE
+                advancedControls.visibility = if (show) ViewGroup.VISIBLE else ViewGroup.GONE
+                text = if (show) "Hide advanced controls" else "Show advanced controls"
+            }
+        }
+        advancedControls.addView(thresholdLabel, matchWidth())
+        advancedControls.addView(thresholdSeekBar, matchWidth())
+        advancedControls.addView(attenuationLabel, matchWidth())
+        advancedControls.addView(attenuationSeekBar, matchWidth())
+        advancedControls.addView(dspGainLabel, matchWidth())
+        advancedControls.addView(dspGainSeekBar, matchWidth())
+        advancedControls.addView(highPassLabel, matchWidth())
+        advancedControls.addView(highPassSeekBar, matchWidth())
+        processingSection.addView(advancedControlsToggle, matchWidth())
+        processingSection.addView(advancedControls, matchWidth())
         processingSection.addView(processingProgress, matchWidth())
         processingSection.addView(cancelProcessingButton, matchWidth())
         processingSection.addView(playOriginalButton, matchWidth())
