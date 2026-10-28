@@ -521,9 +521,46 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ))
         }
+        // Apply the studio control language once, after the view tree is built.
+        // This is construction-time styling: taps and gestures never rebuild the screen.
+        fun styleStudioButtons(view: android.view.View) {
+            if (view is Button) {
+                view.isAllCaps = false
+                view.textSize = 14f
+                view.setPadding(dp(16), dp(10), dp(16), dp(10))
+                view.minHeight = dp(46)
+                view.stateListAnimator = null
+                view.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(Color.rgb(34, 34, 48))
+                    cornerRadius = dp(12).toFloat()
+                    setStroke(dp(1), Color.rgb(58, 54, 80))
+                }
+                view.setTextColor(Color.rgb(243, 240, 255))
+            } else if (view is ViewGroup) {
+                for (index in 0 until view.childCount) styleStudioButtons(view.getChildAt(index))
+            }
+        }
+        styleStudioButtons(appShell)
+
+        fun emphasize(button: Button, fill: Int, text: Int = Color.rgb(16, 18, 24)) {
+            button.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(fill)
+                cornerRadius = dp(12).toFloat()
+            }
+            button.setTextColor(text)
+            button.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        emphasize(startButton, Color.rgb(178, 155, 255))
+        emphasize(processButton, Color.rgb(178, 155, 255))
+        emphasize(trimWaveformButton, Color.rgb(178, 155, 255))
+        emphasize(stopButton, Color.rgb(255, 122, 134))
+        emphasize(cancelProcessingButton, Color.rgb(255, 122, 134))
+
         setContentView(appShell)
         root.post { showInterruptedRecordings(showWhenNone = false) }
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density + 0.5f).toInt()
 
     private fun applyProcessingPreset(preset: String) {
         val values = when (preset) {
