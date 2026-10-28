@@ -125,13 +125,13 @@ bool DspEffects::process(AudioBuffer& buffer, std::string* error) {
                         output.data(), frames) != DSP_OK) {
             return fail(error, "DSP engine failed to process an audio block.");
         }
-        std::copy_n(output.data(), static_cast<std::size_t>(frames) * channels,
-                    buffer.samples.data() + sample_offset);
         for (std::size_t i = 0; i < static_cast<std::size_t>(frames) * channels; ++i) {
             if (!std::isfinite(output[i])) {
                 return fail(error, "DSP engine produced a non-finite sample.");
             }
         }
+        std::copy_n(output.data(), static_cast<std::size_t>(frames) * channels,
+                    buffer.samples.data() + sample_offset);
         offset += static_cast<std::size_t>(frames);
     }
     return true;
