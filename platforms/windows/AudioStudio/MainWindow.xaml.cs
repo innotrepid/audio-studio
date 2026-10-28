@@ -202,14 +202,31 @@ public sealed partial class MainWindow : Window
             var width = WaveformCanvas.Width;
             var center = WaveformCanvas.Height / 2;
             var amplitude = center - 5;
+            var waveformGeometry = new PathGeometry();
             for (var i = 0; i < buckets; i++)
             {
                 var min = Math.Min(peaks[i * 4], peaks[i * 4 + 2]);
                 var max = Math.Max(peaks[i * 4 + 1], peaks[i * 4 + 3]);
-                var line = new Microsoft.UI.Xaml.Shapes.Line { X1 = 0, X2 = 0, Y1 = center - Math.Clamp(max, -1f, 1f) * amplitude, Y2 = center - Math.Clamp(min, -1f, 1f) * amplitude, Stroke = new SolidColorBrush(Microsoft.UI.Colors.LightGreen), StrokeThickness = 1.5 };
-                Microsoft.UI.Xaml.Controls.Canvas.SetLeft(line, i * width / buckets);
-                WaveformCanvas.Children.Add(line);
+                var x = (i + 0.5) * width / buckets;
+                var figure = new PathFigure
+                {
+                    StartPoint = new Point(x, center - Math.Clamp(max, -1f, 1f) * amplitude),
+                    IsClosed = false,
+                    IsFilled = false
+                };
+                figure.Segments.Add(new LineSegment
+                {
+                    Point = new Point(x, center - Math.Clamp(min, -1f, 1f) * amplitude)
+                });
+                waveformGeometry.Figures.Add(figure);
             }
+            WaveformCanvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path
+            {
+                Data = waveformGeometry,
+                Stroke = new SolidColorBrush(Microsoft.UI.Colors.LightGreen),
+                StrokeThickness = 1.5,
+                IsHitTestVisible = false
+            });
             _waveformFilePath = file.Path;
             _waveformTotalFrames = analysis.frames;
             _waveformSampleRate = analysis.rate;
