@@ -735,13 +735,13 @@ class MainActivity : Activity() {
         val stagedFile = currentRecordingFile
         currentRecordingFile = null
         if (!nativeStatus.startsWith("Saved recording:")) {
-            statusText.text = interruptionNotice + nativeStatus +
+            statusText.text = interruptionNotice + "RECOVERABLE / INCOMPLETE TAKE — finalization did not succeed.\n\n" + nativeStatus +
                 "\n\nThe staged file, if present, was retained in app-private storage for recovery."
             return
         }
         if (stagedFile == null || !isCompletePcmWav(stagedFile)) {
             statusText.text = interruptionNotice +
-                "Recording stopped, but WAV validation failed. The staged file was retained in app-private storage."
+                "UNVERIFIED TAKE — WAV validation failed. The staged file was retained in app-private storage and was not exported."
             return
         }
 
@@ -750,15 +750,15 @@ class MainActivity : Activity() {
             val publicUri = publishRecording(stagedFile)
             if (publicUri != null) {
                 if (!stagedFile.delete()) {
-                    interruptionNotice + "Recording exported successfully, but the private staging copy could not be removed."
+                    interruptionNotice + "FINALIZED AND VERIFIED — recording exported successfully, but the private staging copy could not be removed."
                 } else {
-                    interruptionNotice + "Saved and verified WAV in Music/Audio Studio/Recordings."
+                    interruptionNotice + "FINALIZED AND VERIFIED — saved WAV in Music/Audio Studio/Recordings."
                 }
             } else {
-                interruptionNotice + "This Android version does not support automatic public export. The verified WAV remains in app-private storage."
+                interruptionNotice + "FINALIZED AND VERIFIED — automatic public export is unavailable on this Android version. The verified WAV remains in app-private storage."
             }
         } catch (exception: Exception) {
-            interruptionNotice + "Export failed: ${exception.message ?: "unknown error"}. The verified WAV remains in app-private storage."
+            interruptionNotice + "FINALIZED AND VERIFIED — export failed: ${exception.message ?: "unknown error"}. The verified WAV remains in app-private storage."
         }.let { message ->
             if (takeDetails != null) message + "\n\n" + takeDetails else message
         }
