@@ -41,6 +41,10 @@ std::vector<unsigned char> read_bytes(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 }
+void write_u16(std::vector<unsigned char>& bytes, std::size_t offset, unsigned int value) {
+    bytes[offset] = static_cast<unsigned char>(value & 0xffU);
+    bytes[offset + 1U] = static_cast<unsigned char>((value >> 8U) & 0xffU);
+}
 void write_bytes(const std::string& path, const std::vector<unsigned char>& bytes) {
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
     file.write(reinterpret_cast<const char*>(bytes.data()),
@@ -188,7 +192,7 @@ void test_rejects_unsupported_channel_count_without_mutating_source() {
     const std::string output = "recovery_bad_channels.wav";
     create_partial(partial, {0x01U, 0x02U, 0x03U, 0x04U});
     auto malformed = read_bytes(partial);
-    write_u16(*reinterpret_cast<std::array<unsigned char, 44U>*>(malformed.data()), 22U, 3U);
+    write_u16(malformed, 22U, 3U);
     write_bytes(partial, malformed);
     const auto original = read_bytes(partial);
 
