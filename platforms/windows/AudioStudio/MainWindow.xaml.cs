@@ -169,9 +169,12 @@ public sealed partial class MainWindow : Window
         var peaks = new float[buckets * 4];
         try
         {
-            var count = await Task.Run(() => NativeAnalyzeWavWaveform(file.Path, buckets, peaks, out var frames, out var rate, out var channels)
-                is var result ? (result, frames, rate, channels) : (0, 0UL, 0U, (ushort)0));
-            if (count.Item1 <= 0)
+            var analysis = await Task.Run(() =>
+            {
+                var result = NativeAnalyzeWavWaveform(file.Path, (uint)buckets, peaks, out var frames, out var rate, out var channels);
+                return (result, frames, rate, channels);
+            });
+            if (analysis.result <= 0)
             {
                 WaveformStatusText.Text = "Could not analyze this WAV. Choose a valid PCM16 WAV file.";
                 return;
@@ -188,7 +191,7 @@ public sealed partial class MainWindow : Window
                 Canvas.SetLeft(line, i * width / buckets);
                 WaveformCanvas.Children.Add(line);
             }
-            WaveformStatusText.Text = $"{file.Name} · {count.Item3} Hz · {count.Item4} channel(s) · {count.Item2:N0} frames. Original file unchanged.";
+            WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Original file unchanged.";
         }
         catch (Exception exception)
         {
