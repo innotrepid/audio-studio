@@ -30,6 +30,11 @@
                     <Rectangle Height="1" Fill="#38404D" Margin="0,8" />
                     <TextBlock Text="Process an existing PCM16 WAV" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Creates a separate processed copy. The original is never overwritten." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <ComboBox x:Name="ProcessingPresetComboBox" PlaceholderText="Quick processing preset" SelectionChanged="ProcessingPresetComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Natural" />
+                        <ComboBoxItem Content="Voice clarity" />
+                        <ComboBoxItem Content="Rumble cut" />
+                    </ComboBox>
                     <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#BEC6D6" />
                     <Slider x:Name="GateThresholdSlider" Minimum="-60" Maximum="-30" Value="-48" StepFrequency="1" />
                     <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#BEC6D6" />
