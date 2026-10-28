@@ -83,9 +83,32 @@ void test_rejects_invalid_input() {
     require(!writer.open("unused.wav", {48000U, 3U}), "unsupported channel count should fail");
     const std::string path = "audio_studio_invalid_test.wav";
     require(writer.open(path, {44100U, 1U}), "writer should open mono WAV");
-    const std::array<float, 1> invalid{std::numeric_limits<float>::quiet_NaN()};
-    require(!writer.write_frames(invalid.data(), 1U), "non-finite samples should be rejected");
+
+    const std::array<float, 3> invalid{
+        std::numeric_limits<float>::quiet_NaN(),
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity()};
+    for (const float sample : invalid) {
+        require(!writer.write_frames(&sample, 1U),
+                "NaN and positive/negative infinity samples should be rejected");
+        require(writer.frames_written() == 0U,
+                "rejecting a non-finite sample must not advance the frame count");
+    }
+
+    const std::array<float, 1> valid{0.25F};
+    require(writer.write_frames(valid.data(), valid.size()),
+            "writer should accept valid samples after rejecting invalid input");
+    require(writer.frames_written() == 1U,
+            "only successfully written frames should be counted");
     require(writer.finalize(), "writer should still safely finalize after rejected input");
+
+    std::ifstream file(path, std::ios::binary);
+    const std::vector<unsigned char> bytes{
+        std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    require(bytes.size() == 46U, "recovered writer should contain only the valid sample");
+    require(read_u32(bytes, 40U) == 2U, "invalid samples must not enter the WAV payload");
+    require(bytes[44U] == 0xffU && bytes[45U] == 0x1fU,
+            "valid sample after rejected input should be encoded correctly");
     std::remove(path.c_str());
 }
 
