@@ -27,6 +27,11 @@ public partial class App : Application
                 LogText($"Unhandled application exception: {args.ExceptionObject}");
         };
 
+        UnhandledException += (_, args) =>
+        {
+            LogException("Unhandled WinUI UI-thread exception", args.Exception);
+        };
+
         System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (_, args) =>
         {
             LogException("Unobserved task exception", args.Exception);
