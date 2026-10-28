@@ -31,6 +31,7 @@ AUDIO_STUDIO_API void audio_studio_processing_cancel(void);
 AUDIO_STUDIO_API int audio_studio_processing_active(void);
 AUDIO_STUDIO_API float audio_studio_processing_progress(void);
 AUDIO_STUDIO_API const wchar_t* audio_studio_processing_status(void);
+AUDIO_STUDIO_API int audio_studio_analyze_wav_waveform(const wchar_t* input_path, unsigned int bucket_count, float* interleaved_peaks, unsigned long long* total_frames, unsigned int* sample_rate, unsigned short* channels);
 
 #ifdef __cplusplus
 }

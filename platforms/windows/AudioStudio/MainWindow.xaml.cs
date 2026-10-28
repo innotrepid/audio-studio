@@ -8,6 +8,8 @@ using Windows.Storage;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using Windows.Foundation;
 using Windows.Storage.Pickers;
 using WinRT.Interop;
 
@@ -15,6 +17,9 @@ namespace AudioStudio;
 
 public sealed partial class MainWindow : Window
 {
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_analyze_wav_waveform", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
+    private static extern int NativeAnalyzeWavWaveform([MarshalAs(UnmanagedType.LPWStr)] string inputPath, uint bucketCount, [Out] float[] interleavedPeaks, out ulong totalFrames, out uint sampleRate, out ushort channels);
+
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_engine_status", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr NativeEngineStatus();
 
@@ -150,6 +155,47 @@ public sealed partial class MainWindow : Window
                 break;
         }
         ProcessingStatusText.Text = $"{{preset}} preset applied. Fine-tune the sliders and compare the output with the original.";
+    }
+
+    private async void LoadWaveform_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        picker.FileTypeFilter.Add(".wav");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+        var file = await picker.PickSingleFileAsync();
+        if (file is null) return;
+        const int buckets = 240;
+        var peaks = new float[buckets * 4];
+        try
+        {
+            var analysis = await Task.Run(() =>
+            {
+                var result = NativeAnalyzeWavWaveform(file.Path, (uint)buckets, peaks, out var frames, out var rate, out var channels);
+                return (result, frames, rate, channels);
+            });
+            if (analysis.result <= 0)
+            {
+                WaveformStatusText.Text = "Could not analyze this WAV. Choose a valid PCM16 WAV file.";
+                return;
+            }
+            WaveformCanvas.Children.Clear();
+            var width = WaveformCanvas.Width;
+            var center = WaveformCanvas.Height / 2;
+            var amplitude = center - 5;
+            for (var i = 0; i < buckets; i++)
+            {
+                var min = Math.Min(peaks[i * 4], peaks[i * 4 + 2]);
+                var max = Math.Max(peaks[i * 4 + 1], peaks[i * 4 + 3]);
+                var line = new Microsoft.UI.Xaml.Shapes.Line { X1 = 0, X2 = 0, Y1 = center - Math.Clamp(max, -1f, 1f) * amplitude, Y2 = center - Math.Clamp(min, -1f, 1f) * amplitude, Stroke = new SolidColorBrush(Microsoft.UI.Colors.LightGreen), StrokeThickness = 1.5 };
+                Microsoft.UI.Xaml.Controls.Canvas.SetLeft(line, i * width / buckets);
+                WaveformCanvas.Children.Add(line);
+            }
+            WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Original file unchanged.";
+        }
+        catch (Exception exception)
+        {
+            WaveformStatusText.Text = $"Waveform analysis failed: {exception.Message}";
+        }
     }
 
     private void RefreshInputDevices_Click(object sender, RoutedEventArgs e) => RefreshInputDevices();

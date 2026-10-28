@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace {
 std::string utf8_path(const wchar_t* value) {
@@ -127,6 +128,28 @@ WindowsProcessor& processor() {
     return instance;
 }
 }  // namespace
+
+extern "C" AUDIO_STUDIO_API int audio_studio_analyze_wav_waveform(
+    const wchar_t* input_path, unsigned int bucket_count, float* interleaved_peaks,
+    unsigned long long* total_frames, unsigned int* sample_rate, unsigned short* channels) {
+    const std::string input = utf8_path(input_path);
+    if (input.empty() || bucket_count == 0U || bucket_count > 1000000U || interleaved_peaks == nullptr) return 0;
+    std::vector<audio_studio::WaveformPeak> peaks;
+    audio_studio::AudioFormat format{};
+    std::uint64_t frames = 0U;
+    std::string error;
+    if (!audio_studio::analyze_wav_waveform(input, bucket_count, peaks, &format, &frames, &error)) return 0;
+    for (std::size_t i = 0; i < peaks.size(); ++i) {
+        interleaved_peaks[i * 4U] = peaks[i].min_left;
+        interleaved_peaks[i * 4U + 1U] = peaks[i].max_left;
+        interleaved_peaks[i * 4U + 2U] = peaks[i].min_right;
+        interleaved_peaks[i * 4U + 3U] = peaks[i].max_right;
+    }
+    if (total_frames) *total_frames = static_cast<unsigned long long>(frames);
+    if (sample_rate) *sample_rate = format.sample_rate_hz;
+    if (channels) *channels = format.channel_count;
+    return static_cast<int>(peaks.size());
+}
 
 extern "C" AUDIO_STUDIO_API int audio_studio_processing_start(
     const wchar_t* input_path, const wchar_t* output_path,
