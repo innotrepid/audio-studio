@@ -1029,6 +1029,12 @@ class MainActivity : Activity() {
             try {
                 val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFraction, endFraction)
                 if (result != "TRIMMED") throw IOException(result)
+                val metadata = nativeGetWavMetadata(stagedOutput.absolutePath)
+                if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L ||
+                    metadata[2] !in 1L..2L || stagedOutput.length() <= WAV_HEADER_BYTES) {
+                    throw IOException("Trim output failed WAV verification and was not exported. Original recording preserved.")
+                }
+                var copiedBytes = 0L
                 contentResolver.openOutputStream(destination, "w")?.use { output ->
                     FileInputStream(stagedOutput).use { input ->
                         val buffer = ByteArray(64 * 1024)
@@ -1036,12 +1042,22 @@ class MainActivity : Activity() {
                             val count = input.read(buffer)
                             if (count < 0) break
                             output.write(buffer, 0, count)
+                            copiedBytes += count
                         }
                     }
                 } ?: throw IOException("Could not open the chosen output file.")
+                if (copiedBytes != stagedOutput.length()) {
+                    throw IOException("Trim export was incomplete ($copiedBytes of ${stagedOutput.length()} bytes written). The original recording is preserved.")
+                }
+                val seconds = metadata[0] / metadata[1]
+                val minutes = seconds / 60L
+                val remainder = seconds % 60L
+                val channelLabel = if (metadata[2] == 1L) "Mono" else "Stereo"
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed)
-                        waveformStatus.text = "Trimmed WAV saved. Original recording preserved."
+                        waveformStatus.text = "Trimmed WAV verified and saved · %02d:%02d · %d kHz · %s. Original recording preserved.".format(
+                            java.util.Locale.ROOT, minutes, remainder, metadata[1] / 1000L, channelLabel
+                        )
                 }
             } catch (exception: Exception) {
                 mainHandler.post {
