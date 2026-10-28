@@ -745,6 +745,7 @@ class MainActivity : Activity() {
             return
         }
 
+        val takeDetails = recordingTakeDetails(stagedFile)
         statusText.text = try {
             val publicUri = publishRecording(stagedFile)
             if (publicUri != null) {
@@ -758,6 +759,27 @@ class MainActivity : Activity() {
             }
         } catch (exception: Exception) {
             interruptionNotice + "Export failed: ${exception.message ?: "unknown error"}. The verified WAV remains in app-private storage."
+        }.let { message ->
+            if (takeDetails != null) message + "\n\n" + takeDetails else message
+        }
+    }
+
+    private fun recordingTakeDetails(file: File): String? {
+        return try {
+            val metadata = nativeGetWavMetadata(file.absolutePath)
+            if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L || metadata[2] <= 0L) {
+                return null
+            }
+            val seconds = metadata[0] / metadata[1]
+            val minutes = seconds / 60L
+            val remainder = seconds % 60L
+            val channels = if (metadata[2] == 1L) "Mono" else "Stereo"
+            val megabytes = file.length().toDouble() / (1024.0 * 1024.0)
+            "Take details: %02d:%02d · %d kHz · %s · %.2f MB".format(
+                minutes, remainder, metadata[1] / 1000L, channels, megabytes
+            )
+        } catch (_: Exception) {
+            null // Details are optional; never turn a successfully saved take into a failure.
         }
     }
 
