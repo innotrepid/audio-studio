@@ -186,7 +186,7 @@ class MainActivity : Activity() {
         trimStartSeekBar = SeekBar(this).apply {
             max = 1000
             progress = 0
-            setOnSeekBarChangeListener(trimRangeListener { trimStartLabel.text = "Trim start: \${it / 10.0f}%" })
+            setOnSeekBarChangeListener(trimRangeListener { trimStartLabel.text = "Trim start: ${it / 10.0f}%" })
         }
         trimEndLabel = TextView(this).apply {
             text = "Trim end: 100%"
@@ -196,7 +196,7 @@ class MainActivity : Activity() {
         trimEndSeekBar = SeekBar(this).apply {
             max = 1000
             progress = 1000
-            setOnSeekBarChangeListener(trimRangeListener { trimEndLabel.text = "Trim end: \${it / 10.0f}%" })
+            setOnSeekBarChangeListener(trimRangeListener { trimEndLabel.text = "Trim end: ${it / 10.0f}%" })
         }
         trimWaveformButton = Button(this).apply {
             text = "Trim selected range to new WAV"
@@ -645,10 +645,11 @@ class MainActivity : Activity() {
                 } ?: throw IOException("Could not open the selected file.")
                 val peaks = nativeAnalyzeWavWaveform(file.absolutePath, 240)
                 if (peaks.size != 960) throw IOException("Could not analyze this file. Choose a valid PCM16 WAV.")
+                val previousSource = waveformSourceFile
+                waveformSourceFile = file
+                if (previousSource != null && previousSource != file) previousSource.delete()
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
-                        waveformSourceFile?.takeIf { it != file }?.delete()
-                        waveformSourceFile = file
                         waveformView.setPeaks(peaks)
                         trimStartSeekBar.progress = 0
                         trimEndSeekBar.progress = 1000
@@ -694,7 +695,7 @@ class MainActivity : Activity() {
         } catch (exception: Exception) {
             wavPickerActive = false
             trimWaveformButton.isEnabled = waveformSourceFile != null
-            waveformStatus.text = "Could not choose trim destination: \${exception.message ?: "unknown error"}"
+            waveformStatus.text = "Could not choose trim destination: ${exception.message ?: "unknown error"}"
         }
     }
 
@@ -713,7 +714,7 @@ class MainActivity : Activity() {
         }
         waveformStatus.text = "Trimming selected range…"
         Thread {
-            val stagedOutput = File(filesDir, "waveform-trimmed-\${System.currentTimeMillis()}.wav")
+            val stagedOutput = File(filesDir, "waveform-trimmed-${System.currentTimeMillis()}.wav")
             try {
                 val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFraction, endFraction)
                 if (result != "TRIMMED") throw IOException(result)
