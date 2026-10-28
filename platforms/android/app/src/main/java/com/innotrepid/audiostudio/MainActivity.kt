@@ -38,6 +38,7 @@ class MainActivity : Activity() {
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
+    private external fun nativeGetWavMetadata(inputPath: String): LongArray
     private external fun nativeTrimWav(inputPath: String, outputPath: String, startFraction: Long, endFraction: Long): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
@@ -56,10 +57,13 @@ class MainActivity : Activity() {
     private lateinit var waveformView: WaveformView
     private lateinit var trimStartLabel: TextView
     private lateinit var trimEndLabel: TextView
+    private lateinit var trimSelectionSummary: TextView
     private lateinit var trimStartSeekBar: SeekBar
     private lateinit var trimEndSeekBar: SeekBar
     private lateinit var trimWaveformButton: Button
     @Volatile private var waveformSourceFile: File? = null
+    @Volatile private var waveformTotalFrames: Long = 0L
+    @Volatile private var waveformSampleRate: Long = 0L
     private lateinit var recoverButton: Button
     private lateinit var playOriginalButton: Button
     private lateinit var playProcessedButton: Button
@@ -189,6 +193,7 @@ class MainActivity : Activity() {
             setOnSeekBarChangeListener(trimRangeListener {
                 trimStartLabel.text = "Trim start: ${it / 10.0f}%"
                 waveformView.setSelection(it / 1000f, trimEndSeekBar.progress / 1000f)
+                updateTrimSelectionSummary()
             })
         }
         trimEndLabel = TextView(this).apply {
@@ -202,7 +207,13 @@ class MainActivity : Activity() {
             setOnSeekBarChangeListener(trimRangeListener {
                 trimEndLabel.text = "Trim end: ${it / 10.0f}%"
                 waveformView.setSelection(trimStartSeekBar.progress / 1000f, it / 1000f)
+                updateTrimSelectionSummary()
             })
+        }
+        trimSelectionSummary = TextView(this).apply {
+            text = "Selected duration: load a WAV"
+            textSize = 13f
+            setTextColor(Color.rgb(190, 198, 214))
         }
         trimWaveformButton = Button(this).apply {
             text = "Trim selected range to new WAV"
@@ -362,6 +373,7 @@ class MainActivity : Activity() {
         root.addView(trimStartSeekBar, matchWidth())
         root.addView(trimEndLabel, matchWidth())
         root.addView(trimEndSeekBar, matchWidth())
+        root.addView(trimSelectionSummary, matchWidth())
         root.addView(trimWaveformButton, matchWidth())
         root.addView(waveformStatus, matchWidth())
         root.addView(recoverButton, matchWidth())
@@ -651,8 +663,12 @@ class MainActivity : Activity() {
                 } ?: throw IOException("Could not open the selected file.")
                 val peaks = nativeAnalyzeWavWaveform(file.absolutePath, 240)
                 if (peaks.size != 960) throw IOException("Could not analyze this file. Choose a valid PCM16 WAV.")
+                val metadata = nativeGetWavMetadata(file.absolutePath)
+                if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L) throw IOException("Could not read WAV duration metadata.")
                 val previousSource = waveformSourceFile
                 waveformSourceFile = file
+                waveformTotalFrames = metadata[0]
+                waveformSampleRate = metadata[1]
                 if (previousSource != null && previousSource != file) previousSource.delete()
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
@@ -660,6 +676,7 @@ class MainActivity : Activity() {
                         trimStartSeekBar.progress = 0
                         trimEndSeekBar.progress = 1000
                         waveformView.setSelection(0f, 1f)
+                        updateTrimSelectionSummary()
                         trimWaveformButton.isEnabled = true
                         waveformStatus.text = "Waveform loaded · select a range below. Original file unchanged."
                     }
@@ -670,6 +687,28 @@ class MainActivity : Activity() {
                 if (staged != waveformSourceFile) staged?.delete()
             }
         }.start()
+    }
+
+
+    private fun updateTrimSelectionSummary() {
+        if (waveformTotalFrames <= 0L || waveformSampleRate <= 0L) {
+            trimSelectionSummary.text = "Selected duration: load a WAV"
+            return
+        }
+        val startFrame = waveformTotalFrames * trimStartSeekBar.progress / 1000L
+        val endFrame = waveformTotalFrames * trimEndSeekBar.progress / 1000L
+        val startSeconds = startFrame.toDouble() / waveformSampleRate
+        val endSeconds = endFrame.toDouble() / waveformSampleRate
+        val selectedSeconds = (endFrame - startFrame).coerceAtLeast(0L).toDouble() / waveformSampleRate
+        trimSelectionSummary.text = "Selection: ${formatTrimTime(startSeconds)} – ${formatTrimTime(endSeconds)} · ${"%.2f".format(java.util.Locale.ROOT, selectedSeconds)} s"
+    }
+
+    private fun formatTrimTime(seconds: Double): String {
+        val totalMillis = (seconds * 1000.0).toLong().coerceAtLeast(0L)
+        val minutes = totalMillis / 60000L
+        val remainingSeconds = (totalMillis % 60000L) / 1000L
+        val millis = totalMillis % 1000L
+        return "%02d:%02d.%03d".format(java.util.Locale.ROOT, minutes, remainingSeconds, millis)
     }
 
     private fun trimRangeListener(onProgress: (Int) -> Unit) =
