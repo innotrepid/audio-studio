@@ -47,6 +47,12 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 
 - Session consistency checks, quality recommendations, production blueprints, and batch workflows.
 
+## Delivery cadence: avoid endless hardening
+
+Reliability work is tracked in [HARDENING_BACKLOG.md](HARDENING_BACKLOG.md). Fix confirmed data-loss, corruption, security, and crash risks promptly. Park lower-priority concerns with a revisit trigger. After the current in-flight hardening item is merged, resume product implementation; do not start another broad hardening sweep without a trigger.
+
+**Next product milestone:** recording confidence and control. First audit the current Android and Windows UI so we add only missing pieces; then prioritize live input level/clipping feedback, recording/file details, and finalized-versus-recoverable take state. After that, begin non-destructive gain/high-pass effects.
+
 ## Definition of done
 
 A feature is complete only when it builds on its target platforms, has tests for normal and failure paths, preserves original recordings, and has clear user-facing limitations. A successful compile alone is not evidence of audio quality.
