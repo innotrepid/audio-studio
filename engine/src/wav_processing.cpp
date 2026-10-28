@@ -1,6 +1,7 @@
 #include "audio_studio/wav_processing.hpp"
 
 #include "audio_studio/wav_writer.hpp"
+#include "audio_studio/dsp_effects.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -159,7 +160,8 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                                  NoiseGateSettings settings,
                                  std::string* error,
                                  const std::atomic<bool>* cancel_requested,
-                                 std::function<void(std::uint64_t, std::uint64_t)> progress) {
+                                 std::function<void(std::uint64_t, std::uint64_t)> progress,
+                                 DspEffectsSettings dsp_settings) {
     if (error != nullptr) error->clear();
     if (input_path.empty() || output_path.empty()) {
         return fail(error, "Input and output paths are required.");
@@ -204,6 +206,8 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     if (!parse_wav_header(input, input_size, format, data_offset, data_size, error)) return false;
 
     NoiseGate gate(settings);
+    DspEffects dsp_effects;
+    if (!dsp_effects.configure(format, dsp_settings, error)) return false;
     WavWriter writer;
     if (!writer.open_path(output_fs, format)) {
         return fail(error, "Could not create processed WAV: " + writer.last_error());
@@ -255,8 +259,11 @@ bool process_wav_with_noise_gate(const std::string& input_path,
         }
         if (!gate.process(block)) {
             writer.abort();
-
             return fail(error, "Noise gate rejected a decoded audio block.");
+        }
+        if (!dsp_effects.process(block, error)) {
+            writer.abort();
+            return false;
         }
         if (!writer.write_frames(block.samples.data(), frames)) {
             const std::string message = "Could not write processed WAV: " + writer.last_error();
