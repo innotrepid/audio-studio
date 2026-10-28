@@ -442,12 +442,12 @@ class MainActivity : Activity() {
         processingSection.addView(stopPlaybackButton, matchWidth())
         processingSection.addView(notice, matchWidth())
 
-        val sectionParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            bottomMargin = 18
-        }
-        root.addView(recordSection, sectionParams)
-        root.addView(editSection, sectionParams)
-        root.addView(processingSection, sectionParams)
+        fun sectionLayoutParams() = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 18 }
+        root.addView(recordSection, sectionLayoutParams())
+        root.addView(editSection, sectionLayoutParams())
+        root.addView(processingSection, sectionLayoutParams())
         // Keep the current workflow intact while ensuring every control is reachable
         // on smaller phones as the navigation shell is introduced in later UI phases.
         val screenScroll = ScrollView(this).apply {
