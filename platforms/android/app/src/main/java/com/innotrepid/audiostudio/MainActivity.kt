@@ -58,6 +58,7 @@ class MainActivity : Activity() {
     private lateinit var trimStartLabel: TextView
     private lateinit var trimEndLabel: TextView
     private lateinit var trimSelectionSummary: TextView
+    private lateinit var previewSelectionButton: Button
     private lateinit var trimStartSeekBar: SeekBar
     private lateinit var trimEndSeekBar: SeekBar
     private lateinit var trimWaveformButton: Button
@@ -89,6 +90,19 @@ class MainActivity : Activity() {
     private var startAfterPermission = false
     private var currentRecordingFile: File? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var trimPreviewEndMs = -1
+    private val trimPreviewClock = object : Runnable {
+        override fun run() {
+            val player = playback
+            if (player == null || trimPreviewEndMs < 0 || !player.isPlaying) return
+            if (player.currentPosition >= trimPreviewEndMs) {
+                stopComparisonPlayback()
+                statusText.text = "Selection preview finished. Adjust the range or export the trim."
+            } else {
+                mainHandler.postDelayed(this, 25L)
+            }
+        }
+    }
     private var recordingStartedAtMs = 0L
     private val recordingMeterClock = object : Runnable {
         override fun run() {
@@ -214,6 +228,11 @@ class MainActivity : Activity() {
             text = "Selected duration: load a WAV"
             textSize = 13f
             setTextColor(Color.rgb(190, 198, 214))
+        }
+        previewSelectionButton = Button(this).apply {
+            text = "Preview selected range"
+            isEnabled = false
+            setOnClickListener { previewTrimSelection() }
         }
         trimWaveformButton = Button(this).apply {
             text = "Trim selected range to new WAV"
@@ -374,6 +393,7 @@ class MainActivity : Activity() {
         root.addView(trimEndLabel, matchWidth())
         root.addView(trimEndSeekBar, matchWidth())
         root.addView(trimSelectionSummary, matchWidth())
+        root.addView(previewSelectionButton, matchWidth())
         root.addView(trimWaveformButton, matchWidth())
         root.addView(waveformStatus, matchWidth())
         root.addView(recoverButton, matchWidth())
@@ -678,6 +698,7 @@ class MainActivity : Activity() {
                         waveformView.setSelection(0f, 1f)
                         updateTrimSelectionSummary()
                         trimWaveformButton.isEnabled = true
+                        previewSelectionButton.isEnabled = true
                         waveformStatus.text = "Waveform loaded · select a range below. Original file unchanged."
                     }
                 }
@@ -689,6 +710,82 @@ class MainActivity : Activity() {
         }.start()
     }
 
+
+    private fun previewTrimSelection() {
+        if (recording || processing || wavPickerActive || startAfterPermission) {
+            waveformStatus.text = "Wait until the current operation finishes before previewing."
+            return
+        }
+        val source = waveformSourceFile
+        if (source == null || !source.isFile || waveformTotalFrames <= 0L || waveformSampleRate <= 0L) {
+            waveformStatus.text = "Load a WAV waveform before previewing a selection."
+            return
+        }
+        val startFrame = waveformTotalFrames * trimStartSeekBar.progress / 1000L
+        val endFrame = waveformTotalFrames * trimEndSeekBar.progress / 1000L
+        if (startFrame >= endFrame) {
+            waveformStatus.text = "Choose a non-empty selection to preview."
+            return
+        }
+        val startMs = (startFrame * 1000L / waveformSampleRate).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val endMs = (endFrame * 1000L / waveformSampleRate).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        if (endMs <= startMs) {
+            waveformStatus.text = "The selected range is too short to preview."
+            return
+        }
+        stopComparisonPlayback()
+        try {
+            val player = MediaPlayer()
+            playback = player
+            trimPreviewEndMs = endMs
+            player.setDataSource(source.absolutePath)
+            player.setOnPreparedListener { prepared ->
+                if (playback === prepared && !isFinishing && !isDestroyed) {
+                    val safeStart = startMs.coerceAtMost((prepared.duration - 1).coerceAtLeast(0))
+                    val safeEnd = endMs.coerceAtMost(prepared.duration)
+                    if (safeEnd <= safeStart) {
+                        stopComparisonPlayback()
+                        waveformStatus.text = "Could not preview this range; choose a longer selection."
+                        return@setOnPreparedListener
+                    }
+                    trimPreviewEndMs = safeEnd
+                    prepared.seekTo(safeStart)
+                    prepared.start()
+                    stopPlaybackButton.isEnabled = true
+                    statusText.text = "Previewing selected range…"
+                    mainHandler.postDelayed(trimPreviewClock, 25L)
+                } else {
+                    prepared.release()
+                }
+            }
+            player.setOnCompletionListener { completed ->
+                if (playback === completed) {
+                    mainHandler.removeCallbacks(trimPreviewClock)
+                    completed.release()
+                    playback = null
+                    trimPreviewEndMs = -1
+                    stopPlaybackButton.isEnabled = false
+                    statusText.text = "Selection preview finished. Adjust the range or export the trim."
+                }
+            }
+            player.setOnErrorListener { failed, _, _ ->
+                if (playback === failed) {
+                    mainHandler.removeCallbacks(trimPreviewClock)
+                    failed.release()
+                    playback = null
+                    trimPreviewEndMs = -1
+                }
+                stopPlaybackButton.isEnabled = false
+                waveformStatus.text = "Preview playback failed. Try another PCM16 WAV."
+                true
+            }
+            statusText.text = "Preparing selection preview…"
+            player.prepareAsync()
+        } catch (exception: Exception) {
+            stopComparisonPlayback()
+            waveformStatus.text = "Could not preview selection: ${exception.message ?: "unknown error"}"
+        }
+    }
 
     private fun updateTrimSelectionSummary() {
         if (waveformTotalFrames <= 0L || waveformSampleRate <= 0L) {
@@ -1029,6 +1126,8 @@ class MainActivity : Activity() {
     }
 
     private fun stopComparisonPlayback() {
+        mainHandler.removeCallbacks(trimPreviewClock)
+        trimPreviewEndMs = -1
         val current = playback
         playback = null
         if (current != null) {
