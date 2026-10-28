@@ -286,11 +286,15 @@ private:
                     (void)client->Stop();
                     active_.store(false);
                     const bool should_finalize = SUCCEEDED(capture_result);
-                    if (should_finalize && writer.finalize()) {
-                        set_status(L"Recording saved as a PCM WAV file.");
+                    if (should_finalize) {
+                        if (writer.finalize()) {
+                            set_status(L"Recording saved as a PCM WAV file.");
+                        } else {
+                            set_status(L"Could not finalize the WAV file; the incomplete output could not be published.");
+                        }
                     } else {
-                        writer.abort();
-                        if (should_finalize) set_status(L"Could not finalize the WAV file; incomplete output was discarded.");
+                        writer.preserve_partial();
+                        set_status(L"Capture failed. The incomplete recording was retained as a temporary file; use Check for interrupted recordings to attempt recovery.");
                     }
                     hr = should_finalize ? S_OK : E_FAIL;
                 } else {

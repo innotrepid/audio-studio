@@ -105,6 +105,26 @@ void test_abort_discards_partial_output() {
     require(!has_partial_file_for(path), "abort must remove the temporary partial file too");
 }
 
+void test_preserve_partial_keeps_recoverable_source() {
+    const std::string path = "audio_studio_preserved_test.wav";
+    const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(path, {48000U, 1U}), "preserved writer should open");
+        require(writer.write_frames(samples.data(), samples.size()), "preserved writer should accept initial frames");
+        writer.preserve_partial();
+        require(!writer.is_open(), "preserve_partial should close the output stream");
+    }
+    require(!std::ifstream(path, std::ios::binary).good(),
+            "preserving an incomplete take must not publish the final WAV path");
+    require(has_partial_file_for(path),
+            "preserving an incomplete take must retain its temporary partial for recovery");
+    for (const auto& entry : std::filesystem::directory_iterator(".")) {
+        if (entry.path().filename().string().rfind(path + ".partial-", 0U) == 0U)
+            std::filesystem::remove(entry.path());
+    }
+}
+
 void test_destructor_discards_unfinalized_output() {
     const std::string path = "audio_studio_unfinalized_test.wav";
     const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
@@ -156,6 +176,7 @@ int main() {
     test_existing_destination_is_never_overwritten();
     test_rejects_invalid_input();
     test_abort_discards_partial_output();
+    test_preserve_partial_keeps_recoverable_source();
     test_destructor_discards_unfinalized_output();
     test_repeated_long_recordings();
     std::cout << "All WAV writer tests passed.\n";

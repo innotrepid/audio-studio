@@ -203,6 +203,17 @@ bool WavWriter::finalize() {
     return true;
 }
 
+void WavWriter::preserve_partial() noexcept {
+    if (stream_.is_open()) {
+        stream_.flush();
+        stream_.close();
+    }
+    // Do not publish an incomplete final WAV. Leave the writer-owned .partial-N
+    // file in place so the recovery flow can validate and repair its header.
+    output_path_.clear();
+    finalized_ = true;
+}
+
 void WavWriter::abort() noexcept {
     if (stream_.is_open()) {
         stream_.close();

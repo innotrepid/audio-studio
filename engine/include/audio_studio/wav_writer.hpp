@@ -25,6 +25,8 @@ public:
     [[nodiscard]] bool write_frames(const float* interleaved_samples,
                                     std::size_t frame_count);
     [[nodiscard]] bool finalize();
+    // Close the stream but keep the temporary file for explicit recovery after a capture failure.
+    void preserve_partial() noexcept;
     void abort() noexcept;
 
     [[nodiscard]] bool is_open() const noexcept { return stream_.is_open(); }

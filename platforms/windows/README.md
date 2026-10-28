@@ -11,3 +11,8 @@ The CI also publishes an **unpackaged, self-contained Windows x64 build** as the
 ## Current limitations
 
 This is an application-shell milestone, not a recorder. It does not open a microphone or write audio files. The next milestone implements capture, device handling, and safe WAV finalization on each platform.
+
+
+## Capture failure recovery
+
+If Windows microphone capture fails after recording has begun (for example, a device disconnect or a write error), Audio Studio keeps the writer-owned temporary `.partial-N` file rather than deleting the take. Use **Check for interrupted recordings…** and select the recording folder to attempt validated recovery. Recovery may fail if the file is truncated or damaged; a partial file is not guaranteed to be recoverable. A normal Stop and save still publishes a finalized WAV.
