@@ -19,6 +19,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.SeekBar
+import android.widget.ScrollView
 import android.widget.TextView
 import java.io.File
 import java.io.FileInputStream
@@ -412,7 +413,18 @@ class MainActivity : Activity() {
         root.addView(highPassSeekBar, matchWidth())
         root.addView(presetRow, matchWidth())
         root.addView(notice, matchWidth())
-        setContentView(root)
+        // Keep the current workflow intact while ensuring every control is reachable
+        // on smaller phones as the navigation shell is introduced in later UI phases.
+        val screenScroll = ScrollView(this).apply {
+            isFillViewport = true
+            clipToPadding = false
+            setBackgroundColor(Color.rgb(16, 18, 24))
+            addView(root, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        setContentView(screenScroll)
         root.post { showInterruptedRecordings(showWhenNone = false) }
     }
 
