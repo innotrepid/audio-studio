@@ -144,8 +144,8 @@ class MainActivity : Activity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(32, 32, 32, 32)
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            setPadding(20, 24, 20, 24)
             setBackgroundColor(Color.rgb(16, 18, 24))
         }
 
@@ -379,40 +379,75 @@ class MainActivity : Activity() {
             setPadding(0, 20, 0, 0)
         }
 
-        root.addView(title, matchWidth())
-        root.addView(subtitle, matchWidth())
-        root.addView(statusText, matchWidth())
-        root.addView(inputMeterLabel, matchWidth())
-        root.addView(inputMeter, matchWidth())
-        root.addView(startButton, matchWidth())
-        root.addView(stopButton, matchWidth())
-        root.addView(processButton, matchWidth())
-        root.addView(waveformButton, matchWidth())
-        root.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180))
-        root.addView(trimStartLabel, matchWidth())
-        root.addView(trimStartSeekBar, matchWidth())
-        root.addView(trimEndLabel, matchWidth())
-        root.addView(trimEndSeekBar, matchWidth())
-        root.addView(trimSelectionSummary, matchWidth())
-        root.addView(previewSelectionButton, matchWidth())
-        root.addView(trimWaveformButton, matchWidth())
-        root.addView(waveformStatus, matchWidth())
-        root.addView(recoverButton, matchWidth())
-        root.addView(processingProgress, matchWidth())
-        root.addView(cancelProcessingButton, matchWidth())
-        root.addView(playOriginalButton, matchWidth())
-        root.addView(playProcessedButton, matchWidth())
-        root.addView(stopPlaybackButton, matchWidth())
-        root.addView(thresholdLabel, matchWidth())
-        root.addView(thresholdSeekBar, matchWidth())
-        root.addView(attenuationLabel, matchWidth())
-        root.addView(attenuationSeekBar, matchWidth())
-        root.addView(dspGainLabel, matchWidth())
-        root.addView(dspGainSeekBar, matchWidth())
-        root.addView(highPassLabel, matchWidth())
-        root.addView(highPassSeekBar, matchWidth())
-        root.addView(presetRow, matchWidth())
-        root.addView(notice, matchWidth())
+        fun makeSection(heading: String, description: String): LinearLayout {
+            val section = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(18, 18, 18, 18)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(Color.rgb(28, 34, 45))
+                    cornerRadius = 22f
+                }
+            }
+            section.addView(TextView(this).apply {
+                text = heading
+                textSize = 20f
+                setTextColor(Color.WHITE)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+            }, matchWidth())
+            section.addView(TextView(this).apply {
+                text = description
+                textSize = 13f
+                setTextColor(Color.rgb(190, 198, 214))
+                setPadding(0, 4, 0, 12)
+            }, matchWidth())
+            return section
+        }
+        val recordSection = makeSection("Record", "Capture a clean take and watch your input level.")
+        recordSection.addView(title, matchWidth())
+        recordSection.addView(subtitle, matchWidth())
+        recordSection.addView(statusText, matchWidth())
+        recordSection.addView(inputMeterLabel, matchWidth())
+        recordSection.addView(inputMeter, matchWidth())
+        recordSection.addView(startButton, matchWidth())
+        recordSection.addView(stopButton, matchWidth())
+        recordSection.addView(recoverButton, matchWidth())
+
+        val editSection = makeSection("Edit a recording", "Inspect the waveform, preview a range, and export a trim. Your source stays unchanged.")
+        editSection.addView(waveformButton, matchWidth())
+        editSection.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180))
+        editSection.addView(trimStartLabel, matchWidth())
+        editSection.addView(trimStartSeekBar, matchWidth())
+        editSection.addView(trimEndLabel, matchWidth())
+        editSection.addView(trimEndSeekBar, matchWidth())
+        editSection.addView(trimSelectionSummary, matchWidth())
+        editSection.addView(previewSelectionButton, matchWidth())
+        editSection.addView(trimWaveformButton, matchWidth())
+        editSection.addView(waveformStatus, matchWidth())
+
+        val processingSection = makeSection("Clean up audio", "Choose a preset first. Advanced controls are available below; processing creates a separate copy.")
+        processingSection.addView(processButton, matchWidth())
+        processingSection.addView(presetRow, matchWidth())
+        processingSection.addView(thresholdLabel, matchWidth())
+        processingSection.addView(thresholdSeekBar, matchWidth())
+        processingSection.addView(attenuationLabel, matchWidth())
+        processingSection.addView(attenuationSeekBar, matchWidth())
+        processingSection.addView(dspGainLabel, matchWidth())
+        processingSection.addView(dspGainSeekBar, matchWidth())
+        processingSection.addView(highPassLabel, matchWidth())
+        processingSection.addView(highPassSeekBar, matchWidth())
+        processingSection.addView(processingProgress, matchWidth())
+        processingSection.addView(cancelProcessingButton, matchWidth())
+        processingSection.addView(playOriginalButton, matchWidth())
+        processingSection.addView(playProcessedButton, matchWidth())
+        processingSection.addView(stopPlaybackButton, matchWidth())
+        processingSection.addView(notice, matchWidth())
+
+        fun sectionLayoutParams() = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = 18 }
+        root.addView(recordSection, sectionLayoutParams())
+        root.addView(editSection, sectionLayoutParams())
+        root.addView(processingSection, sectionLayoutParams())
         // Keep the current workflow intact while ensuring every control is reachable
         // on smaller phones as the navigation shell is introduced in later UI phases.
         val screenScroll = ScrollView(this).apply {
