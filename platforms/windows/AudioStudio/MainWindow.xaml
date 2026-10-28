@@ -43,14 +43,18 @@
                         <ComboBoxItem Content="Voice clarity" />
                         <ComboBoxItem Content="Rumble cut" />
                     </ComboBox>
-                    <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#BEC6D6" />
-                    <Slider x:Name="GateThresholdSlider" Minimum="-60" Maximum="-30" Value="-48" StepFrequency="1" />
-                    <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#BEC6D6" />
-                    <Slider x:Name="GateAttenuationSlider" Minimum="-36" Maximum="-6" Value="-18" StepFrequency="1" />
-                    <TextBlock x:Name="DspGainText" Text="Output gain: 0 dB" Foreground="#BEC6D6" />
-                    <Slider x:Name="DspGainSlider" Minimum="-24" Maximum="12" Value="0" StepFrequency="1" />
-                    <TextBlock x:Name="HighPassText" Text="High-pass filter: Off" Foreground="#BEC6D6" />
-                    <Slider x:Name="HighPassSlider" Minimum="0" Maximum="49" Value="0" StepFrequency="1" />
+                    <Expander Header="Advanced controls" IsExpanded="False">
+                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                            <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#BEC6D6" />
+                            <Slider x:Name="GateThresholdSlider" Minimum="-60" Maximum="-30" Value="-48" StepFrequency="1" />
+                            <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#BEC6D6" />
+                            <Slider x:Name="GateAttenuationSlider" Minimum="-36" Maximum="-6" Value="-18" StepFrequency="1" />
+                            <TextBlock x:Name="DspGainText" Text="Output gain: 0 dB" Foreground="#BEC6D6" />
+                            <Slider x:Name="DspGainSlider" Minimum="-24" Maximum="12" Value="0" StepFrequency="1" />
+                            <TextBlock x:Name="HighPassText" Text="High-pass filter: Off" Foreground="#BEC6D6" />
+                            <Slider x:Name="HighPassSlider" Minimum="0" Maximum="49" Value="0" StepFrequency="1" />
+                        </StackPanel>
+                    </Expander>
                     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
                         <Button x:Name="ProcessWavButton" Content="Process WAV…" Click="ProcessWav_Click" />
                         <Button x:Name="CancelProcessingButton" Content="Cancel processing" Click="CancelProcessing_Click" IsEnabled="False" />
