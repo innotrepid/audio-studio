@@ -102,3 +102,8 @@ This visual direction supersedes the earlier mint-only visual treatment as the l
 - Windows workflow navigation uses familiar glyph icons alongside concise labels, with a high-contrast selected state so the active workspace is obvious.
 - Navigation updates only the existing navigation controls and toggles the already-created workflow panels; it does not reconstruct the content tree or reset editor/processing state.
 - Icon glyphs are decorative cues, not replacements for accessible text labels.
+
+
+## UI redesign pause — 2026-10-28
+
+The user has explicitly paused further UI redesign while feature development and targeted hardening continue. Treat the current interface as a functional interim shell, not the intended final product. Do not add more visual-only PRs until a dedicated UI brainstorm and deeper research phase is requested. Preserve the current visual direction and incremental-update performance contract; record any newly discovered UI issues as notes rather than opportunistically redesigning screens. PR #79 adds icon-led Windows navigation and selected-workspace feedback; Android/Windows visual parity, broader iconography, and screen composition remain deferred pending that research.

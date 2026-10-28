@@ -57,6 +57,36 @@ void test_wav_header_and_samples() {
     require(bytes[46U] == 0x00U && bytes[47U] == 0xc0U, "-0.5 should encode near PCM16 half scale");
     std::remove(path.c_str());
 }
+void test_destination_created_after_open_is_never_overwritten() {
+    const std::string path = "audio_studio_late_destination.wav";
+    const std::array<float, 4> samples{0.1F, 0.2F, 0.3F, 0.4F};
+    const std::array<unsigned char, 6> sentinel{9U, 8U, 7U, 6U, 5U, 4U};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(path, {48000U, 1U}),
+                "writer should open before a competing destination appears");
+        require(writer.write_frames(samples.data(), samples.size()),
+                "writer should accept frames before a competing destination appears");
+        {
+            std::ofstream competing(path, std::ios::binary);
+            competing.write(reinterpret_cast<const char*>(sentinel.data()),
+                            static_cast<std::streamsize>(sentinel.size()));
+            require(static_cast<bool>(competing),
+                    "competing destination should be created after writer open");
+        }
+        require(!writer.finalize(),
+                "finalize must not replace a destination created after open");
+    }
+    std::ifstream file(path, std::ios::binary);
+    const std::vector<unsigned char> actual{
+        std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+    require(actual == std::vector<unsigned char>(sentinel.begin(), sentinel.end()),
+            "late-created destination bytes must remain unchanged");
+    require(!has_partial_file_for(path),
+            "failed publication must clean the writer-owned temporary file");
+    std::remove(path.c_str());
+}
+
 void test_existing_destination_is_never_overwritten() {
     const std::string path = "audio_studio_existing_destination.wav";
     const std::array<unsigned char, 5> original{1U, 2U, 3U, 4U, 5U};
@@ -270,6 +300,7 @@ void test_five_minute_recording_integrity() {
 int main() {
     test_wav_header_and_samples();
     test_existing_destination_is_never_overwritten();
+    test_destination_created_after_open_is_never_overwritten();
     test_rejects_invalid_input();
     test_rejects_unrepresentable_frame_count_without_reading_past_buffer();
     test_abort_discards_partial_output();
