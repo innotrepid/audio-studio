@@ -69,6 +69,11 @@
                     <TextBlock Text="Load a PCM16 WAV to inspect its amplitude envelope. This analysis does not alter the recording." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <Button x:Name="LoadWaveformButton" Content="Load WAV waveform…" Click="LoadWaveform_Click" HorizontalAlignment="Center" />
                     <Canvas x:Name="WaveformCanvas" Width="560" Height="100" Background="#171D27" />
+                    <TextBlock x:Name="TrimStartText" Text="Trim start: 0%" Foreground="#BEC6D6" />
+                    <Slider x:Name="TrimStartSlider" Minimum="0" Maximum="1000" Value="0" StepFrequency="1" />
+                    <TextBlock x:Name="TrimEndText" Text="Trim end: 100%" Foreground="#BEC6D6" />
+                    <Slider x:Name="TrimEndSlider" Minimum="0" Maximum="1000" Value="1000" StepFrequency="1" />
+                    <Button x:Name="TrimWaveformButton" Content="Trim selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" HorizontalAlignment="Center" />
                     <TextBlock x:Name="WaveformStatusText" Text="No waveform loaded." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>
             </Border>
