@@ -3,7 +3,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Audio Studio">
-    <Window.Resources>
+
+    <Grid Background="#101218">
+    <Grid.Resources>
         <SolidColorBrush x:Key="StudioAccentBrush" Color="#77E0B5" />
         <SolidColorBrush x:Key="StudioCardBrush" Color="#1C222D" />
         <SolidColorBrush x:Key="StudioMutedBrush" Color="#BEC6D6" />
@@ -19,8 +21,7 @@
         <Style TargetType="ComboBox">
             <Setter Property="MinHeight" Value="40" />
         </Style>
-    </Window.Resources>
-    <Grid Background="#101218">
+    </Grid.Resources>
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Padding="24,20">
