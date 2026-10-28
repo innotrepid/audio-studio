@@ -12,6 +12,7 @@
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -258,6 +259,49 @@ void test_cancellation_during_progress_cleans_partial_output() {
     std::remove(output.c_str());
 }
 
+
+void test_progress_callback_exceptions_clean_partial_output() {
+    const std::string input = "audio_studio_processing_callback_exception_source.wav";
+    const std::string output = "audio_studio_processing_callback_exception_result.wav";
+    std::array<float, 5000U> samples{};
+    samples.fill(0.2F);
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create callback-exception source");
+        require(writer.write_frames(samples.data(), samples.size()), "write callback-exception source");
+        require(writer.finalize(), "finalize callback-exception source");
+    }
+    const auto source_before = load_bytes(input);
+
+    for (const bool throw_initial : {true, false}) {
+        std::string error;
+        bool threw_after_initial = false;
+        const auto progress = [&](std::uint64_t processed, std::uint64_t) {
+            if (throw_initial && processed == 0U) {
+                throw std::runtime_error("initial callback test exception");
+            }
+            if (!throw_initial && processed > 0U && !threw_after_initial) {
+                threw_after_initial = true;
+                throw std::runtime_error("mid-processing callback test exception");
+            }
+        };
+        require(!audio_studio::process_wav_with_noise_gate(
+                    input, output, {}, &error, nullptr, progress),
+                "a throwing progress callback must fail processing cleanly");
+        require(error.find("Progress callback failed") != std::string::npos,
+                "callback exceptions should become descriptive API errors");
+        require(load_bytes(input) == source_before,
+                "callback exceptions must not modify the source WAV");
+        require(!std::filesystem::exists(output),
+                "callback exceptions must not publish a final output");
+        require(!has_partial_file_for(output),
+                "callback exceptions must clean the writer-owned temporary file");
+    }
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
 void test_refuses_to_overwrite_input() {
     const std::string input = "audio_studio_processing_no_overwrite.wav";
     const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
@@ -334,6 +378,7 @@ int main() {
     test_cancellation_at_initial_progress_cleans_partial_output();
     test_cancellation_cleans_partial_output();
     test_cancellation_during_progress_cleans_partial_output();
+    test_progress_callback_exceptions_clean_partial_output();
     test_refuses_to_overwrite_input();
     test_refuses_to_overwrite_existing_destination();
     test_refuses_relative_absolute_alias_of_input();
