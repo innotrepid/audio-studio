@@ -23,6 +23,18 @@
         <Style TargetType="ComboBox">
             <Setter Property="MinHeight" Value="40" />
         </Style>
+        <Style x:Key="WorkflowNavigationButton" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#222230" />
+            <Setter Property="Foreground" Value="#B8B4CC" />
+            <Setter Property="BorderBrush" Value="#302D42" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="16,11" />
+            <Setter Property="MinHeight" Value="46" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
         <Style x:Key="PrimaryRecordButton" TargetType="Button">
             <Setter Property="Background" Value="#B29BFF" />
             <Setter Property="Foreground" Value="#0C0C14" />
@@ -43,10 +55,30 @@
             </StackPanel>
             <Border Background="#14141E" CornerRadius="12" Padding="8">
             <StackPanel x:Name="WorkflowNavigation" Orientation="Horizontal" HorizontalAlignment="Stretch" Spacing="8">
-                <Button Content="Record" Click="NavigateRecord_Click" />
-                <Button Content="Editor" Click="NavigateEditor_Click" />
-                <Button Content="Processing" Click="NavigateProcessing_Click" />
-                <Button Content="Compare" Click="NavigateCompare_Click" />
+                <ToggleButton x:Name="NavigateRecordButton" IsChecked="True" Click="NavigateRecord_Click" Style="{StaticResource WorkflowNavigationButton}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE720;" FontSize="16" />
+                        <TextBlock Text="Record" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="NavigateEditorButton" Click="NavigateEditor_Click" Style="{StaticResource WorkflowNavigationButton}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE70F;" FontSize="16" />
+                        <TextBlock Text="Edit" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="NavigateProcessingButton" Click="NavigateProcessing_Click" Style="{StaticResource WorkflowNavigationButton}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE9D9;" FontSize="16" />
+                        <TextBlock Text="Process" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
+                <ToggleButton x:Name="NavigateCompareButton" Click="NavigateCompare_Click" Style="{StaticResource WorkflowNavigationButton}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE8A7;" FontSize="16" />
+                        <TextBlock Text="Compare" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
             </StackPanel>
             </Border>
             <Border x:Name="RecordPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0">
