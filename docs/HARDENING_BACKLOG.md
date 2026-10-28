@@ -38,8 +38,8 @@ The next implementation milestone is **recording confidence and control**, not a
 
 1. Audit existing Android/Windows recording UI against the requirements before duplicating controls.
 2. Add or complete live input level metering and clipping indication where capture data makes them reliable.
-3. Add recording format / file details and a clear take state (finalized vs recoverable partial).
-4. Add non-destructive gain and high-pass processing as explicit, testable effects.
-5. Then move toward waveform navigation and non-destructive trimming.
+3. [x] Add recording format / file details and a clear take state (finalized vs recoverable partial; PR #81 and PR #82).
+4. [x] Add non-destructive gain and high-pass processing as explicit, testable effects.
+5. Next, move toward waveform navigation and non-destructive trimming.
 
 For every feature, add only the safety checks needed by that feature; put unrelated concerns back in this backlog.

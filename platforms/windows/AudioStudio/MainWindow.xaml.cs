@@ -513,14 +513,38 @@ public sealed partial class MainWindow : Window
         try
         {
             _meterTimer.Stop();
-            await Task.Run(NativeRecordingStop);
+            var stopResult = await Task.Run(NativeRecordingStop);
             UpdateInputMeter();
-            RecordingStatusText.Text = ReadRecordingStatus();
+            var nativeStatus = ReadRecordingStatus();
+            RecordingStatusText.Text = nativeStatus;
             if (!string.IsNullOrWhiteSpace(_currentRecordingPath))
             {
-                var takeDetails = await Task.Run(() => ReadRecordingTakeDetails(_currentRecordingPath));
-                if (takeDetails is not null && RecordingStatusText.Text.Contains("saved", StringComparison.OrdinalIgnoreCase))
-                    RecordingStatusText.Text += Environment.NewLine + Environment.NewLine + takeDetails;
+                var takePath = _currentRecordingPath;
+                var takeDetails = await Task.Run(() => ReadRecordingTakeDetails(takePath));
+                var nativeReportedSaved = nativeStatus.StartsWith("Recording saved", StringComparison.OrdinalIgnoreCase);
+                if (stopResult != 0 && nativeReportedSaved && takeDetails is not null)
+                {
+                    RecordingStatusText.Text = $"FINALIZED AND VERIFIED — {nativeStatus}" +
+                        Environment.NewLine + Environment.NewLine + takeDetails;
+                }
+                else if (nativeReportedSaved)
+                {
+                    // A success message alone is not enough to claim a usable WAV.
+                    // Preserve the file and clearly report the verification gap.
+                    RecordingStatusText.Text = "UNVERIFIED TAKE — native finalization reported success, but the WAV could not be validated. The file was not deleted. Inspect it before relying on it." +
+                        Environment.NewLine + Environment.NewLine + nativeStatus;
+                }
+                else if (stopResult == 0)
+                {
+                    RecordingStatusText.Text = "RECOVERABLE / INCOMPLETE TAKE — finalization did not complete successfully. Any temporary recording file was retained for recovery." +
+                        Environment.NewLine + Environment.NewLine + nativeStatus;
+                }
+                else if (takeDetails is not null)
+                {
+                    RecordingStatusText.Text = "UNVERIFIED TAKE — the WAV can be read, but native finalization did not confirm a successful save. The file was not deleted; inspect it before relying on it." +
+                        Environment.NewLine + Environment.NewLine + nativeStatus +
+                        Environment.NewLine + Environment.NewLine + takeDetails;
+                }
             }
             _currentRecordingPath = null;
         }
