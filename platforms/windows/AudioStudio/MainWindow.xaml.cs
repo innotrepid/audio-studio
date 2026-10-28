@@ -603,6 +603,7 @@ public sealed partial class MainWindow : Window
         _trimPreviewEndPosition = TimeSpan.Zero;
         _previewPlayer.Pause();
         _previewPlayer.Source = null;
+        PreviewTrimRangeButton.IsEnabled = !string.IsNullOrWhiteSpace(_waveformFilePath) && _waveformTotalFrames > 1;
         if (updateStatus)
             WaveformStatusText.Text = "Selection preview finished. Adjust the range or export the trim.";
     }
