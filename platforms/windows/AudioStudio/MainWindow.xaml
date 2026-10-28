@@ -255,7 +255,7 @@
                             <StackPanel Spacing="4">
                                 <TextBlock Text="TRIM RANGE" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
                                 <TextBlock Text="Set your in and out points" FontSize="17" FontWeight="SemiBold" Foreground="White" />
-                                <TextBlock Text="Move the start and end controls to select the portion you want to keep." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                                <TextBlock Text="Drag the in/out markers directly on the waveform, or use the sliders and precise timecodes. Preview before exporting; the original stays untouched." TextWrapping="Wrap" Foreground="#B8B4CC" />
                             </StackPanel>
                             <StackPanel Spacing="6">
                                 <TextBlock x:Name="TrimStartText" Text="Trim start: 0%" Foreground="#F3F0FF" FontWeight="SemiBold" />
