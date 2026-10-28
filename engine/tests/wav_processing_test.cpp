@@ -370,6 +370,56 @@ void test_refuses_relative_absolute_alias_of_input() {
 }
 
 
+
+void test_trim_wav_writes_selected_frame_range_and_preserves_source() {
+    const std::string input = "audio_studio_trim_source.wav";
+    const std::string output = "audio_studio_trim_result.wav";
+    std::array<float, 10U> samples{
+        -0.9F, -0.7F, -0.5F, -0.3F, -0.1F,
+         0.1F,  0.3F,  0.5F,  0.7F,  0.9F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create trim source");
+        require(writer.write_frames(samples.data(), samples.size()), "write trim source");
+        require(writer.finalize(), "finalize trim source");
+    }
+    const auto source_before = load_bytes(input);
+    std::string error;
+    require(audio_studio::trim_wav(input, output, 3U, 7U, &error),
+            "trim should write the selected half-open frame range");
+    require(error.empty(), "successful trim clears error");
+    require(load_bytes(input) == source_before, "trim must preserve source bytes");
+
+    audio_studio::AudioBuffer trimmed;
+    require(audio_studio::WavReader::read(output, trimmed, &error),
+            "trimmed output should be a valid WAV");
+    require(trimmed.format.sample_rate_hz == 48000U &&
+            trimmed.format.channel_count == 1U,
+            "trimmed output preserves source format");
+    require(trimmed.samples.size() == 4U, "trim output contains end-start frames");
+    for (std::size_t i = 0U; i < trimmed.samples.size(); ++i) {
+        require(std::abs(trimmed.samples[i] - samples[i + 3U]) < 0.0001F,
+                "trim output samples match selected source range");
+    }
+
+    require(!audio_studio::trim_wav(input, input, 1U, 2U, &error),
+            "trim must refuse to overwrite source");
+    require(load_bytes(input) == source_before, "overwrite refusal preserves source");
+    require(!audio_studio::trim_wav(input, output, 0U, 1U, &error),
+            "trim must refuse to overwrite an existing destination");
+    require(!audio_studio::trim_wav(input, "audio_studio_trim_invalid.wav", 8U, 11U, &error),
+            "trim must reject a range beyond the source length");
+    require(!std::filesystem::exists("audio_studio_trim_invalid.wav"),
+            "invalid range must not publish an output");
+    require(!audio_studio::trim_wav(input, "audio_studio_trim_empty.wav", 4U, 4U, &error),
+            "trim must reject an empty range");
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+    std::remove("audio_studio_trim_invalid.wav");
+    std::remove("audio_studio_trim_empty.wav");
+}
+
 void test_waveform_analysis_returns_bounded_min_max_envelope() {
     const std::string input = "audio_studio_waveform_envelope.wav";
     std::array<float, 400U> samples{};
@@ -417,6 +467,7 @@ void test_waveform_analysis_returns_bounded_min_max_envelope() {
 int main() {
     test_processes_to_separate_file_and_preserves_source();
     test_waveform_analysis_returns_bounded_min_max_envelope();
+    test_trim_wav_writes_selected_frame_range_and_preserves_source();
     test_truncated_source_does_not_publish_or_leave_partial_output();
     test_cancellation_does_not_remove_concurrent_destination();
     test_cancellation_at_initial_progress_cleans_partial_output();
