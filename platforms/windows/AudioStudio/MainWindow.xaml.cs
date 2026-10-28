@@ -359,14 +359,12 @@ public sealed partial class MainWindow : Window
         {
             var frame = Math.Min(requestedFrame, currentEnd - 1);
             _trimExactStartFrame = frame;
-            TrimStartSlider.Value = Math.Clamp((double)frame / _waveformTotalFrames * 1000.0, 0.0, 1000.0);
         }
         else
         {
             var frame = Math.Max(requestedFrame, currentStart + 1);
             frame = Math.Min(frame, _waveformTotalFrames);
             _trimExactEndFrame = frame;
-            TrimEndSlider.Value = Math.Clamp((double)frame / _waveformTotalFrames * 1000.0, 0.0, 1000.0);
         }
 
         // Keep frame precision on the dragged endpoint even when the slider's
