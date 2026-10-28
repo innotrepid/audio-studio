@@ -310,8 +310,8 @@ public sealed partial class MainWindow : Window
             var end = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
             var duration = TimeSpan.FromSeconds((double)(endFrame - Math.Min(endFrame, startFrame)) / _waveformSampleRate);
             // Use total minutes rather than TimeSpan's minute component so recordings over one hour stay monotonic.
-            var startText = $"${(long)start.TotalMinutes:00}:{start.Seconds:00}.{start.Milliseconds:000}";
-            var endText = $"${(long)end.TotalMinutes:00}:{end.Seconds:00}.{end.Milliseconds:000}";
+            var startText = $"{(long)start.TotalMinutes:00}:{start.Seconds:00}.{start.Milliseconds:000}";
+            var endText = $"{(long)end.TotalMinutes:00}:{end.Seconds:00}.{end.Milliseconds:000}";
             WaveformSelectionText.Text = $"Selection: {startText} – {endText} · {duration.TotalSeconds:0.00}s";
         }
     }
@@ -344,7 +344,7 @@ public sealed partial class MainWindow : Window
         for (var suffix = 2; File.Exists(outputPath); suffix++)
             outputPath = Path.Combine(folder.Path, $"{baseName}-trimmed-{suffix}.wav");
 
-        var sourcePath = _waveformFilePath;
+        var sourcePath = _waveformFilePath!;
         var startFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
         var endFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
         if (endFrame <= startFrame)
