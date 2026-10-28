@@ -96,3 +96,9 @@ Use the visual language of the Resonate `Resonate-True-Apk` branch as a referenc
 - Preserve incremental updates: changing a trim handle should update the selection and summary only; slider drags should update their value labels; neither should reload the file or rebuild the screen.
 
 This visual direction supersedes the earlier mint-only visual treatment as the long-term target. Keep the visual redesign in small reviewable slices and do not change recording/DSP semantics just to style the interface.
+
+### Navigation affordances follow-up
+
+- Windows workflow navigation uses familiar glyph icons alongside concise labels, with a high-contrast selected state so the active workspace is obvious.
+- Navigation updates only the existing navigation controls and toggles the already-created workflow panels; it does not reconstruct the content tree or reset editor/processing state.
+- Icon glyphs are decorative cues, not replacements for accessible text labels.
