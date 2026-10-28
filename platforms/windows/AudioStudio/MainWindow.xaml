@@ -64,6 +64,12 @@
                         <Button x:Name="StopPreviewButton" Content="Stop preview" Click="StopPreview_Click" IsEnabled="False" />
                     </StackPanel>
                     <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <Rectangle Height="1" Fill="#38404D" Margin="0,8" />
+                    <TextBlock Text="Waveform" FontSize="16" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Load a PCM16 WAV to inspect its amplitude envelope. This analysis does not alter the recording." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <Button x:Name="LoadWaveformButton" Content="Load WAV waveform…" Click="LoadWaveform_Click" HorizontalAlignment="Center" />
+                    <Canvas x:Name="WaveformCanvas" Width="560" Height="100" Background="#171D27" />
+                    <TextBlock x:Name="WaveformStatusText" Text="No waveform loaded." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>
             </Border>
         </StackPanel>
