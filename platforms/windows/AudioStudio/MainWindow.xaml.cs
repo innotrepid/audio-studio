@@ -86,6 +86,7 @@ public sealed partial class MainWindow : Window
     private readonly MediaPlayer _previewPlayer = new();
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
+    private string? _currentRecordingPath;
     private string? _waveformFilePath;
     private ulong _waveformTotalFrames;
     private uint _waveformSampleRate;
@@ -481,6 +482,7 @@ public sealed partial class MainWindow : Window
             RecordingStatusText.Text = ReadRecordingStatus();
             if (started != 0)
             {
+                _currentRecordingPath = file.Path;
                 StartRecordingButton.IsEnabled = false;
                 StopRecordingButton.IsEnabled = true;
                 InputDeviceComboBox.IsEnabled = false;
@@ -514,6 +516,13 @@ public sealed partial class MainWindow : Window
             await Task.Run(NativeRecordingStop);
             UpdateInputMeter();
             RecordingStatusText.Text = ReadRecordingStatus();
+            if (!string.IsNullOrWhiteSpace(_currentRecordingPath))
+            {
+                var takeDetails = await Task.Run(() => ReadRecordingTakeDetails(_currentRecordingPath));
+                if (takeDetails is not null && RecordingStatusText.Text.Contains("saved", StringComparison.OrdinalIgnoreCase))
+                    RecordingStatusText.Text += Environment.NewLine + Environment.NewLine + takeDetails;
+            }
+            _currentRecordingPath = null;
         }
         catch (Exception exception)
         {
@@ -815,6 +824,28 @@ public sealed partial class MainWindow : Window
         {
             _meterTimer.Stop();
             InputLevelText.Text = $"Input meter unavailable: {exception.Message}";
+        }
+    }
+
+    private static string? ReadRecordingTakeDetails(string path)
+    {
+        try
+        {
+            var peaks = new float[4];
+            var result = NativeAnalyzeWavWaveform(path, 1U, peaks, out var frames, out var sampleRate, out var channels);
+            if (result <= 0 || frames == 0 || sampleRate == 0 || (channels != 1 && channels != 2))
+                return null;
+            var totalSeconds = frames / sampleRate;
+            var totalMinutes = totalSeconds / 60UL;
+            var remainingSeconds = totalSeconds % 60UL;
+            var fileSizeMb = new FileInfo(path).Length / (1024.0 * 1024.0);
+            var channelLabel = channels == 1 ? "Mono" : "Stereo";
+            return $"Take details: {totalMinutes:00}:{remainingSeconds:00} · {sampleRate / 1000.0:0.#} kHz · {channelLabel} · {fileSizeMb:0.00} MB";
+        }
+        catch
+        {
+            // Metadata is helpful, but a metadata read must never invalidate a finalized recording.
+            return null;
         }
     }
 

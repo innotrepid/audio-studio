@@ -51,7 +51,7 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 
 Reliability work is tracked in [HARDENING_BACKLOG.md](HARDENING_BACKLOG.md). Fix confirmed data-loss, corruption, security, and crash risks promptly. Park lower-priority concerns with a revisit trigger. After the current in-flight hardening item is merged, resume product implementation; do not start another broad hardening sweep without a trigger.
 
-**Next product milestone:** recording confidence and control. First audit the current Android and Windows UI so we add only missing pieces; then prioritize live input level/clipping feedback, recording/file details, and finalized-versus-recoverable take state. After that, begin non-destructive gain/high-pass effects.
+**Current product milestone:** recording confidence and control. Live input level/clipping feedback and non-destructive gain/high-pass processing are implemented. This slice adds post-save take details (duration, sample rate, channel layout, and file size) without changing the recording path. Next, clarify finalized-versus-recoverable take state, then continue with non-destructive creator features.
 
 ## Definition of done
 
