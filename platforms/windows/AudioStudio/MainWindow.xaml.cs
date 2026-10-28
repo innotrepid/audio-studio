@@ -201,7 +201,39 @@ public sealed partial class MainWindow : Window
             WaveformCanvas.Children.Clear();
             var width = WaveformCanvas.Width;
             var center = WaveformCanvas.Height / 2;
-            var amplitude = center - 5;
+            var amplitude = center - 8;
+
+            // A quiet timing grid makes the waveform easier to read without
+            // introducing a full-screen visual effect or extra per-peak elements.
+            var gridGeometry = new PathGeometry();
+            for (var division = 1; division < 8; division++)
+            {
+                var x = division * width / 8.0;
+                var figure = new PathFigure
+                {
+                    StartPoint = new Point(x, 0),
+                    IsClosed = false,
+                    IsFilled = false
+                };
+                figure.Segments.Add(new LineSegment { Point = new Point(x, WaveformCanvas.Height) });
+                gridGeometry.Figures.Add(figure);
+            }
+            var centerLine = new PathFigure
+            {
+                StartPoint = new Point(0, center),
+                IsClosed = false,
+                IsFilled = false
+            };
+            centerLine.Segments.Add(new LineSegment { Point = new Point(width, center) });
+            gridGeometry.Figures.Add(centerLine);
+            WaveformCanvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path
+            {
+                Data = gridGeometry,
+                Stroke = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 58, 54, 80)),
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            });
+
             var waveformGeometry = new PathGeometry();
             for (var i = 0; i < buckets; i++)
             {
@@ -223,7 +255,7 @@ public sealed partial class MainWindow : Window
             WaveformCanvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path
             {
                 Data = waveformGeometry,
-                Stroke = new SolidColorBrush(Microsoft.UI.Colors.LightGreen),
+                Stroke = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 178, 155, 255)),
                 StrokeThickness = 1.5,
                 IsHitTestVisible = false
             });

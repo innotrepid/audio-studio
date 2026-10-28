@@ -204,7 +204,7 @@
                             </StackPanel>
                             <Button x:Name="LoadWaveformButton" Content="Load WAV waveform…" Click="LoadWaveform_Click" HorizontalAlignment="Left" />
                             <Border Background="#0C0C14" CornerRadius="8" Padding="8" HorizontalAlignment="Center">
-                                <Canvas x:Name="WaveformCanvas" Width="560" Height="120" Background="#0C0C14" />
+                                <Canvas x:Name="WaveformCanvas" Width="720" Height="160" Background="#0C0C14" />
                             </Border>
                             <StackPanel Orientation="Horizontal" Spacing="16">
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
