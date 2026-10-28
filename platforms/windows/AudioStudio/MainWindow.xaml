@@ -21,6 +21,14 @@
         <Style TargetType="ComboBox">
             <Setter Property="MinHeight" Value="40" />
         </Style>
+        <Style x:Key="PrimaryRecordButton" TargetType="Button">
+            <Setter Property="Background" Value="#77E0B5" />
+            <Setter Property="Foreground" Value="#101218" />
+            <Setter Property="BorderBrush" Value="#77E0B5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="20,10" />
+            <Setter Property="MinHeight" Value="46" />
+        </Style>
     </Grid.Resources>
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
@@ -39,26 +47,48 @@
                 <Button Content="Compare" Click="NavigateCompare_Click" />
             </StackPanel>
             </Border>
-            <Border x:Name="RecordPanel" Background="#1C222D" CornerRadius="12" Margin="0,12,0,0">
-                <StackPanel Spacing="12" Margin="20">
-                    <TextBlock Text="Native engine status" FontSize="16" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
-                    <TextBlock Text="Choose an input device, then record to a standard PCM WAV file." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <ComboBox x:Name="InputDeviceComboBox" MinWidth="260" PlaceholderText="Select microphone" />
-                        <Button x:Name="RefreshInputDevicesButton" Content="Refresh" Click="RefreshInputDevices_Click" />
+            <Border x:Name="RecordPanel" Background="#1C222D" CornerRadius="16" Margin="0,12,0,0">
+                <StackPanel Spacing="16" Margin="24">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="RECORD" FontSize="11" FontWeight="Bold" Foreground="#77E0B5" CharacterSpacing="160" />
+                        <TextBlock Text="Capture a clean take" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Choose your microphone, check the level, and save a WAV recording." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     </StackPanel>
-                    <TextBlock x:Name="InputDeviceStatusText" Text="Loading input devices…" TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#BEC6D6" />
-                    <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" />
-                    <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold" />
+                    <Border Background="#171D27" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="ENGINE STATUS" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                            <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="INPUT DEVICE" FontSize="11" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ComboBox x:Name="InputDeviceComboBox" MinWidth="260" PlaceholderText="Select microphone" />
+                            <Button x:Name="RefreshInputDevicesButton" Content="Refresh" Click="RefreshInputDevices_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="InputDeviceStatusText" Text="Loading input devices…" TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    </StackPanel>
+                    <Border Background="#171D27" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="RECORDING STATUS" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                            <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#F5F7FB" FontSize="15" />
+                            <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#BEC6D6" />
+                            <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#77E0B5" />
+                            <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Border>
                     <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button x:Name="StartRecordingButton" Content="Start recording" Click="StartRecording_Click" />
+                        <Button x:Name="StartRecordingButton" Content="Start recording" Style="{StaticResource PrimaryRecordButton}" Click="StartRecording_Click" />
                         <Button x:Name="StopRecordingButton" Content="Stop and save" Click="StopRecording_Click" IsEnabled="False" />
                     </StackPanel>
-                    <Button x:Name="RecoverRecordingsButton" Content="Check for interrupted recordings…" Click="RecoverRecordings_Click" HorizontalAlignment="Center" />
-                    <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                    <Border Background="#171D27" CornerRadius="10" Padding="14">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="RECOVERY" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
+                            <TextBlock Text="If an app or device interruption leaves a temporary recording, you can check a folder and recover valid audio without overwriting existing files." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                            <Button x:Name="RecoverRecordingsButton" Content="Check for interrupted recordings…" Click="RecoverRecordings_Click" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#BEC6D6" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
             <Border x:Name="ProcessingPanel" Background="#1C222D" CornerRadius="12" Margin="0,0,0,0" Visibility="Collapsed">
