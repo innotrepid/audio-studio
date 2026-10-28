@@ -429,6 +429,42 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
     return result;
 }
 
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
+    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
+    jlong start_fraction, jlong end_fraction) {
+    if (input_path == nullptr || output_path == nullptr || start_fraction < 0 ||
+        end_fraction <= start_fraction || end_fraction > 1000) {
+        return env->NewStringUTF("ERROR: Choose a valid non-empty trim range.");
+    }
+    const char* input_chars = env->GetStringUTFChars(input_path, nullptr);
+    if (input_chars == nullptr) return env->NewStringUTF("ERROR: Could not read source path.");
+    const std::string input(input_chars);
+    env->ReleaseStringUTFChars(input_path, input_chars);
+    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
+    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read destination path.");
+    const std::string output(output_chars);
+    env->ReleaseStringUTFChars(output_path, output_chars);
+    std::vector<audio_studio::WaveformPeak> metadata_peaks;
+    std::uint64_t total_frames = 0U;
+    std::string error;
+    if (!audio_studio::analyze_wav_waveform(input, 1U, metadata_peaks, nullptr,
+                                            &total_frames, &error)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    const std::uint64_t start_frame =
+        (total_frames * static_cast<std::uint64_t>(start_fraction)) / 1000U;
+    const std::uint64_t end_frame =
+        (total_frames * static_cast<std::uint64_t>(end_fraction)) / 1000U;
+    if (!audio_studio::trim_wav(input, output, start_frame, end_frame, &error)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    return env->NewStringUTF("TRIMMED");
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
     JNIEnv* env, jobject /* thiz */, jstring partial_path, jstring output_path) {
