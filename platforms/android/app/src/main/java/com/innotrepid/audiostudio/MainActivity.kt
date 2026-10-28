@@ -1469,6 +1469,10 @@ class MainActivity : Activity() {
             ?: throw IOException("Android could not create the public WAV entry")
 
         try {
+            if (!source.isFile) throw IOException("The source WAV is no longer available.")
+            val expectedBytes = source.length()
+            if (expectedBytes <= 0L) throw IOException("The source WAV is empty.")
+            var copiedBytes = 0L
             val output = contentResolver.openOutputStream(destination, "w")
                 ?: throw IOException("Android could not open the exported WAV")
             output.use { stream ->
@@ -1481,8 +1485,20 @@ class MainActivity : Activity() {
                         val count = input.read(buffer)
                         if (count < 0) break
                         stream.write(buffer, 0, count)
+                        copiedBytes += count.toLong()
                     }
                 }
+            }
+
+            // Do not make a public MediaStore item visible until every source byte
+            // has been copied. A partial copy must be deleted, not published as a WAV.
+            if (copiedBytes != expectedBytes || !source.isFile || source.length() != expectedBytes) {
+                throw IOException(
+                    "WAV export was incomplete ($copiedBytes of $expectedBytes bytes copied)."
+                )
+            }
+            if (isCancelled?.invoke() == true) {
+                throw IOException("Export cancelled by user.")
             }
 
             val completedValues = ContentValues().apply {
