@@ -30,7 +30,12 @@
                     </StackPanel>
                     <Button x:Name="RecoverRecordingsButton" Content="Check for interrupted recordings…" Click="RecoverRecordings_Click" HorizontalAlignment="Center" />
                     <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <Rectangle Height="1" Fill="#38404D" Margin="0,8" />
+                </StackPanel>
+            </Border>
+            <Border Background="#1C222D" CornerRadius="12" Margin="0,0,0,0">
+                <StackPanel Spacing="12" Margin="20">
+                    <TextBlock Text="Processing · create a cleaned copy" FontSize="20" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Choose a preset first. Advanced controls are kept together here. The original is never overwritten." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock Text="Process an existing PCM16 WAV" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Creates a separate processed copy. The original is never overwritten." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <ComboBox x:Name="ProcessingPresetComboBox" PlaceholderText="Quick processing preset" SelectionChanged="ProcessingPresetComboBox_SelectionChanged">
@@ -52,7 +57,12 @@
                     </StackPanel>
                     <ProgressBar x:Name="ProcessingProgressBar" Minimum="0" Maximum="1" Value="0" Height="14" />
                     <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <Rectangle Height="1" Fill="#38404D" Margin="0,8" />
+                </StackPanel>
+            </Border>
+            <Border Background="#1C222D" CornerRadius="12" Margin="0,0,0,0">
+                <StackPanel Spacing="12" Margin="20">
+                    <TextBlock Text="Preview · compare versions" FontSize="20" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Switch between the original and processed files to judge the change by ear." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock Text="A/B preview" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Load the original and processed WAV, then switch between them to compare." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#BEC6D6" />
@@ -67,7 +77,12 @@
                         <Button x:Name="StopPreviewButton" Content="Stop preview" Click="StopPreview_Click" IsEnabled="False" />
                     </StackPanel>
                     <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#BEC6D6" />
-                    <Rectangle Height="1" Fill="#38404D" Margin="0,8" />
+                </StackPanel>
+            </Border>
+            <Border Background="#1C222D" CornerRadius="12" Margin="0,0,0,0">
+                <StackPanel Spacing="12" Margin="20">
+                    <TextBlock Text="Editor · waveform and trim" FontSize="20" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Select a range, preview it, and export a new WAV. The source file remains unchanged." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <TextBlock Text="Waveform" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Load a PCM16 WAV to inspect its amplitude envelope. This analysis does not alter the recording." TextWrapping="Wrap" Foreground="#BEC6D6" />
                     <Button x:Name="LoadWaveformButton" Content="Load WAV waveform…" Click="LoadWaveform_Click" HorizontalAlignment="Center" />
