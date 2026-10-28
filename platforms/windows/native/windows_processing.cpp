@@ -43,7 +43,7 @@ public:
     }
 
     int start(const wchar_t* input, const wchar_t* output,
-              float threshold_dbfs, float attenuation_db) {
+              float threshold_dbfs, float attenuation_db, float gain_db, float high_pass_hz) {
         const std::string input_utf8 = utf8_path(input);
         const std::string output_utf8 = utf8_path(output);
         if (input_utf8.empty() || output_utf8.empty()) {
@@ -66,7 +66,7 @@ public:
         active_.store(true);
         status_ = L"Preparing WAV processing…";
         worker_ = std::thread(&WindowsProcessor::run, this, input_utf8, output_utf8,
-                              threshold_dbfs, attenuation_db);
+                              threshold_dbfs, attenuation_db, gain_db, high_pass_hz);
         return 1;
     }
 
@@ -91,7 +91,7 @@ private:
     }
 
     void run(const std::string& input, const std::string& output,
-             float threshold_dbfs, float attenuation_db) {
+             float threshold_dbfs, float attenuation_db, float gain_db, float high_pass_hz) {
         audio_studio::NoiseGateSettings settings;
         settings.threshold_dbfs = threshold_dbfs;
         settings.attenuation_db = attenuation_db;
@@ -101,7 +101,7 @@ private:
             [this](std::uint64_t done, std::uint64_t total) {
                 progress_.store(total == 0U ? 0.0F :
                     static_cast<float>(static_cast<double>(done) / static_cast<double>(total)));
-            });
+            }, audio_studio::DspEffectsSettings{gain_db, high_pass_hz, true});
         if (succeeded) {
             progress_.store(1.0F);
             set_status(L"Processed WAV saved. Original recording was preserved.");
@@ -130,8 +130,9 @@ WindowsProcessor& processor() {
 
 extern "C" AUDIO_STUDIO_API int audio_studio_processing_start(
     const wchar_t* input_path, const wchar_t* output_path,
-    float threshold_dbfs, float attenuation_db) {
-    return processor().start(input_path, output_path, threshold_dbfs, attenuation_db);
+    float threshold_dbfs, float attenuation_db, float gain_db, float high_pass_hz) {
+    return processor().start(input_path, output_path, threshold_dbfs, attenuation_db,
+                             gain_db, high_pass_hz);
 }
 extern "C" AUDIO_STUDIO_API void audio_studio_processing_cancel(void) {
     processor().cancel();
