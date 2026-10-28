@@ -1,6 +1,7 @@
 #pragma once
 
 #include "audio_studio/noise_gate.hpp"
+#include "audio_studio/dsp_effects.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -18,6 +19,7 @@ namespace audio_studio {
     NoiseGateSettings settings = {},
     std::string* error = nullptr,
     const std::atomic<bool>* cancel_requested = nullptr,
-    std::function<void(std::uint64_t, std::uint64_t)> progress = {});
+    std::function<void(std::uint64_t, std::uint64_t)> progress = {},
+    DspEffectsSettings dsp_settings = {});
 
 }  // namespace audio_studio
