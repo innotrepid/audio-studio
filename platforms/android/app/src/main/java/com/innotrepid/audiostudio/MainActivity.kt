@@ -39,7 +39,7 @@ class MainActivity : Activity() {
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
-    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, callback: NoiseGateProgressCallback): String
+    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
     private external fun nativeCancelNoiseGateProcessing()
     private external fun nativePrepareNoiseGateProcessing()
 
@@ -62,6 +62,10 @@ class MainActivity : Activity() {
     private lateinit var attenuationLabel: TextView
     private lateinit var thresholdSeekBar: SeekBar
     private lateinit var attenuationSeekBar: SeekBar
+    private lateinit var dspGainLabel: TextView
+    private lateinit var highPassLabel: TextView
+    private lateinit var dspGainSeekBar: SeekBar
+    private lateinit var highPassSeekBar: SeekBar
     @Volatile private var processing = false
     @Volatile private var cancelRequested = false
     // Prevent repeated picker launches and recording while a document is being selected.
@@ -237,6 +241,46 @@ class MainActivity : Activity() {
         thresholdLabel.text = "Noise threshold: ${thresholdSeekBar.progress - 70} dBFS"
         attenuationLabel.text = "Noise reduction strength: ${attenuationSeekBar.progress - 36} dB"
 
+        dspGainLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(220, 225, 238))
+            gravity = Gravity.CENTER
+        }
+        dspGainSeekBar = SeekBar(this).apply {
+            max = 36
+            progress = gatePreferences.getInt("dsp_gain_progress", 24).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    dspGainLabel.text = "Output gain: ${progress - 24} dB"
+                    if (fromUser) gatePreferences.edit().putInt("dsp_gain_progress", progress).apply()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        highPassLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(220, 225, 238))
+            gravity = Gravity.CENTER
+        }
+        highPassSeekBar = SeekBar(this).apply {
+            max = 49
+            progress = gatePreferences.getInt("high_pass_progress", 0).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val cutoff = if (progress == 0) 0 else (20 + (progress - 1) * 10).coerceAtMost(500)
+                    highPassLabel.text = if (cutoff == 0) "High-pass filter: Off" else "High-pass filter: ${cutoff} Hz"
+                    if (fromUser) gatePreferences.edit().putInt("high_pass_progress", progress).apply()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        dspGainLabel.text = "Output gain: ${dspGainSeekBar.progress - 24} dB"
+        val initialHighPass = if (highPassSeekBar.progress == 0) 0 else
+            (20 + (highPassSeekBar.progress - 1) * 10).coerceAtMost(500)
+        highPassLabel.text = if (initialHighPass == 0) "High-pass filter: Off" else "High-pass filter: ${initialHighPass} Hz"
+
         val notice = TextView(this).apply {
             text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a PCM16 WAV to create a separate noise-gated copy in Music/Audio Studio/Processed. This conservative gate reduces quieter noise between phrases; it is not AI noise cancellation or echo removal."
             textSize = 14f
@@ -263,6 +307,10 @@ class MainActivity : Activity() {
         root.addView(thresholdSeekBar, matchWidth())
         root.addView(attenuationLabel, matchWidth())
         root.addView(attenuationSeekBar, matchWidth())
+        root.addView(dspGainLabel, matchWidth())
+        root.addView(dspGainSeekBar, matchWidth())
+        root.addView(highPassLabel, matchWidth())
+        root.addView(highPassSeekBar, matchWidth())
         root.addView(notice, matchWidth())
         setContentView(root)
         root.post { showInterruptedRecordings(showWhenNone = false) }
@@ -536,6 +584,9 @@ class MainActivity : Activity() {
         cancelProcessingButton.text = "Cancel processing"
         val thresholdDbfs = (thresholdSeekBar.progress - 70).toFloat()
         val attenuationDb = (attenuationSeekBar.progress - 36).toFloat()
+        val gainDb = (dspGainSeekBar.progress - 24).toFloat()
+        val highPassHz = if (highPassSeekBar.progress == 0) 0.0F else
+            (20 + (highPassSeekBar.progress - 1) * 10).coerceAtMost(500).toFloat()
         statusText.text = "Preparing WAV for noise reduction…"
         Thread {
             val stagingDirectory = File(filesDir, "processing-staging")
@@ -582,6 +633,8 @@ class MainActivity : Activity() {
                     outputFile.absolutePath,
                     thresholdDbfs,
                     attenuationDb,
+                    gainDb,
+                    highPassHz,
                     callback
                 )
                 if (!nativeStatus.startsWith("Processed WAV:")) {
