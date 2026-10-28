@@ -10,7 +10,13 @@
         <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Spacing="16" MaxWidth="760" Margin="12,8,12,28">
             <TextBlock Text="Audio Studio" FontSize="36" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" />
             <TextBlock Text="Your voice. Your studio." FontSize="20" Foreground="#BEC6D6" HorizontalAlignment="Center" />
-            <Border Background="#1C222D" CornerRadius="12" Margin="0,12,0,0">
+            <StackPanel x:Name="WorkflowNavigation" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                <Button Content="Record" Click="NavigateRecord_Click" />
+                <Button Content="Editor" Click="NavigateEditor_Click" />
+                <Button Content="Processing" Click="NavigateProcessing_Click" />
+                <Button Content="Compare" Click="NavigateCompare_Click" />
+            </StackPanel>
+            <Border x:Name="RecordPanel" Background="#1C222D" CornerRadius="12" Margin="0,12,0,0">
                 <StackPanel Spacing="12" Margin="20">
                     <TextBlock Text="Native engine status" FontSize="16" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#B4DCBE" />
@@ -32,7 +38,7 @@
                     <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>
             </Border>
-            <Border Background="#1C222D" CornerRadius="12" Margin="0,0,0,0">
+            <Border x:Name="ProcessingPanel" Background="#1C222D" CornerRadius="12" Margin="0,0,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="12" Margin="20">
                     <TextBlock Text="Processing · create a cleaned copy" FontSize="20" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Choose a preset first. Advanced controls are kept together here. The original is never overwritten." TextWrapping="Wrap" Foreground="#BEC6D6" />
@@ -63,7 +69,7 @@
                     <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>
             </Border>
-            <Border Background="#1C222D" CornerRadius="12" Margin="0,0,0,0">
+            <Border x:Name="ComparePanel" Background="#1C222D" CornerRadius="12" Margin="0,0,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="12" Margin="20">
                     <TextBlock Text="Preview · compare versions" FontSize="20" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Switch between the original and processed files to judge the change by ear." TextWrapping="Wrap" Foreground="#BEC6D6" />
@@ -83,7 +89,7 @@
                     <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#BEC6D6" />
                 </StackPanel>
             </Border>
-            <Border Background="#1C222D" CornerRadius="12" Margin="0,0,0,0">
+            <Border x:Name="EditorPanel" Background="#1C222D" CornerRadius="12" Margin="0,0,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="12" Margin="20">
                     <TextBlock Text="Editor · waveform and trim" FontSize="20" FontWeight="SemiBold" Foreground="White" />
                     <TextBlock Text="Select a range, preview it, and export a new WAV. The source file remains unchanged." TextWrapping="Wrap" Foreground="#BEC6D6" />
