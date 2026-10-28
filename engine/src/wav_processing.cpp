@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <exception>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,20 @@ std::uint32_t read_u32_le(const unsigned char* bytes) noexcept {
 bool read_exact(std::ifstream& stream, unsigned char* destination, std::size_t size) {
     stream.read(reinterpret_cast<char*>(destination), static_cast<std::streamsize>(size));
     return static_cast<bool>(stream);
+}
+
+bool report_progress(const std::function<void(std::uint64_t, std::uint64_t)>& progress,
+                     std::uint64_t processed, std::uint64_t total,
+                     std::string* error) {
+    if (!progress) return true;
+    try {
+        progress(processed, total);
+        return true;
+    } catch (const std::exception& exception) {
+        return fail(error, std::string("Progress callback failed: ") + exception.what());
+    } catch (...) {
+        return fail(error, "Progress callback failed with an unknown exception.");
+    }
 }
 
 bool tag_is(const std::array<unsigned char, 4U>& tag, const char* expected) noexcept {
@@ -210,7 +225,10 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     }
 
     std::uint64_t frames_remaining = total_frames;
-    if (progress) progress(0U, total_frames);
+    if (!report_progress(progress, 0U, total_frames, error)) {
+        writer.abort();
+        return false;
+    }
     while (frames_remaining > 0U) {
         if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
             writer.abort();
@@ -247,7 +265,10 @@ bool process_wav_with_noise_gate(const std::string& input_path,
             return fail(error, message);
         }
         frames_remaining -= frames;
-        if (progress) progress(total_frames - frames_remaining, total_frames);
+        if (!report_progress(progress, total_frames - frames_remaining, total_frames, error)) {
+            writer.abort();
+            return false;
+        }
     }
 
     if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
