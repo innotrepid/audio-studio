@@ -170,6 +170,49 @@ void test_repeated_long_recordings() {
     }
 }
 
+
+void test_five_minute_recording_integrity() {
+    const std::string path = "audio_studio_five_minute_test.wav";
+    const std::vector<float> block(480U, 0.125F); // 10 ms at 48 kHz mono.
+    constexpr std::uint64_t expected_frames = 14400000U;
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(path, {48000U, 1U}), "five-minute writer should open");
+        for (int chunk = 0; chunk < 30000; ++chunk) {
+            require(writer.write_frames(block.data(), block.size()),
+                    "five-minute recording should accept every audio block");
+        }
+        require(writer.frames_written() == expected_frames,
+                "five-minute recording should count every captured frame");
+        require(writer.finalize(), "five-minute recording should finalize");
+        require(!writer.write_frames(block.data(), block.size()),
+                "five-minute finalized recording must reject further writes");
+    }
+
+    const auto actual_size = std::filesystem::file_size(path);
+    require(actual_size == 44U + expected_frames * 2U,
+            "five-minute WAV should contain the complete PCM16 payload");
+    std::ifstream file(path, std::ios::binary);
+    std::array<unsigned char, 44U> header{};
+    file.read(reinterpret_cast<char*>(header.data()),
+              static_cast<std::streamsize>(header.size()));
+    require(static_cast<bool>(file), "five-minute WAV header should be readable");
+    const std::vector<unsigned char> header_bytes(header.begin(), header.end());
+    require(std::string(header.begin(), header.begin() + 4) == "RIFF",
+            "five-minute WAV should retain its RIFF signature");
+    require(read_u32(header_bytes, 4U) == actual_size - 8U,
+            "five-minute WAV RIFF length should match the file");
+    require(read_u32(header_bytes, 40U) == expected_frames * 2U,
+            "five-minute WAV data length should match all frames");
+    file.seekg(-2, std::ios::end);
+    std::array<unsigned char, 2U> final_sample{};
+    file.read(reinterpret_cast<char*>(final_sample.data()), 2);
+    require(file && final_sample[0] == 0x00U && final_sample[1] == 0x10U,
+            "final audio block should be intact at the end of the WAV payload");
+    file.close();
+    std::remove(path.c_str());
+}
+
 }
 int main() {
     test_wav_header_and_samples();
@@ -179,6 +222,7 @@ int main() {
     test_preserve_partial_keeps_recoverable_source();
     test_destructor_discards_unfinalized_output();
     test_repeated_long_recordings();
+    test_five_minute_recording_integrity();
     std::cout << "All WAV writer tests passed.\n";
     return EXIT_SUCCESS;
 }
