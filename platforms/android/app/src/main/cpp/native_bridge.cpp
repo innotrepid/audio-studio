@@ -429,6 +429,33 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
     return result;
 }
 
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
+    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
+    jlong start_frame, jlong end_frame) {
+    if (input_path == nullptr || output_path == nullptr || start_frame < 0 ||
+        end_frame <= start_frame) {
+        return env->NewStringUTF("ERROR: Choose a valid non-empty trim range.");
+    }
+    const char* input_chars = env->GetStringUTFChars(input_path, nullptr);
+    if (input_chars == nullptr) return env->NewStringUTF("ERROR: Could not read source path.");
+    const std::string input(input_chars);
+    env->ReleaseStringUTFChars(input_path, input_chars);
+    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
+    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read destination path.");
+    const std::string output(output_chars);
+    env->ReleaseStringUTFChars(output_path, output_chars);
+    std::string error;
+    if (!audio_studio::trim_wav(input, output,
+            static_cast<std::uint64_t>(start_frame),
+            static_cast<std::uint64_t>(end_frame), &error)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    return env->NewStringUTF("TRIMMED");
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
     JNIEnv* env, jobject /* thiz */, jstring partial_path, jstring output_path) {
