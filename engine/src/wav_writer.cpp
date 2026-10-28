@@ -198,21 +198,24 @@ bool WavWriter::finalize() {
         return false;
     }
 
+    // Publish without replacement. A prior exists()+rename() sequence has a
+    // time-of-check/time-of-use race on platforms where rename replaces an
+    // existing destination. A same-directory hard-link creation is atomic and
+    // fails if another process created the destination after open().
     std::error_code path_error;
-    if (std::filesystem::exists(output_path_, path_error) || path_error) {
-        set_error(path_error ? "Could not inspect the final WAV destination."
-                             : "The final WAV destination already exists; refusing to overwrite it.");
-        abort();
-        return false;
-    }
-    std::filesystem::rename(temporary_path_, output_path_, path_error);
+    std::filesystem::create_hard_link(temporary_path_, output_path_, path_error);
     if (path_error) {
-        set_error("Could not publish the finalized WAV file.");
+        set_error("Could not publish the finalized WAV without replacing an existing file.");
         abort();
         return false;
     }
 
-    temporary_path_.clear();
+    // The final path now references the fully flushed file. Remove the
+    // temporary name; if cleanup fails, keep the valid final output and report
+    // success rather than deleting or invalidating the published recording.
+    std::error_code cleanup_error;
+    std::filesystem::remove(temporary_path_, cleanup_error);
+    if (!cleanup_error) temporary_path_.clear();
     output_path_.clear();
     finalized_ = true;
     return true;
