@@ -42,7 +42,7 @@ class MainActivity : Activity() {
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
     private external fun nativeGetWavMetadata(inputPath: String): LongArray
-    private external fun nativeTrimWav(inputPath: String, outputPath: String, startFraction: Long, endFraction: Long): String
+    private external fun nativeTrimWav(inputPath: String, outputPath: String, startFrame: Long, endFrame: Long): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
