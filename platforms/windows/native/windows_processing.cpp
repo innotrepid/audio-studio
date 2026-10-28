@@ -146,8 +146,8 @@ extern "C" AUDIO_STUDIO_API int audio_studio_analyze_wav_waveform(
         interleaved_peaks[i * 4U + 3U] = peaks[i].max_right;
     }
     if (total_frames) *total_frames = static_cast<unsigned long long>(frames);
-    if (sample_rate) *sample_rate = format.sample_rate;
-    if (channels) *channels = format.channels;
+    if (sample_rate) *sample_rate = format.sample_rate_hz;
+    if (channels) *channels = format.channel_count;
     return static_cast<int>(peaks.size());
 }
 
