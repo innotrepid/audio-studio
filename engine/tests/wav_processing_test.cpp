@@ -132,6 +132,41 @@ void test_truncated_source_does_not_publish_or_leave_partial_output() {
     std::remove(output.c_str());
 }
 
+void test_cancellation_at_initial_progress_cleans_partial_output() {
+    const std::string input = "audio_studio_processing_initial_cancel_source.wav";
+    const std::string output = "audio_studio_processing_initial_cancel_result.wav";
+    const std::array<float, 128U> samples{};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create initial-progress cancellation source");
+        require(writer.write_frames(samples.data(), samples.size()),
+                "write initial-progress cancellation source");
+        require(writer.finalize(), "finalize initial-progress cancellation source");
+    }
+    const auto source_before = load_bytes(input);
+    std::atomic<bool> cancel{false};
+    std::string error;
+    const auto progress = [&](std::uint64_t processed, std::uint64_t total) {
+        require(processed == 0U && total == samples.size(),
+                "first progress callback should report zero processed frames and the total");
+        cancel.store(true, std::memory_order_release);
+    };
+    require(!audio_studio::process_wav_with_noise_gate(
+                input, output, {}, &error, &cancel, progress),
+            "cancellation requested by the initial progress callback must stop processing");
+    require(error.find("cancelled") != std::string::npos,
+            "initial-progress cancellation should provide a descriptive error");
+    require(load_bytes(input) == source_before,
+            "initial-progress cancellation must preserve the source bytes");
+    require(!std::filesystem::exists(output),
+            "initial-progress cancellation must not publish a final WAV");
+    require(!has_partial_file_for(output),
+            "initial-progress cancellation must remove the temporary WAV");
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
 void test_cancellation_cleans_partial_output() {
     const std::string input = "audio_studio_processing_cancel_source.wav";
     const std::string output = "audio_studio_processing_cancel_result.wav";
@@ -255,6 +290,7 @@ void test_refuses_relative_absolute_alias_of_input() {
 int main() {
     test_processes_to_separate_file_and_preserves_source();
     test_truncated_source_does_not_publish_or_leave_partial_output();
+    test_cancellation_at_initial_progress_cleans_partial_output();
     test_cancellation_cleans_partial_output();
     test_cancellation_during_progress_cleans_partial_output();
     test_refuses_to_overwrite_input();
