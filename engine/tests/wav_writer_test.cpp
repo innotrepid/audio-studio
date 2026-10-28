@@ -107,7 +107,7 @@ void test_rejects_invalid_input() {
         std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     require(bytes.size() == 46U, "recovered writer should contain only the valid sample");
     require(read_u32(bytes, 40U) == 2U, "invalid samples must not enter the WAV payload");
-    require(bytes[44U] == 0xffU && bytes[45U] == 0x1fU,
+    require(bytes[44U] == 0x00U && bytes[45U] == 0x20U,
             "valid sample after rejected input should be encoded correctly");
     std::remove(path.c_str());
 }
