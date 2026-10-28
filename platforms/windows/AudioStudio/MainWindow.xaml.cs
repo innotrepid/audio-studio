@@ -353,7 +353,11 @@ public sealed partial class MainWindow : Window
         var width = Math.Max(1.0, WaveformCanvas.ActualWidth > 0 ? WaveformCanvas.ActualWidth : WaveformCanvas.Width);
         var fraction = Math.Clamp(point.Position.X / width, 0.0, 1.0);
         var requestedFrame = (ulong)Math.Round(fraction * _waveformTotalFrames, MidpointRounding.AwayFromZero);
-        var (currentStart, currentEnd) = GetTrimRangeFrames();
+        var (rawStart, rawEnd) = GetTrimRangeFrames();
+        // Normalize a range left temporarily collapsed by the legacy sliders so
+        // a drag can recover it without unsigned underflow or an empty selection.
+        var currentStart = Math.Min(rawStart, _waveformTotalFrames - 1);
+        var currentEnd = Math.Clamp(rawEnd, currentStart + 1, _waveformTotalFrames);
 
         if (_draggingTrimStart.Value)
         {
