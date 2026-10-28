@@ -318,6 +318,19 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void ShowWorkflowPanel(Border selected)
+    {
+        RecordPanel.Visibility = selected == RecordPanel ? Visibility.Visible : Visibility.Collapsed;
+        EditorPanel.Visibility = selected == EditorPanel ? Visibility.Visible : Visibility.Collapsed;
+        ProcessingPanel.Visibility = selected == ProcessingPanel ? Visibility.Visible : Visibility.Collapsed;
+        ComparePanel.Visibility = selected == ComparePanel ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void NavigateRecord_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(RecordPanel);
+    private void NavigateEditor_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(EditorPanel);
+    private void NavigateProcessing_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ProcessingPanel);
+    private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
+
     private void RefreshInputDevices_Click(object sender, RoutedEventArgs e) => RefreshInputDevices();
 
     private void RefreshInputDevices()
