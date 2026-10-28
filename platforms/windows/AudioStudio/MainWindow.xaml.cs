@@ -83,7 +83,9 @@ public sealed partial class MainWindow : Window
 
     private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly DispatcherTimer _processingTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private readonly DispatcherTimer _trimPreviewTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private readonly MediaPlayer _previewPlayer = new();
+    private TimeSpan _trimPreviewEndPosition;
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
     private string? _currentRecordingPath;
@@ -115,6 +117,12 @@ public sealed partial class MainWindow : Window
         }
 
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
+        _trimPreviewTimer.Tick += (_, _) =>
+        {
+            if (_trimPreviewEndPosition > TimeSpan.Zero &&
+                _previewPlayer.PlaybackSession.Position >= _trimPreviewEndPosition)
+                StopTrimRangePreview(updateStatus: true);
+        };
         if (Content is FrameworkElement root)
             root.Loaded += (_, _) => RefreshInputDevices();
         _processingTimer.Tick += (_, _) => UpdateProcessingStatus();
@@ -143,6 +151,7 @@ public sealed partial class MainWindow : Window
         {
             _meterTimer.Stop();
             _processingTimer.Stop();
+            _trimPreviewTimer.Stop();
             NativeProcessingCancel();
             NativeRecordingStop();
             StopPreview();
@@ -282,7 +291,8 @@ public sealed partial class MainWindow : Window
             WaveformCanvas.Children.Add(_trimEndMarker);
             UpdateWaveformSelectionMarkers();
             TrimWaveformButton.IsEnabled = _waveformTotalFrames > 1;
-            WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Select a range below; original unchanged.";
+            PreviewTrimRangeButton.IsEnabled = _waveformTotalFrames > 1;
+            WaveformStatusText.Text = $"{file.Name} · {analysis.rate} Hz · {analysis.channels} channel(s) · {analysis.frames:N0} frames. Select and preview a range below; original unchanged.";
         }
         catch (Exception exception)
         {
@@ -314,6 +324,68 @@ public sealed partial class MainWindow : Window
             var endText = $"{(long)end.TotalMinutes:00}:{end.Seconds:00}.{end.Milliseconds:000}";
             WaveformSelectionText.Text = $"Selection: {startText} – {endText} · {duration.TotalSeconds:0.00}s";
         }
+    }
+
+    private async void PreviewTrimRange_Click(object sender, RoutedEventArgs e)
+    {
+        var sourcePath = _waveformFilePath;
+        if (string.IsNullOrWhiteSpace(sourcePath) || _waveformTotalFrames < 2 || _waveformSampleRate == 0)
+        {
+            WaveformStatusText.Text = "Load a WAV waveform before previewing a selection.";
+            return;
+        }
+        if (NativeRecordingActive() != 0 || NativeProcessingActive() != 0)
+        {
+            WaveformStatusText.Text = "Stop recording or processing before previewing a trim range.";
+            return;
+        }
+
+        var startFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
+        var endFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
+        if (endFrame <= startFrame)
+        {
+            WaveformStatusText.Text = "Choose a range with at least one audio frame.";
+            return;
+        }
+
+        var startPosition = TimeSpan.FromSeconds((double)startFrame / _waveformSampleRate);
+        _trimPreviewEndPosition = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
+        PreviewTrimRangeButton.IsEnabled = false;
+        _trimPreviewTimer.Stop();
+        try
+        {
+            _previewPlayer.Pause();
+            _previewPlayer.Source = null;
+            var file = await StorageFile.GetFileFromPathAsync(sourcePath);
+            _previewPlayer.Source = MediaSource.CreateFromStorageFile(file);
+
+            // Give the media pipeline a moment to open the WAV before seeking.
+            await Task.Delay(150);
+            _previewPlayer.PlaybackSession.Position = startPosition;
+            _previewPlayer.Play();
+            _trimPreviewTimer.Start();
+            WaveformStatusText.Text = $"Previewing selected range · {startPosition:mm\\:ss} to {_trimPreviewEndPosition:mm\\:ss}. Original unchanged.";
+        }
+        catch (Exception exception)
+        {
+            _trimPreviewTimer.Stop();
+            _trimPreviewEndPosition = TimeSpan.Zero;
+            WaveformStatusText.Text = $"Could not preview selected range: {exception.Message}";
+        }
+        finally
+        {
+            PreviewTrimRangeButton.IsEnabled = !string.IsNullOrWhiteSpace(_waveformFilePath) && _waveformTotalFrames > 1;
+        }
+    }
+
+    private void StopTrimRangePreview(bool updateStatus)
+    {
+        _trimPreviewTimer.Stop();
+        _trimPreviewEndPosition = TimeSpan.Zero;
+        _previewPlayer.Pause();
+        _previewPlayer.Source = null;
+        if (updateStatus)
+            WaveformStatusText.Text = "Selection preview finished. Adjust the range or export the trim.";
     }
 
     private async void TrimWaveform_Click(object sender, RoutedEventArgs e)
@@ -797,6 +869,9 @@ public sealed partial class MainWindow : Window
 
     private async Task PlayPreviewAsync(StorageFile file, string label)
     {
+        _trimPreviewTimer.Stop();
+        _trimPreviewEndPosition = TimeSpan.Zero;
+        PreviewTrimRangeButton.IsEnabled = !string.IsNullOrWhiteSpace(_waveformFilePath) && _waveformTotalFrames > 1;
         try
         {
             if (NativeRecordingActive() != 0 || NativeProcessingActive() != 0)
@@ -822,6 +897,7 @@ public sealed partial class MainWindow : Window
 
     private void StopPreview()
     {
+        StopTrimRangePreview(updateStatus: false);
         _previewPlayer.Pause();
         _previewPlayer.Source = null;
         StopPreviewButton.IsEnabled = false;
