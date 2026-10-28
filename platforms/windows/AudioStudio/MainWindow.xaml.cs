@@ -309,8 +309,9 @@ public sealed partial class MainWindow : Window
             var start = TimeSpan.FromSeconds((double)startFrame / _waveformSampleRate);
             var end = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
             var duration = TimeSpan.FromSeconds((double)(endFrame - Math.Min(endFrame, startFrame)) / _waveformSampleRate);
-            var startText = start.ToString(@"mm\:ss\.fff");
-            var endText = end.ToString(@"mm\:ss\.fff");
+            // Use total minutes rather than TimeSpan's minute component so recordings over one hour stay monotonic.
+            var startText = $"${(long)start.TotalMinutes:00}:{start.Seconds:00}.{start.Milliseconds:000}";
+            var endText = $"${(long)end.TotalMinutes:00}:{end.Seconds:00}.{end.Milliseconds:000}";
             WaveformSelectionText.Text = $"Selection: {startText} – {endText} · {duration.TotalSeconds:0.00}s";
         }
     }
@@ -343,6 +344,7 @@ public sealed partial class MainWindow : Window
         for (var suffix = 2; File.Exists(outputPath); suffix++)
             outputPath = Path.Combine(folder.Path, $"{baseName}-trimmed-{suffix}.wav");
 
+        var sourcePath = _waveformFilePath;
         var startFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimStartSlider.Value / 1000.0));
         var endFrame = (ulong)Math.Floor(_waveformTotalFrames * (TrimEndSlider.Value / 1000.0));
         if (endFrame <= startFrame)
@@ -355,10 +357,18 @@ public sealed partial class MainWindow : Window
         WaveformStatusText.Text = "Trimming selected frames to a separate WAV…";
         try
         {
-            var succeeded = await Task.Run(() => NativeTrimWav(_waveformFilePath, outputPath, startFrame, endFrame) != 0);
-            WaveformStatusText.Text = succeeded
-                ? $"Trimmed WAV saved: {Path.GetFileName(outputPath)}. Original file preserved."
-                : "Trim failed. The source was preserved; check the range and destination.";
+            var succeeded = await Task.Run(() => NativeTrimWav(sourcePath, outputPath, startFrame, endFrame) != 0);
+            if (!succeeded)
+            {
+                WaveformStatusText.Text = "Trim failed. The source was preserved; check the range and destination.";
+            }
+            else
+            {
+                var details = await Task.Run(() => ReadRecordingTakeDetails(outputPath));
+                WaveformStatusText.Text = details is not null
+                    ? $"Trimmed WAV verified and saved: {Path.GetFileName(outputPath)}. {details}. Original file preserved."
+                    : $"UNVERIFIED TRIM OUTPUT — {Path.GetFileName(outputPath)} was created but could not be validated. The output was retained for inspection; the original file is preserved.";
+            }
         }
         catch (Exception exception)
         {
