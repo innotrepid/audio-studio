@@ -160,7 +160,7 @@
                         <StackPanel Spacing="10">
                             <TextBlock Text="ORIGINAL RECORDING" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
                             <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#F5F7FB" FontSize="15" />
-                            <StackPanel Orientation="Horizontal" Spacing="10" Wrap="Wrap">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button x:Name="ChooseOriginalPreviewButton" Content="Choose original WAV…" Click="ChooseOriginalPreview_Click" />
                                 <Button x:Name="PreviewOriginalButton" Content="Play original" Click="PreviewOriginal_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" />
                             </StackPanel>
@@ -170,7 +170,7 @@
                         <StackPanel Spacing="10">
                             <TextBlock Text="PROCESSED COPY" FontSize="10" FontWeight="Bold" Foreground="#BEC6D6" CharacterSpacing="120" />
                             <TextBlock x:Name="ProcessedPreviewFileText" Text="Processed: no file selected" TextWrapping="Wrap" Foreground="#F5F7FB" FontSize="15" />
-                            <StackPanel Orientation="Horizontal" Spacing="10" Wrap="Wrap">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button x:Name="ChooseProcessedPreviewButton" Content="Choose processed WAV…" Click="ChooseProcessedPreview_Click" />
                                 <Button x:Name="PreviewProcessedButton" Content="Play processed" Click="PreviewProcessed_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" />
                             </StackPanel>
