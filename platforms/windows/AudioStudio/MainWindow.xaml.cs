@@ -123,6 +123,35 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private void ProcessingPresetComboBox_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs e)
+    {
+        if (ProcessingPresetComboBox.SelectedItem is not Microsoft.UI.Xaml.Controls.ComboBoxItem item ||
+            item.Content is not string preset) return;
+
+        switch (preset)
+        {
+            case "Voice clarity":
+                GateThresholdSlider.Value = -48;
+                GateAttenuationSlider.Value = -18;
+                DspGainSlider.Value = 2;
+                HighPassSlider.Value = 7; // 80 Hz
+                break;
+            case "Rumble cut":
+                GateThresholdSlider.Value = -60;
+                GateAttenuationSlider.Value = -12;
+                DspGainSlider.Value = 0;
+                HighPassSlider.Value = 11; // 120 Hz
+                break;
+            default:
+                GateThresholdSlider.Value = -54;
+                GateAttenuationSlider.Value = -12;
+                DspGainSlider.Value = 0;
+                HighPassSlider.Value = 0;
+                break;
+        }
+        ProcessingStatusText.Text = $"{{preset}} preset applied. Fine-tune the sliders and compare the output with the original.";
+    }
+
     private void RefreshInputDevices_Click(object sender, RoutedEventArgs e) => RefreshInputDevices();
 
     private void RefreshInputDevices()
