@@ -6,6 +6,7 @@ import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.media.MediaPlayer
@@ -480,10 +481,19 @@ class MainActivity : Activity() {
         }
         fun navButton(label: String, target: LinearLayout): Button = Button(this).apply {
             text = label
+            isAllCaps = false
             setOnClickListener {
                 recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
                 editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
                 processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
+
+                // Editing and processing benefit from the wider waveform/control layout.
+                // Keep the existing activity and view tree alive while the system rotates it.
+                requestedOrientation = if (target === editSection || target === processingSection) {
+                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                } else {
+                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                }
             }
         }
         listOf(
