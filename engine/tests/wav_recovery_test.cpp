@@ -41,6 +41,12 @@ std::vector<unsigned char> read_bytes(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 }
+void write_bytes(const std::string& path, const std::vector<unsigned char>& bytes) {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    file.write(reinterpret_cast<const char*>(bytes.data()),
+               static_cast<std::streamsize>(bytes.size()));
+    require(static_cast<bool>(file), "test fixture should be written completely");
+}
 std::array<unsigned char, 44U> zero_length_header() {
     std::array<unsigned char, 44U> h{};
     const char* riff = "RIFF";
@@ -156,6 +162,64 @@ void test_rejects_symlink_without_mutating_target() {
     std::filesystem::remove(link);
     std::filesystem::remove(target);
 }
+
+void test_rejects_bad_riff_signature_without_mutating_source() {
+    const std::string partial = "recovery_bad_signature.wav.partial-22";
+    const std::string output = "recovery_bad_signature.wav";
+    create_partial(partial, {0x01U, 0x02U, 0x03U, 0x04U});
+    auto malformed = read_bytes(partial);
+    malformed[0] = 'X';
+    write_bytes(partial, malformed);
+    const auto original = read_bytes(partial);
+
+    std::string error;
+    require(!audio_studio::recover_partial_wav(partial, output, &error),
+            "recovery must reject an invalid RIFF signature");
+    require(!error.empty(), "invalid RIFF rejection should explain the failure");
+    require(read_bytes(partial) == original,
+            "invalid RIFF source must remain byte-for-byte unchanged");
+    require(!std::filesystem::exists(output),
+            "invalid RIFF source must not be published as a recording");
+    std::remove(partial.c_str());
+}
+
+void test_rejects_unsupported_channel_count_without_mutating_source() {
+    const std::string partial = "recovery_bad_channels.wav.partial-23";
+    const std::string output = "recovery_bad_channels.wav";
+    create_partial(partial, {0x01U, 0x02U, 0x03U, 0x04U});
+    auto malformed = read_bytes(partial);
+    write_u16(*reinterpret_cast<std::array<unsigned char, 44U>*>(malformed.data()), 22U, 3U);
+    write_bytes(partial, malformed);
+    const auto original = read_bytes(partial);
+
+    std::string error;
+    require(!audio_studio::recover_partial_wav(partial, output, &error),
+            "recovery must reject unsupported channel counts");
+    require(!error.empty(), "unsupported channel count rejection should explain the failure");
+    require(read_bytes(partial) == original,
+            "unsupported WAV format must remain byte-for-byte unchanged");
+    require(!std::filesystem::exists(output),
+            "unsupported WAV format must not be published");
+    std::remove(partial.c_str());
+}
+
+void test_rejects_empty_payload_without_mutating_source() {
+    const std::string partial = "recovery_empty.wav.partial-24";
+    const std::string output = "recovery_empty.wav";
+    create_partial(partial, {});
+    const auto original = read_bytes(partial);
+
+    std::string error;
+    require(!audio_studio::recover_partial_wav(partial, output, &error),
+            "recovery must reject an empty audio payload");
+    require(!error.empty(), "empty payload rejection should explain the failure");
+    require(read_bytes(partial) == original,
+            "empty payload source must remain byte-for-byte unchanged");
+    require(!std::filesystem::exists(output),
+            "empty payload must not be published as a recording");
+    std::remove(partial.c_str());
+}
+
 }  // namespace
 
 int main() {
@@ -164,6 +228,9 @@ int main() {
     test_never_overwrites_existing_recording();
     test_rejects_unrelated_filename();
     test_rejects_symlink_without_mutating_target();
+    test_rejects_bad_riff_signature_without_mutating_source();
+    test_rejects_unsupported_channel_count_without_mutating_source();
+    test_rejects_empty_payload_without_mutating_source();
     std::cout << "All WAV recovery tests passed.\n";
     return EXIT_SUCCESS;
 }
