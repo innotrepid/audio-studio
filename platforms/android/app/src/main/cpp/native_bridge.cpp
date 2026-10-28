@@ -430,6 +430,31 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
 }
 
 
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeGetWavMetadata(
+    JNIEnv* env, jobject /* thiz */, jstring input_path) {
+    if (input_path == nullptr) return env->NewLongArray(0);
+    const char* chars = env->GetStringUTFChars(input_path, nullptr);
+    if (chars == nullptr) return env->NewLongArray(0);
+    const std::string input(chars);
+    env->ReleaseStringUTFChars(input_path, chars);
+    std::vector<audio_studio::WaveformPeak> peaks;
+    audio_studio::AudioFormat format{};
+    std::uint64_t total_frames = 0U;
+    std::string error;
+    if (!audio_studio::analyze_wav_waveform(input, 1U, peaks, &format, &total_frames, &error))
+        return env->NewLongArray(0);
+    const jlong values[3] = {
+        static_cast<jlong>(total_frames),
+        static_cast<jlong>(format.sample_rate_hz),
+        static_cast<jlong>(format.channel_count)
+    };
+    jlongArray result = env->NewLongArray(3);
+    if (result != nullptr) env->SetLongArrayRegion(result, 0, 3, values);
+    return result;
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
     JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
