@@ -17,6 +17,7 @@ import android.provider.MediaStore
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.SeekBar
@@ -41,7 +42,7 @@ class MainActivity : Activity() {
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
     private external fun nativeGetWavMetadata(inputPath: String): LongArray
-    private external fun nativeTrimWav(inputPath: String, outputPath: String, startFraction: Long, endFraction: Long): String
+    private external fun nativeTrimWav(inputPath: String, outputPath: String, startFrame: Long, endFrame: Long): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
     private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
@@ -60,6 +61,12 @@ class MainActivity : Activity() {
     private lateinit var trimStartLabel: TextView
     private lateinit var trimEndLabel: TextView
     private lateinit var trimSelectionSummary: TextView
+    private lateinit var trimStartTimeInput: EditText
+    private lateinit var trimEndTimeInput: EditText
+    private lateinit var applyTrimTimecodesButton: Button
+    private var exactTrimStartFrame: Long? = null
+    private var exactTrimEndFrame: Long? = null
+    private var applyingTrimTimecodes = false
     private lateinit var previewSelectionButton: Button
     private lateinit var trimStartSeekBar: SeekBar
     private lateinit var trimEndSeekBar: SeekBar
@@ -207,6 +214,7 @@ class MainActivity : Activity() {
             max = 1000
             progress = 0
             setOnSeekBarChangeListener(trimRangeListener {
+                if (!applyingTrimTimecodes) exactTrimStartFrame = null
                 trimStartLabel.text = "Trim start: ${it / 10.0f}%"
                 waveformView.setSelection(it / 1000f, trimEndSeekBar.progress / 1000f)
                 updateTrimSelectionSummary()
@@ -221,6 +229,7 @@ class MainActivity : Activity() {
             max = 1000
             progress = 1000
             setOnSeekBarChangeListener(trimRangeListener {
+                if (!applyingTrimTimecodes) exactTrimEndFrame = null
                 trimEndLabel.text = "Trim end: ${it / 10.0f}%"
                 waveformView.setSelection(trimStartSeekBar.progress / 1000f, it / 1000f)
                 updateTrimSelectionSummary()
@@ -230,6 +239,29 @@ class MainActivity : Activity() {
             text = "Selected duration: load a WAV"
             textSize = 13f
             setTextColor(Color.rgb(190, 198, 214))
+        }
+
+        trimStartTimeInput = EditText(this).apply {
+            setSingleLine(true)
+            hint = "In point · MM:SS.mmm"
+            setText("00:00.000")
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(150, 158, 176))
+            setSelectAllOnFocus(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+        }
+        trimEndTimeInput = EditText(this).apply {
+            setSingleLine(true)
+            hint = "Out point · MM:SS.mmm"
+            setText("00:00.000")
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(150, 158, 176))
+            setSelectAllOnFocus(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+        }
+        applyTrimTimecodesButton = Button(this).apply {
+            text = "Apply exact in/out points"
+            setOnClickListener { applyTrimTimecodes() }
         }
         previewSelectionButton = Button(this).apply {
             text = "Preview selected range"
@@ -424,6 +456,15 @@ class MainActivity : Activity() {
         editSection.addView(trimStartSeekBar, matchWidth())
         editSection.addView(trimEndLabel, matchWidth())
         editSection.addView(trimEndSeekBar, matchWidth())
+        editSection.addView(TextView(this).apply {
+            text = "PRECISE TIME CODES · minutes:seconds.milliseconds"
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+            setPadding(0, 10, 0, 2)
+        }, matchWidth())
+        editSection.addView(trimStartTimeInput, matchWidth())
+        editSection.addView(trimEndTimeInput, matchWidth())
+        editSection.addView(applyTrimTimecodesButton, matchWidth())
         editSection.addView(trimSelectionSummary, matchWidth())
         editSection.addView(previewSelectionButton, matchWidth())
         editSection.addView(trimWaveformButton, matchWidth())
@@ -861,6 +902,8 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         waveformView.setPeaks(peaks)
+                        exactTrimStartFrame = null
+                        exactTrimEndFrame = null
                         trimStartSeekBar.progress = 0
                         trimEndSeekBar.progress = 1000
                         waveformView.setSelection(0f, 1f)
@@ -889,8 +932,7 @@ class MainActivity : Activity() {
             waveformStatus.text = "Load a WAV waveform before previewing a selection."
             return
         }
-        val startFrame = waveformTotalFrames * trimStartSeekBar.progress / 1000L
-        val endFrame = waveformTotalFrames * trimEndSeekBar.progress / 1000L
+        val (startFrame, endFrame) = selectedTrimFrames()
         if (startFrame >= endFrame) {
             waveformStatus.text = "Choose a non-empty selection to preview."
             return
@@ -955,16 +997,94 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun selectedTrimFrames(): Pair<Long, Long> {
+        val start = exactTrimStartFrame ?: (waveformTotalFrames * trimStartSeekBar.progress / 1000L)
+        val end = exactTrimEndFrame ?: (waveformTotalFrames * trimEndSeekBar.progress / 1000L)
+        return start.coerceIn(0L, waveformTotalFrames) to end.coerceIn(0L, waveformTotalFrames)
+    }
+
+    private fun parseTrimTime(value: String): Long? {
+        val parts = value.trim().split(':')
+        if (parts.size != 2 || parts[0].isEmpty()) return null
+        val minutes = parts[0].toLongOrNull() ?: return null
+        if (minutes < 0L) return null
+        val secondParts = parts[1].split('.')
+        if (secondParts.size !in 1..2) return null
+        val seconds = secondParts[0].toIntOrNull() ?: return null
+        if (seconds !in 0..59) return null
+        var millis = 0
+        if (secondParts.size == 2) {
+            val fraction = secondParts[1]
+            if (fraction.length !in 1..3 || !fraction.all { it in '0'..'9' }) return null
+            millis = fraction.toIntOrNull() ?: return null
+            millis *= when (fraction.length) { 1 -> 100; 2 -> 10; else -> 1 }
+        }
+        val totalMillis = try {
+            Math.addExact(Math.addExact(Math.multiplyExact(minutes, 60_000L), seconds * 1000L), millis.toLong())
+        } catch (_: ArithmeticException) {
+            return null
+        }
+        return totalMillis
+    }
+
+    private fun framesFromMillis(milliseconds: Long): Long? {
+        if (waveformSampleRate <= 0L || milliseconds < 0L) return null
+        val frames = try {
+            Math.addExact(Math.multiplyExact(milliseconds, waveformSampleRate), 500L) / 1000L
+        } catch (_: ArithmeticException) {
+            return null
+        }
+        return frames.takeIf { it <= waveformTotalFrames }
+    }
+
+    private fun applyTrimTimecodes() {
+        if (waveformTotalFrames <= 0L || waveformSampleRate <= 0L) {
+            waveformStatus.text = "Load a WAV waveform before setting exact in/out points."
+            return
+        }
+        val startMs = parseTrimTime(trimStartTimeInput.text.toString())
+        val endMs = parseTrimTime(trimEndTimeInput.text.toString())
+        if (startMs == null || endMs == null) {
+            waveformStatus.text = "Use minutes:seconds.milliseconds, for example 02:14.350."
+            return
+        }
+        val startFrame = framesFromMillis(startMs)
+        val endFrame = framesFromMillis(endMs)
+        if (startFrame == null || endFrame == null || endFrame <= startFrame) {
+            waveformStatus.text = "Choose an in point before the out point, both within the loaded WAV."
+            return
+        }
+
+        applyingTrimTimecodes = true
+        try {
+            trimStartSeekBar.progress = ((startFrame.toDouble() / waveformTotalFrames) * 1000.0)
+                .toInt().coerceIn(0, 1000)
+            trimEndSeekBar.progress = ((endFrame.toDouble() / waveformTotalFrames) * 1000.0)
+                .toInt().coerceIn(0, 1000)
+        } finally {
+            applyingTrimTimecodes = false
+        }
+        exactTrimStartFrame = startFrame
+        exactTrimEndFrame = endFrame
+        waveformView.setSelection(
+            startFrame.toFloat() / waveformTotalFrames,
+            endFrame.toFloat() / waveformTotalFrames
+        )
+        updateTrimSelectionSummary()
+        waveformStatus.text = "Exact in/out points applied. Preview and export use these audio-frame positions; moving a slider adjusts that endpoint."
+    }
+
     private fun updateTrimSelectionSummary() {
         if (waveformTotalFrames <= 0L || waveformSampleRate <= 0L) {
             trimSelectionSummary.text = "Selected duration: load a WAV"
             return
         }
-        val startFrame = waveformTotalFrames * trimStartSeekBar.progress / 1000L
-        val endFrame = waveformTotalFrames * trimEndSeekBar.progress / 1000L
+        val (startFrame, endFrame) = selectedTrimFrames()
         val startSeconds = startFrame.toDouble() / waveformSampleRate
         val endSeconds = endFrame.toDouble() / waveformSampleRate
         val selectedSeconds = (endFrame - startFrame).coerceAtLeast(0L).toDouble() / waveformSampleRate
+        trimStartTimeInput.setText(formatTrimTime(startSeconds))
+        trimEndTimeInput.setText(formatTrimTime(endSeconds))
         trimSelectionSummary.text = "Selection: ${formatTrimTime(startSeconds)} – ${formatTrimTime(endSeconds)} · ${"%.2f".format(java.util.Locale.ROOT, selectedSeconds)} s"
     }
 
@@ -990,7 +1110,8 @@ class MainActivity : Activity() {
             waveformStatus.text = "Finish the current operation before trimming."
             return
         }
-        if (waveformSourceFile == null || trimStartSeekBar.progress >= trimEndSeekBar.progress) {
+        val (startFrame, endFrame) = selectedTrimFrames()
+        if (waveformSourceFile == null || startFrame >= endFrame) {
             waveformStatus.text = "Choose a loaded waveform and a non-empty trim range."
             return
         }
@@ -1016,9 +1137,8 @@ class MainActivity : Activity() {
             trimWaveformButton.isEnabled = false
             return
         }
-        val startFraction = trimStartSeekBar.progress.toLong()
-        val endFraction = trimEndSeekBar.progress.toLong()
-        if (startFraction >= endFraction) {
+        val (startFrame, endFrame) = selectedTrimFrames()
+        if (startFrame >= endFrame) {
             waveformStatus.text = "Trim start must be before trim end."
             trimWaveformButton.isEnabled = true
             return
@@ -1027,7 +1147,7 @@ class MainActivity : Activity() {
         Thread {
             val stagedOutput = File(filesDir, "waveform-trimmed-${System.currentTimeMillis()}.wav")
             try {
-                val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFraction, endFraction)
+                val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFrame, endFrame)
                 if (result != "TRIMMED") throw IOException(result)
                 val metadata = nativeGetWavMetadata(stagedOutput.absolutePath)
                 if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L ||

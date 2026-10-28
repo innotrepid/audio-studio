@@ -458,9 +458,9 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeGetWavMetadata(
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
     JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
-    jlong start_fraction, jlong end_fraction) {
-    if (input_path == nullptr || output_path == nullptr || start_fraction < 0 ||
-        end_fraction <= start_fraction || end_fraction > 1000) {
+    jlong start_frame, jlong end_frame) {
+    if (input_path == nullptr || output_path == nullptr || start_frame < 0 ||
+        end_frame <= start_frame) {
         return env->NewStringUTF("ERROR: Choose a valid non-empty trim range.");
     }
     const char* input_chars = env->GetStringUTFChars(input_path, nullptr);
@@ -479,11 +479,12 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
         const std::string message = "ERROR: " + error;
         return env->NewStringUTF(message.c_str());
     }
-    const std::uint64_t start_frame =
-        (total_frames * static_cast<std::uint64_t>(start_fraction)) / 1000U;
-    const std::uint64_t end_frame =
-        (total_frames * static_cast<std::uint64_t>(end_fraction)) / 1000U;
-    if (!audio_studio::trim_wav(input, output, start_frame, end_frame, &error)) {
+    const auto start_frame_value = static_cast<std::uint64_t>(start_frame);
+    const auto end_frame_value = static_cast<std::uint64_t>(end_frame);
+    if (end_frame_value > total_frames) {
+        return env->NewStringUTF("ERROR: The selected frame range exceeds the source WAV.");
+    }
+    if (!audio_studio::trim_wav(input, output, start_frame_value, end_frame_value, &error)) {
         const std::string message = "ERROR: " + error;
         return env->NewStringUTF(message.c_str());
     }
