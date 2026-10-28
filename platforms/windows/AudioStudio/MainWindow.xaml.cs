@@ -97,6 +97,8 @@ public sealed partial class MainWindow : Window
     private uint _waveformSampleRate;
     private Microsoft.UI.Xaml.Shapes.Line? _trimStartMarker;
     private Microsoft.UI.Xaml.Shapes.Line? _trimEndMarker;
+    private bool? _draggingTrimStart;
+    private uint? _trimPointerId;
     private readonly List<CaptureDeviceChoice> _captureDevices = new();
 
     private sealed record CaptureDeviceChoice(string Name, string Id)
@@ -107,6 +109,10 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        WaveformCanvas.PointerPressed += WaveformCanvas_PointerPressed;
+        WaveformCanvas.PointerMoved += WaveformCanvas_PointerMoved;
+        WaveformCanvas.PointerReleased += WaveformCanvas_PointerReleased;
+        WaveformCanvas.PointerCanceled += WaveformCanvas_PointerCanceled;
         try
         {
             var pointer = NativeEngineStatus();
@@ -308,6 +314,100 @@ public sealed partial class MainWindow : Window
     }
 
 
+
+    private void WaveformCanvas_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_waveformTotalFrames < 2 || _trimStartMarker is null || _trimEndMarker is null)
+            return;
+
+        var point = e.GetCurrentPoint(WaveformCanvas);
+        if (!point.Properties.IsLeftButtonPressed)
+            return;
+
+        var startX = _trimStartMarker.X1;
+        var endX = _trimEndMarker.X1;
+        var distanceToStart = Math.Abs(point.Position.X - startX);
+        var distanceToEnd = Math.Abs(point.Position.X - endX);
+        const double hitRadius = 24.0;
+        if (Math.Min(distanceToStart, distanceToEnd) > hitRadius)
+            return;
+
+        // When handles overlap closely, keep the selected range usable by choosing
+        // the closest handle; ties select the start endpoint deterministically.
+        _draggingTrimStart = distanceToStart <= distanceToEnd;
+        _trimPointerId = e.Pointer.PointerId;
+        WaveformCanvas.CapturePointer(e.Pointer);
+        e.Handled = true;
+    }
+
+    private void WaveformCanvas_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_draggingTrimStart is null || _trimPointerId != e.Pointer.PointerId ||
+            _waveformTotalFrames < 2 || _waveformSampleRate == 0)
+            return;
+
+        var point = e.GetCurrentPoint(WaveformCanvas);
+        if (!point.Properties.IsLeftButtonPressed)
+            return;
+
+        var width = Math.Max(1.0, WaveformCanvas.ActualWidth > 0 ? WaveformCanvas.ActualWidth : WaveformCanvas.Width);
+        var fraction = Math.Clamp(point.Position.X / width, 0.0, 1.0);
+        var requestedFrame = (ulong)Math.Round(fraction * _waveformTotalFrames, MidpointRounding.AwayFromZero);
+        var (rawStart, rawEnd) = GetTrimRangeFrames();
+        // Normalize a range left temporarily collapsed by the legacy sliders so
+        // a drag can recover it without unsigned underflow or an empty selection.
+        var currentStart = Math.Min(rawStart, _waveformTotalFrames - 1);
+        var currentEnd = Math.Clamp(rawEnd, currentStart + 1, _waveformTotalFrames);
+
+        if (_draggingTrimStart.Value)
+        {
+            var frame = Math.Min(requestedFrame, currentEnd - 1);
+            _trimExactStartFrame = frame;
+        }
+        else
+        {
+            var frame = Math.Max(requestedFrame, currentStart + 1);
+            frame = Math.Min(frame, _waveformTotalFrames);
+            _trimExactEndFrame = frame;
+        }
+
+        // Keep frame precision on the dragged endpoint even when the slider's
+        // coarser 0.1% position does not change; never disturb the other endpoint.
+        var (startFrame, endFrame) = GetTrimRangeFrames();
+        _applyingTrimTimecodes = true;
+        try
+        {
+            TrimStartSlider.Value = Math.Clamp((double)startFrame / _waveformTotalFrames * 1000.0, 0.0, 1000.0);
+            TrimEndSlider.Value = Math.Clamp((double)endFrame / _waveformTotalFrames * 1000.0, 0.0, 1000.0);
+        }
+        finally
+        {
+            _applyingTrimTimecodes = false;
+        }
+        UpdateWaveformSelectionMarkers();
+        e.Handled = true;
+    }
+
+    private void WaveformCanvas_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        EndWaveformHandleDrag(e);
+    }
+
+    private void WaveformCanvas_PointerCanceled(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        EndWaveformHandleDrag(e);
+    }
+
+    private void EndWaveformHandleDrag(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_trimPointerId != e.Pointer.PointerId)
+            return;
+
+        _draggingTrimStart = null;
+        _trimPointerId = null;
+        WaveformCanvas.ReleasePointerCapture(e.Pointer);
+        e.Handled = true;
+    }
 
     private (ulong StartFrame, ulong EndFrame) GetTrimRangeFrames()
     {
