@@ -45,7 +45,7 @@ jobs:
       - name: Build WinUI application shell
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /p:Configuration=Release /p:Platform=x64
       - name: Publish self-contained Windows app
-        run: dotnet publish platforms/windows/AudioStudio/AudioStudio.csproj --configuration Release --runtime win-x64 --self-contained true --output artifacts/windows-self-contained /p:Platform=x64 /p:WindowsAppSDKSelfContained=true
+        run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
       - name: Include native audio engine
         shell: pwsh
         run: Copy-Item build/Release/audio_studio_native.dll artifacts/windows-self-contained/audio_studio_native.dll
