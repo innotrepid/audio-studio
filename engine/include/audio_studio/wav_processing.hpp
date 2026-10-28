@@ -7,8 +7,26 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace audio_studio {
+
+struct WaveformPeak {
+    float min_left = 0.0F;
+    float max_left = 0.0F;
+    float min_right = 0.0F;
+    float max_right = 0.0F;
+};
+
+// Returns a bounded min/max waveform envelope without loading the full audio
+// file into memory. Mono files duplicate the left channel into the right fields.
+[[nodiscard]] bool analyze_wav_waveform(
+    const std::string& input_path,
+    std::size_t bucket_count,
+    std::vector<WaveformPeak>& peaks,
+    AudioFormat* format = nullptr,
+    std::uint64_t* total_frames = nullptr,
+    std::string* error = nullptr);
 
 // Streams PCM16 WAV audio through the gate in bounded blocks and writes a
 // separate PCM16 WAV. Memory use is independent of recording duration; the

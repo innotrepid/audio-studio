@@ -369,10 +369,54 @@ void test_refuses_relative_absolute_alias_of_input() {
     std::remove(input.c_str());
 }
 
+
+void test_waveform_analysis_returns_bounded_min_max_envelope() {
+    const std::string input = "audio_studio_waveform_envelope.wav";
+    std::array<float, 400U> samples{};
+    for (std::size_t i = 0U; i < samples.size(); ++i) {
+        const std::size_t region = i / 100U;
+        samples[i] = region == 0U ? 0.1F : region == 1U ? -0.35F :
+                     region == 2U ? 0.6F : (i % 2U == 0U ? -0.8F : 0.8F);
+    }
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create waveform analysis source");
+        require(writer.write_frames(samples.data(), samples.size()), "write waveform analysis source");
+        require(writer.finalize(), "finalize waveform analysis source");
+    }
+
+    std::vector<audio_studio::WaveformPeak> peaks;
+    audio_studio::AudioFormat format{};
+    std::uint64_t frames = 0U;
+    std::string error;
+    require(audio_studio::analyze_wav_waveform(input, 4U, peaks, &format, &frames, &error),
+            "waveform analysis should succeed");
+    require(error.empty(), "successful waveform analysis clears error");
+    require(peaks.size() == 4U, "waveform analysis returns requested bucket count");
+    require(frames == samples.size(), "waveform analysis reports total frame count");
+    require(format.sample_rate_hz == 48000U && format.channel_count == 1U,
+            "waveform analysis reports source format");
+    require(peaks[0].min_left > 0.09F && peaks[0].max_left > 0.09F,
+            "first waveform bucket represents the quiet positive signal");
+    require(peaks[1].min_left < -0.34F && peaks[1].max_left < -0.34F,
+            "second waveform bucket preserves negative peak polarity");
+    require(peaks[2].max_left > 0.59F, "third waveform bucket preserves positive peaks");
+    require(peaks[3].min_left < -0.79F && peaks[3].max_left > 0.79F,
+            "fourth waveform bucket captures both extrema");
+    require(peaks[3].min_right == peaks[3].min_left &&
+            peaks[3].max_right == peaks[3].max_left,
+            "mono waveform mirrors its envelope into the right channel");
+    require(!audio_studio::analyze_wav_waveform(input, 0U, peaks, nullptr, nullptr, &error),
+            "zero waveform buckets must be rejected");
+    require(peaks.empty() && !error.empty(), "invalid waveform request clears output and explains failure");
+    std::remove(input.c_str());
+}
+
 }  // namespace
 
 int main() {
     test_processes_to_separate_file_and_preserves_source();
+    test_waveform_analysis_returns_bounded_min_max_envelope();
     test_truncated_source_does_not_publish_or_leave_partial_output();
     test_cancellation_does_not_remove_concurrent_destination();
     test_cancellation_at_initial_progress_cleans_partial_output();

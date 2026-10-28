@@ -292,4 +292,83 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     return true;
 }
 
+
+bool analyze_wav_waveform(const std::string& input_path,
+                          std::size_t bucket_count,
+                          std::vector<WaveformPeak>& peaks,
+                          AudioFormat* format_out,
+                          std::uint64_t* total_frames_out,
+                          std::string* error) {
+    if (error != nullptr) error->clear();
+    peaks.clear();
+    if (input_path.empty()) return fail(error, "An input WAV path is required.");
+    if (bucket_count == 0U || bucket_count > 1000000U) {
+        return fail(error, "Waveform bucket count must be between 1 and 1000000.");
+    }
+
+    const auto input_fs = std::filesystem::u8path(input_path);
+    std::error_code ec;
+    const auto file_size = std::filesystem::file_size(input_fs, ec);
+    if (ec) return fail(error, "Could not determine the input file size.");
+    std::ifstream input(input_fs, std::ios::binary);
+    if (!input.is_open()) return fail(error, "Could not open the input WAV file.");
+
+    AudioFormat format{};
+    std::uint64_t data_offset = 0U;
+    std::uint32_t data_size = 0U;
+    if (!parse_wav_header(input, file_size, format, data_offset, data_size, error)) return false;
+
+    const std::size_t channels = format.channel_count;
+    const std::size_t bytes_per_frame = channels * 2U;
+    const std::uint64_t frames = data_size / bytes_per_frame;
+    const std::size_t output_buckets = static_cast<std::size_t>(
+        std::min<std::uint64_t>(frames, static_cast<std::uint64_t>(bucket_count)));
+    std::vector<WaveformPeak> result(output_buckets);
+    for (auto& peak : result) {
+        peak.min_left = 1.0F;
+        peak.max_left = -1.0F;
+        peak.min_right = 1.0F;
+        peak.max_right = -1.0F;
+    }
+
+    std::vector<unsigned char> raw(kFramesPerBlock * bytes_per_frame);
+    input.clear();
+    input.seekg(static_cast<std::streamoff>(data_offset), std::ios::beg);
+    if (!input) return fail(error, "Could not seek to WAV audio data.");
+
+    std::uint64_t frame_index = 0U;
+    while (frame_index < frames) {
+        const std::size_t block_frames = static_cast<std::size_t>(
+            std::min<std::uint64_t>(frames - frame_index, kFramesPerBlock));
+        const std::size_t bytes_to_read = block_frames * bytes_per_frame;
+        if (!read_exact(input, raw.data(), bytes_to_read)) {
+            peaks.clear();
+            return fail(error, "Could not read the complete WAV audio data.");
+        }
+        for (std::size_t i = 0U; i < block_frames; ++i, ++frame_index) {
+            const auto decode = [&](std::size_t channel) {
+                const auto raw_sample = read_u16_le(raw.data() + i * bytes_per_frame + channel * 2U);
+                const auto sample = static_cast<std::int16_t>(raw_sample);
+                return sample < 0
+                    ? static_cast<float>(sample) / 32768.0F
+                    : static_cast<float>(sample) / 32767.0F;
+            };
+            const float left = decode(0U);
+            const float right = channels == 2U ? decode(1U) : left;
+            const std::size_t bucket = static_cast<std::size_t>(
+                (frame_index * static_cast<std::uint64_t>(output_buckets)) / frames);
+            auto& peak = result[std::min(bucket, output_buckets - 1U)];
+            peak.min_left = std::min(peak.min_left, left);
+            peak.max_left = std::max(peak.max_left, left);
+            peak.min_right = std::min(peak.min_right, right);
+            peak.max_right = std::max(peak.max_right, right);
+        }
+    }
+
+    peaks = std::move(result);
+    if (format_out != nullptr) *format_out = format;
+    if (total_frames_out != nullptr) *total_frames_out = frames;
+    return true;
+}
+
 }  // namespace audio_studio
