@@ -113,6 +113,36 @@ void test_rejects_invalid_input() {
 }
 
 
+void test_rejects_unrepresentable_frame_count_without_reading_past_buffer() {
+    const std::string path = "audio_studio_frame_count_overflow.wav";
+    const std::array<float, 1U> sample{0.25F};
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(path, {48000U, 1U}),
+                "frame-count overflow writer should open");
+
+        // Only one float is allocated. The huge request must be rejected by
+        // size validation before the writer attempts to read the sample buffer.
+        require(!writer.write_frames(sample.data(),
+                                     std::numeric_limits<std::size_t>::max()),
+                "unrepresentable frame count must be rejected before reading samples");
+        require(writer.frames_written() == 0U,
+                "rejected frame count must not change the written-frame count");
+
+        require(writer.write_frames(sample.data(), sample.size()),
+                "writer should remain usable after rejecting an oversized request");
+        require(writer.frames_written() == 1U,
+                "only the subsequent valid frame should be counted");
+        require(writer.finalize(),
+                "writer should safely finalize after rejecting oversized input");
+    }
+
+    require(std::filesystem::file_size(path) == 46U,
+            "oversized request must not append data to the finalized WAV");
+    std::remove(path.c_str());
+}
+
+
 void test_abort_discards_partial_output() {
     const std::string path = "audio_studio_aborted_test.wav";
     const std::array<float, 8> samples{0.1F, 0.2F, 0.3F, 0.4F, 0.5F, 0.6F, 0.7F, 0.8F};
@@ -241,6 +271,7 @@ int main() {
     test_wav_header_and_samples();
     test_existing_destination_is_never_overwritten();
     test_rejects_invalid_input();
+    test_rejects_unrepresentable_frame_count_without_reading_past_buffer();
     test_abort_discards_partial_output();
     test_preserve_partial_keeps_recoverable_source();
     test_destructor_discards_unfinalized_output();
