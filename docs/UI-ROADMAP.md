@@ -191,3 +191,13 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - Preserve the query across a refresh and keep the status line accurate for all-results, matching-results, and no-match states.
 - Search remains in-memory and does not trigger extra scans; refresh is still the only action that reloads the file list.
 - Manual validation: enter a query, refresh, confirm matching rows remain filtered and status is correct; clear query, refresh again, and confirm all loaded rows return. Repeat on Android and Windows.
+
+
+## Library empty, loading, permission, and error states — 2026-10-29
+
+- Keep the Library status attached to the Library workspace; a denied Android audio-library permission must not write its guidance into the global recording status.
+- Give permission-denial guidance a concrete recovery path: allow audio access in system settings and refresh; preserve the document-picker fallback.
+- On Windows, folder-picker cancellation preserves the existing view. A refresh replaces the result set, and a failed/inaccessible folder scan must not leave stale WAV rows visible beneath an error message.
+- Preserve distinct loading, empty-folder, no-search-match, permission, and scan-failure messages. Search remains in-memory and must not trigger scanning.
+- Preserve discovery boundaries (Android Audio Studio WAVs; Windows explicitly selected top-level folder) and the 100-file cap. No audio, recording, processing, trim, export, or publication behavior changes.
+- Manual validation: empty folder, missing/inaccessible folder, picker cancellation, refresh success/failure, Android permission grant/denial, no-match query, clear query, and Edit/Process copy actions on refreshed results.

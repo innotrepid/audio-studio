@@ -762,7 +762,7 @@ public sealed partial class MainWindow : Window
         var folder = await picker.PickSingleFolderAsync();
         if (folder is null)
         {
-            LibraryStatusText.Text = "Folder selection cancelled. Your current library view is unchanged.";
+            // Cancellation is not a library failure; preserve the current results and status.
             return;
         }
 
@@ -776,10 +776,14 @@ public sealed partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(_libraryFolderPath) || !Directory.Exists(_libraryFolderPath))
         {
+            LibraryItemsPanel.Children.Clear();
             LibraryStatusText.Text = "Choose an accessible folder to list WAV files.";
             return;
         }
 
+        // A refresh replaces the visible result set. Clear stale entries before enumeration
+        // so a failed or inaccessible folder cannot leave misleading rows on screen.
+        LibraryItemsPanel.Children.Clear();
         RefreshLibraryButton.IsEnabled = false;
         LibraryStatusText.Text = "Reading WAV files…";
         try
@@ -792,7 +796,6 @@ public sealed partial class MainWindow : Window
                 .Select(info => new { info.FullName, info.Name, info.Length, info.LastWriteTime })
                 .ToList());
 
-            LibraryItemsPanel.Children.Clear();
             if (files.Count == 0)
             {
                 LibraryStatusText.Text = $"No WAV files found in {Path.GetFileName(_libraryFolderPath)}. Choose another folder or export a WAV first.";
@@ -858,7 +861,8 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            LibraryStatusText.Text = $"Could not load WAV library: {exception.Message}. Choose another folder or use the file pickers.";
+            LibraryItemsPanel.Children.Clear();
+            LibraryStatusText.Text = $"Could not load WAV library: {exception.Message}. Check folder access, choose another folder, or use the file pickers.";
         }
         finally
         {
