@@ -538,10 +538,38 @@ void test_extensible_pcm24_wav_workflows() {
     std::remove(input.c_str()); std::remove(trimmed.c_str()); std::remove(processed.c_str());
 }
 
+
+void test_extensible_wav_rejects_oversized_extension_declaration() {
+    const std::string input = "audio_studio_extensible_bad_extension.wav";
+    std::vector<unsigned char> bytes{'R','I','F','F'};
+    auto put16 = [&](std::uint16_t v) { bytes.push_back(static_cast<unsigned char>(v & 255U)); bytes.push_back(static_cast<unsigned char>((v >> 8U) & 255U)); };
+    auto put32 = [&](std::uint32_t v) { for (unsigned int i=0;i<4U;++i) bytes.push_back(static_cast<unsigned char>((v >> (8U*i)) & 255U)); };
+    put32(72U);
+    bytes.insert(bytes.end(), {'W','A','V','E','f','m','t',' '});
+    put32(40U); put16(0xfffeU); put16(1U); put32(48000U); put32(144000U); put16(3U); put16(24U);
+    put16(23U); put16(24U); put32(0U);
+    bytes.insert(bytes.end(), {0x01U,0x00U,0x00U,0x00U,0x00U,0x00U,0x10U,0x00U,
+                               0x80U,0x00U,0x00U,0xaaU,0x00U,0x38U,0x9bU,0x71U});
+    bytes.insert(bytes.end(), {'d','a','t','a'}); put32(12U);
+    for (int i=0;i<4;++i) { bytes.push_back(0U); bytes.push_back(0U); bytes.push_back(i%2==0 ? 0x40U : 0xc0U); }
+    {
+        std::ofstream file(input, std::ios::binary);
+        file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        require(static_cast<bool>(file), "write malformed extensible WAV fixture");
+    }
+    std::vector<audio_studio::WaveformPeak> peaks;
+    std::string error;
+    require(!audio_studio::analyze_wav_waveform(input, 4U, peaks, nullptr, nullptr, &error),
+            "WAVE_FORMAT_EXTENSIBLE must reject cbSize extending beyond the fmt chunk");
+    require(!error.empty(), "malformed extensible header reports an explanatory error");
+    std::remove(input.c_str());
+}
+
 }  // namespace
 
 int main() {
     test_extensible_pcm24_wav_workflows();
+    test_extensible_wav_rejects_oversized_extension_declaration();
     test_pcm24_wav_workflows();
     test_processes_to_separate_file_and_preserves_source();
     test_waveform_analysis_returns_bounded_min_max_envelope();
