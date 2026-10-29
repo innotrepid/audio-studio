@@ -943,11 +943,11 @@ class MainActivity : Activity() {
         val stagedFile = currentRecordingFile
         currentRecordingFile = null
         diagnosticsCapture.record("recording_finalize", if (nativeStatus.startsWith("Saved recording:")) "success" else "failure",
-            mapOf("native_status" to nativeStatus.take(1200), "staging_name" to (stagedFile?.name ?: "missing"),
+            mapOf("native_status" to nativeStatus.replace(filesDir.absolutePath, "<app-private>").take(1200), "staging_name" to (stagedFile?.name ?: "missing"),
                 "staging_exists" to (stagedFile?.exists() == true), "staging_bytes" to (stagedFile?.length() ?: -1L)))
         if (!nativeStatus.startsWith("Saved recording:")) {
             statusText.text = interruptionNotice + "RECOVERABLE / INCOMPLETE TAKE — finalization did not succeed.\n\n" + nativeStatus +
-                "\n\nThe staged file, if present, was retained in app-private storage for recovery."
+                "\n\nThe recoverable partial, if present, was retained in app-private storage. Open “Check for interrupted recordings” to inspect it."
             return
         }
         if (stagedFile == null || !isCompletePcmWav(stagedFile)) {
