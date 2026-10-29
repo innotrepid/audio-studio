@@ -36,6 +36,7 @@ public:
 
 private:
     void set_error(const char* message);
+    void set_error(std::string message);
     std::ofstream stream_{};
     std::filesystem::path output_path_{};
     std::filesystem::path temporary_path_{};
