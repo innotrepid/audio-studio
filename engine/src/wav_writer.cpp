@@ -6,6 +6,22 @@
 #include <system_error>
 #include <cmath>
 #include <limits>
+#include <cerrno>
+#include <cstring>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#if defined(__linux__)
+#include <linux/fs.h>
+#include <sys/syscall.h>
+#endif
+#endif
 
 namespace audio_studio {
 namespace {
@@ -198,24 +214,42 @@ bool WavWriter::finalize() {
         return false;
     }
 
-    // Publish without replacement. A prior exists()+rename() sequence has a
-    // time-of-check/time-of-use race on platforms where rename replaces an
-    // existing destination. A same-directory hard-link creation is atomic and
-    // fails if another process created the destination after open().
-    std::error_code path_error;
-    std::filesystem::create_hard_link(temporary_path_, output_path_, path_error);
-    if (path_error) {
-        set_error("Could not publish the finalized WAV without replacing an existing file.");
+    // Atomically move the finalized file into place without replacing a
+    // destination that appeared after open(). Hard links are not reliably
+    // supported by every Android filesystem/provider, even in app-managed
+    // storage, so use the platform's no-replace rename primitive instead.
+    int publish_error = 0;
+#if defined(_WIN32)
+    if (!MoveFileW(temporary_path_.c_str(), output_path_.c_str())) {
+        publish_error = static_cast<int>(GetLastError());
+    }
+#elif defined(__linux__) && defined(SYS_renameat2)
+    if (syscall(SYS_renameat2, AT_FDCWD, temporary_path_.c_str(),
+                AT_FDCWD, output_path_.c_str(), RENAME_NOREPLACE) != 0) {
+        publish_error = errno;
+    }
+#else
+    // Portable POSIX fallback: link is atomic and never replaces a target.
+    // It is intentionally only a fallback for platforms without renameat2.
+    if (::link(temporary_path_.c_str(), output_path_.c_str()) != 0) {
+        publish_error = errno;
+    } else if (::unlink(temporary_path_.c_str()) != 0) {
+        // The final file is already valid and published; leave both names rather
+        // than reporting a failed export after the destination became visible.
+    }
+#endif
+    if (publish_error != 0) {
+#if defined(_WIN32)
+        set_error("Could not publish finalized WAV without replacing a destination (Windows error " +
+                  std::to_string(publish_error) + ").");
+#else
+        set_error("Could not publish finalized WAV without replacing a destination (" +
+                  std::to_string(publish_error) + ": " + std::strerror(publish_error) + ").");
+#endif
         preserve_partial();
         return false;
     }
-
-    // The final path now references the fully flushed file. Remove the
-    // temporary name; if cleanup fails, keep the valid final output and report
-    // success rather than deleting or invalidating the published recording.
-    std::error_code cleanup_error;
-    std::filesystem::remove(temporary_path_, cleanup_error);
-    if (!cleanup_error) temporary_path_.clear();
+    temporary_path_.clear();
     output_path_.clear();
     finalized_ = true;
     return true;
@@ -247,6 +281,10 @@ void WavWriter::abort() noexcept {
 
 void WavWriter::set_error(const char* message) {
     last_error_ = message;
+}
+
+void WavWriter::set_error(std::string message) {
+    last_error_ = std::move(message);
 }
 
 }  // namespace audio_studio
