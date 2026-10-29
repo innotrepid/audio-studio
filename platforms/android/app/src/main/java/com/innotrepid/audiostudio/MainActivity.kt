@@ -61,6 +61,7 @@ class MainActivity : Activity() {
     private lateinit var inputMeter: ProgressBar
     private lateinit var recordToggleButton: Button
     private lateinit var processButton: Button
+    private val processingPresetButtons = linkedMapOf<String, Button>()
     private lateinit var waveformButton: Button
     private lateinit var waveformStatus: TextView
     private lateinit var waveformView: WaveformView
@@ -434,12 +435,19 @@ class MainActivity : Activity() {
         val presetRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            setPadding(0, dp(4), 0, dp(4))
         }
         listOf("Natural", "Voice clarity", "Rumble cut").forEach { preset ->
-            presetRow.addView(Button(this).apply {
+            val presetButton = Button(this).apply {
                 text = preset
+                contentDescription = "$preset noise-reduction preset"
                 setOnClickListener { applyProcessingPreset(preset) }
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            }
+            processingPresetButtons[preset] = presetButton
+            presetRow.addView(presetButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = dp(5)
+                marginStart = dp(5)
+            })
         }
 
         val notice = TextView(this).apply {
@@ -513,10 +521,17 @@ class MainActivity : Activity() {
         editSection.addView(trimWaveformButton, matchWidth())
         editSection.addView(waveformStatus, matchWidth())
 
-        val processingSection = makeSection("Clean up audio", "Choose a preset first. Advanced controls are available below; processing creates a separate copy.")
+        val processingSection = makeSection("Clean up audio", "Start with one of three voice-focused presets. Fine-tune only if needed; processing always creates a separate copy.")
+        processingSection.addView(TextView(this).apply {
+            text = "CHOOSE A STARTING POINT"
+            textSize = 11f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(178, 155, 255))
+            setPadding(0, dp(6), 0, dp(2))
+        }, matchWidth())
+        processingSection.addView(presetRow, matchWidth())
         processingSection.addView(processButton, matchWidth())
         processingSection.addView(processingStatus, matchWidth())
-        processingSection.addView(presetRow, matchWidth())
 
         val advancedControls = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -836,6 +851,8 @@ class MainActivity : Activity() {
         emphasize(processButton, Color.rgb(79, 125, 255))
         emphasize(trimWaveformButton, Color.rgb(79, 125, 255))
         emphasize(cancelProcessingButton, Color.rgb(255, 122, 134))
+        emphasize(playProcessedButton, Color.rgb(32, 201, 151))
+        applyProcessingPreset("Natural")
 
         setContentView(appShell)
         root.post { showInterruptedRecordings(showWhenNone = false) }
@@ -853,6 +870,19 @@ class MainActivity : Activity() {
         attenuationSeekBar.progress = values[1]
         dspGainSeekBar.progress = values[2]
         highPassSeekBar.progress = values[3]
+        processingPresetButtons.forEach { (name, button) ->
+            val selected = name == preset
+            button.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(if (selected) Color.rgb(55, 45, 83) else Color.rgb(34, 34, 48))
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), if (selected) Color.rgb(178, 155, 255) else Color.rgb(58, 54, 80))
+            }
+            button.setTextColor(if (selected) Color.WHITE else Color.rgb(190, 185, 208))
+            button.typeface = android.graphics.Typeface.create(
+                "sans-serif", if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+            )
+            button.isSelected = selected
+        }
         getSharedPreferences("noise_gate_preferences", MODE_PRIVATE).edit()
             .putInt("threshold_progress", values[0])
             .putInt("attenuation_progress", values[1])
