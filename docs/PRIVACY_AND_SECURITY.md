@@ -10,6 +10,8 @@ Voice recordings, scripts, and voice profiles may be sensitive. Privacy is a pro
 - Show which features require a network connection and which data is sent to a provider.
 - Make deletion and export behavior understandable.
 - Never include recordings, transcripts, API keys, or personal paths in diagnostics by default.
+- Android diagnostics are stored locally in a bounded log and exported only after the user taps **Export diagnostics report**. Reports contain operation outcomes, exception types/messages, byte counts, picker authority, and safe file-name metadata; they never contain audio samples or file contents.
+- Diagnostics must not block recording, processing, or saving. Exported WAVs are read back and checked for byte-count and RIFF/WAVE header consistency before the app reports success.
 
 ## Credentials and integrations
 
