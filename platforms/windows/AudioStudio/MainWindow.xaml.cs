@@ -102,6 +102,7 @@ public sealed partial class MainWindow : Window
     private bool? _draggingTrimStart;
     private uint? _trimPointerId;
     private readonly List<CaptureDeviceChoice> _captureDevices = new();
+    private bool _recordingUiActive;
 
     private sealed record CaptureDeviceChoice(string Name, string Id)
     {
@@ -124,7 +125,7 @@ public sealed partial class MainWindow : Window
         catch (Exception exception)
         {
             EngineStatusText.Text = $"Native engine unavailable: {exception.Message}";
-            StartRecordingButton.IsEnabled = false;
+            RecordToggleButton.IsEnabled = false;
         }
 
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
@@ -868,6 +869,25 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void UpdateRecordToggleVisual(bool isRecording)
+    {
+        var accent = isRecording
+            ? Windows.UI.Color.FromArgb(255, 32, 201, 151)
+            : Windows.UI.Color.FromArgb(255, 79, 125, 255);
+        RecordToggleButton.Content = isRecording ? "■  Stop & save WAV" : "●  Start recording";
+        RecordToggleButton.Background = new SolidColorBrush(accent);
+        RecordToggleButton.BorderBrush = new SolidColorBrush(accent);
+        RecordToggleButton.Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 8, 18, 28));
+    }
+
+    private void RecordToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeRecordingActive() != 0)
+            StopRecording_Click(sender, e);
+        else
+            StartRecording_Click(sender, e);
+    }
+
     private async void StartRecording_Click(object sender, RoutedEventArgs e)
     {
         if (NativeProcessingActive() != 0)
@@ -882,7 +902,7 @@ public sealed partial class MainWindow : Window
             InputDeviceStatusText.Text = "Choose an available input device before recording.";
             return;
         }
-        StartRecordingButton.IsEnabled = false;
+        RecordToggleButton.IsEnabled = false;
         RecordingStatusText.Text = "Choose where to save the recording…";
         try
         {
@@ -905,8 +925,9 @@ public sealed partial class MainWindow : Window
             if (started != 0)
             {
                 _currentRecordingPath = file.Path;
-                StartRecordingButton.IsEnabled = false;
-                StopRecordingButton.IsEnabled = true;
+                _recordingUiActive = true;
+                RecordToggleButton.IsEnabled = true;
+                UpdateRecordToggleVisual(isRecording: true);
                 InputDeviceComboBox.IsEnabled = false;
                 RefreshInputDevicesButton.IsEnabled = false;
                 ClippingWarningText.Text = "";
@@ -921,7 +942,7 @@ public sealed partial class MainWindow : Window
         {
             if (NativeRecordingActive() == 0)
             {
-                StartRecordingButton.IsEnabled = NativeProcessingActive() == 0;
+                RecordToggleButton.IsEnabled = NativeProcessingActive() == 0;
                 InputDeviceComboBox.IsEnabled = true;
                 RefreshInputDevicesButton.IsEnabled = true;
             }
@@ -930,7 +951,7 @@ public sealed partial class MainWindow : Window
 
     private async void StopRecording_Click(object sender, RoutedEventArgs e)
     {
-        StopRecordingButton.IsEnabled = false;
+        RecordToggleButton.IsEnabled = false;
         RecordingStatusText.Text = "Finalizing WAV file…";
         try
         {
@@ -976,8 +997,9 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            StartRecordingButton.IsEnabled = NativeProcessingActive() == 0;
-            StopRecordingButton.IsEnabled = false;
+            _recordingUiActive = false;
+            RecordToggleButton.IsEnabled = NativeProcessingActive() == 0;
+            UpdateRecordToggleVisual(isRecording: false);
             InputDeviceComboBox.IsEnabled = true;
             RefreshInputDevicesButton.IsEnabled = true;
             InputLevelBar.Value = 0;
@@ -1121,7 +1143,7 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            StartRecordingButton.IsEnabled = false;
+            RecordToggleButton.IsEnabled = false;
             CancelProcessingButton.IsEnabled = true;
             ProcessingProgressBar.Value = 0;
             _processingTimer.Start();
@@ -1156,7 +1178,8 @@ public sealed partial class MainWindow : Window
                 _processingTimer.Stop();
                 ProcessWavButton.IsEnabled = true;
                 CancelProcessingButton.IsEnabled = false;
-                StartRecordingButton.IsEnabled = true;
+                RecordToggleButton.IsEnabled = true;
+                UpdateRecordToggleVisual(isRecording: false);
             }
         }
         catch (Exception exception)
@@ -1274,12 +1297,13 @@ public sealed partial class MainWindow : Window
 
             // A disconnected microphone can stop capture without the user pressing Stop.
             // Reconcile the UI from the native state instead of leaving a stale meter
-            // and a disabled Start button indefinitely.
-            if (NativeRecordingActive() == 0 && StopRecordingButton.IsEnabled)
+            // and a stale recording toggle indefinitely.
+            if (NativeRecordingActive() == 0 && _recordingUiActive)
             {
                 _meterTimer.Stop();
-                StopRecordingButton.IsEnabled = false;
-                StartRecordingButton.IsEnabled = NativeProcessingActive() == 0;
+                _recordingUiActive = false;
+                RecordToggleButton.IsEnabled = NativeProcessingActive() == 0;
+                UpdateRecordToggleVisual(isRecording: false);
                 InputDeviceComboBox.IsEnabled = true;
                 RefreshInputDevicesButton.IsEnabled = true;
                 InputLevelBar.Value = 0;

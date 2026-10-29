@@ -59,8 +59,7 @@ class MainActivity : Activity() {
     private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
     private lateinit var inputMeter: ProgressBar
-    private lateinit var startButton: Button
-    private lateinit var stopButton: Button
+    private lateinit var recordToggleButton: Button
     private lateinit var processButton: Button
     private lateinit var waveformButton: Button
     private lateinit var waveformStatus: TextView
@@ -200,15 +199,14 @@ class MainActivity : Activity() {
             progress = 0
         }
 
-        startButton = Button(this).apply {
-            text = "Start recording"
-            setOnClickListener { requestPermissionOrStart() }
+        recordToggleButton = Button(this).apply {
+            text = "●  Start recording"
+            textSize = 16f
+            minHeight = dp(56)
+            contentDescription = "Start recording"
+            setOnClickListener { if (recording) stopRecording() else requestPermissionOrStart() }
         }
-        stopButton = Button(this).apply {
-            text = "Stop and save WAV"
-            isEnabled = false
-            setOnClickListener { stopRecording() }
-        }
+        updateRecordToggleButton()
         processButton = Button(this).apply {
             text = "Reduce background noise in a WAV"
             setOnClickListener { chooseWavToProcess() }
@@ -474,8 +472,7 @@ class MainActivity : Activity() {
         recordSection.addView(statusText, matchWidth())
         recordSection.addView(inputMeterLabel, matchWidth())
         recordSection.addView(inputMeter, matchWidth())
-        recordSection.addView(startButton, matchWidth())
-        recordSection.addView(stopButton, matchWidth())
+        recordSection.addView(recordToggleButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
 
         val editSection = makeSection("Edit a recording", "Inspect the waveform, preview a range, and export a trim. Your source stays unchanged.")
@@ -696,31 +693,79 @@ class MainActivity : Activity() {
         val navBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(8, 8, 8, 8)
-            setBackgroundColor(Color.rgb(28, 34, 45))
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(Color.rgb(20, 20, 30))
         }
-        fun navButton(label: String, target: LinearLayout): Button = Button(this).apply {
-            text = label
-            isAllCaps = false
-            setOnClickListener {
-                recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
-                editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
-                processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
-                librarySection.visibility = if (target === librarySection) android.view.View.VISIBLE else android.view.View.GONE
-                if (target === librarySection) refreshAudioLibrary()
-
-                // Navigation must be a single tap. Do not force an orientation change here:
-                // Android can deliver it asynchronously and some devices recreate or relayout
-                // the Activity while a picker is being launched. The existing ScrollView
-                // handles portrait and landscape without rebuilding the view tree.
+        val navItems = mutableListOf<Pair<LinearLayout, LinearLayout>>()
+        fun applyNavSelection(selectedTarget: LinearLayout) {
+            navItems.forEach { (item, target) ->
+                val selected = target === selectedTarget
+                item.isSelected = selected
+                item.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(if (selected) Color.rgb(55, 45, 83) else Color.TRANSPARENT)
+                    cornerRadius = dp(12).toFloat()
+                    if (selected) setStroke(dp(1), Color.rgb(178, 155, 255))
+                }
+                item.getChildAt(0).let { icon ->
+                    if (icon is TextView) icon.setTextColor(
+                        if (selected) Color.rgb(205, 188, 255) else Color.rgb(160, 155, 180)
+                    )
+                }
+                item.getChildAt(1).let { label ->
+                    if (label is TextView) {
+                        label.setTextColor(if (selected) Color.WHITE else Color.rgb(190, 185, 208))
+                        label.typeface = android.graphics.Typeface.create(
+                            "sans-serif", if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+                        )
+                    }
+                }
             }
         }
+        fun navButton(label: String, iconGlyph: String, target: LinearLayout): LinearLayout {
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                minimumHeight = dp(54)
+                setPadding(dp(4), dp(5), dp(4), dp(5))
+                isClickable = true
+                isFocusable = true
+                contentDescription = label
+                setOnClickListener {
+                    recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
+                    editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
+                    processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
+                    librarySection.visibility = if (target === librarySection) android.view.View.VISIBLE else android.view.View.GONE
+                    applyNavSelection(target)
+                    if (target === librarySection) refreshAudioLibrary()
+
+                    // Keep the existing view tree and operation state alive across navigation.
+                    // Do not force orientation changes or rebuild the screen.
+                }
+            }
+            item.addView(TextView(this).apply {
+                text = iconGlyph
+                textSize = 19f
+                gravity = Gravity.CENTER
+                setTextColor(Color.rgb(160, 155, 180))
+                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(24)))
+            item.addView(TextView(this).apply {
+                text = label
+                textSize = 10f
+                gravity = Gravity.CENTER
+                maxLines = 1
+                setTextColor(Color.rgb(190, 185, 208))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            navItems.add(item to target)
+            return item
+        }
         listOf(
-            navButton("Record", recordSection),
-            navButton("Edit", editSection),
-            navButton("Process", processingSection),
-            navButton("Library", librarySection)
+            navButton("Record", "●", recordSection),
+            navButton("Edit", "⌁", editSection),
+            navButton("Process", "✧", processingSection),
+            navButton("Library", "▤", librarySection)
         ).forEach { navBar.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
+        applyNavSelection(recordSection)
 
         val screenScroll = ScrollView(this).apply {
             isFillViewport = true
@@ -770,10 +815,9 @@ class MainActivity : Activity() {
             button.setTextColor(text)
             button.typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
-        emphasize(startButton, Color.rgb(178, 155, 255))
-        emphasize(processButton, Color.rgb(178, 155, 255))
-        emphasize(trimWaveformButton, Color.rgb(178, 155, 255))
-        emphasize(stopButton, Color.rgb(255, 122, 134))
+        updateRecordToggleButton()
+        emphasize(processButton, Color.rgb(79, 125, 255))
+        emphasize(trimWaveformButton, Color.rgb(79, 125, 255))
         emphasize(cancelProcessingButton, Color.rgb(255, 122, 134))
 
         setContentView(appShell)
@@ -833,7 +877,7 @@ class MainActivity : Activity() {
 
     private fun recoverInterruptedRecording(partial: File, output: File) {
         recoverButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         processButton.isEnabled = false
         statusText.text = "Validating and recovering ${partial.name}…"
         Thread {
@@ -860,7 +904,7 @@ class MainActivity : Activity() {
                 if (!isFinishing && !isDestroyed) {
                     statusText.text = finalResult
                     recoverButton.isEnabled = true
-                    startButton.isEnabled = !recording && !processing && !wavPickerActive
+                    recordToggleButton.isEnabled = !recording && !processing && !wavPickerActive
                     processButton.isEnabled = !recording && !processing && !wavPickerActive
                     if (finalResult.startsWith("Recovered")) showInterruptedRecordings(showWhenNone = false)
                 }
@@ -878,13 +922,13 @@ class MainActivity : Activity() {
         } else {
             startAfterPermission = true
             processButton.isEnabled = false
-            startButton.isEnabled = false
+            recordToggleButton.isEnabled = false
             try {
                 requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
             } catch (exception: Exception) {
                 startAfterPermission = false
                 processButton.isEnabled = true
-                startButton.isEnabled = true
+                recordToggleButton.isEnabled = true
                 statusText.text = "Could not request microphone permission: ${exception.message ?: "unknown error"}"
             }
         }
@@ -914,9 +958,9 @@ class MainActivity : Activity() {
         recording = started
         currentRecordingFile = if (started) output else null
         if (!started) output.delete()
-        startButton.isEnabled = !started
+        recordToggleButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !started
-        stopButton.isEnabled = started
+        updateRecordToggleButton()
         if (started) {
             recordingStartedAtMs = SystemClock.elapsedRealtime()
             statusText.text = "Recording · 00:00"
@@ -934,15 +978,25 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun updateRecordToggleButton() {
+        val recordingNow = recording
+        recordToggleButton.text = if (recordingNow) "■  Stop & save WAV" else "●  Start recording"
+        recordToggleButton.contentDescription = if (recordingNow) "Stop recording and save WAV" else "Start recording"
+        val tint = if (recordingNow) Color.rgb(32, 201, 151) else Color.rgb(79, 125, 255)
+        recordToggleButton.backgroundTintList = android.content.res.ColorStateList.valueOf(tint)
+        recordToggleButton.setTextColor(Color.rgb(8, 18, 28))
+        recordToggleButton.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
+
     private fun stopRecording(interrupted: Boolean = false) {
         if (!recording) return
         recording = false
         mainHandler.removeCallbacks(recordingClock)
         mainHandler.removeCallbacks(recordingMeterClock)
         inputMeter.progress = 0
-        startButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
+        recordToggleButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
-        stopButton.isEnabled = false
+        updateRecordToggleButton()
 
         val nativeStatus = try {
             nativeStopRecording()
@@ -1057,13 +1111,13 @@ class MainActivity : Activity() {
         wavPickerActive = true
         waveformButton.isEnabled = false
         processButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         try { startActivityForResult(picker, REQUEST_WAVEFORM) }
         catch (exception: Exception) {
             wavPickerActive = false
             waveformButton.isEnabled = true
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             waveformStatus.text = "Could not open file picker: ${exception.message ?: "unknown error"}"
         }
     }
@@ -1431,13 +1485,13 @@ class MainActivity : Activity() {
         }
         wavPickerActive = true
         processButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         try {
             startActivityForResult(picker, REQUEST_PROCESS_WAV)
         } catch (exception: Exception) {
             wavPickerActive = false
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             processingStatus.text = "Could not open the document picker: ${exception.message ?: "unknown error"}"
         }
     }
@@ -1468,7 +1522,7 @@ class MainActivity : Activity() {
             if (resultCode == RESULT_OK && data?.data != null) analyzeSelectedWaveform(data.data!!)
             else waveformStatus.text = "Waveform selection cancelled."
             processButton.isEnabled = !recording && !processing
-            startButton.isEnabled = !recording && !processing
+            recordToggleButton.isEnabled = !recording && !processing
             waveformButton.isEnabled = !recording && !processing
             return
         }
@@ -1479,18 +1533,18 @@ class MainActivity : Activity() {
         if (resultCode != RESULT_OK) {
             processingStatus.text = "WAV selection cancelled. Nothing was processed."
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             return
         }
         val uri = data?.data ?: run {
             processingStatus.text = "No WAV file was selected."
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             return
         }
         stopComparisonPlayback()
         processButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         playOriginalButton.isEnabled = false
         playProcessedButton.isEnabled = false
         comparisonOriginalFile?.delete()
@@ -1616,7 +1670,7 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         processButton.isEnabled = true
-                        startButton.isEnabled = true
+                        recordToggleButton.isEnabled = true
                         cancelProcessingButton.isEnabled = false
                         cancelProcessingButton.text = "Cancel processing"
                         processingProgress.visibility = android.view.View.GONE
@@ -1875,7 +1929,7 @@ class MainActivity : Activity() {
         val shouldStart = startAfterPermission
         startAfterPermission = false
         processButton.isEnabled = !recording && !processing && !wavPickerActive
-        startButton.isEnabled = !recording && !processing && !wavPickerActive
+        recordToggleButton.isEnabled = !recording && !processing && !wavPickerActive
         if (shouldStart && grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
         ) {

@@ -104,6 +104,45 @@ This visual direction supersedes the earlier mint-only visual treatment as the l
 - Icon glyphs are decorative cues, not replacements for accessible text labels.
 
 
-## UI redesign pause — 2026-10-28
+## UI research and implementation direction — 2026-10-29
 
-The user has explicitly paused further UI redesign while feature development and targeted hardening continue. Treat the current interface as a functional interim shell, not the intended final product. Do not add more visual-only PRs until a dedicated UI brainstorm and deeper research phase is requested. Preserve the current visual direction and incremental-update performance contract; record any newly discovered UI issues as notes rather than opportunistically redesigning screens. PR #79 adds icon-led Windows navigation and selected-workspace feedback; Android/Windows visual parity, broader iconography, and screen composition remain deferred pending that research.
+The dedicated UI brainstorm has resumed. Research references include Audacity's pared-back Modern workspace and persistent level-meter panel, Adobe Podcast's task-oriented record/enhance/review flow, and REAPER's efficient but highly customizable desktop controls. Audio Studio should borrow useful interaction patterns without copying any product's layout.
+
+### Our angle: a focused voice-production studio
+- **Record first:** open directly into recording; keep the record/stop action, elapsed time, live RMS/peak, clipping warning, and input selection easy to scan.
+- **Waveform-led editing:** give the waveform the most visual space; keep trim handles, exact timecodes, selection duration, preview, and non-destructive export together.
+- **Preset-first processing:** Natural, Voice Clarity, and Rumble Cut first; advanced parameters remain secondary/collapsed. Make original-versus-processed review obvious.
+- **Icon-led, not icon-only:** use familiar icons with short labels in primary navigation. Use accessible names/tooltips for icon-only utility actions; never make critical actions ambiguous.
+- **Dark, opaque studio surfaces:** near-black/charcoal foundation, violet interaction accent, mint for healthy/live signal, and warm warning colors only for warnings. Avoid pervasive blur/glass, excessive card borders, and decorative visualizers.
+- **Responsive by platform:** Android uses a touch-friendly bottom bar and vertical content; Windows uses a compact persistent left rail and a wider work area.
+- **Fast-feeling interactions:** keep view instances alive, preserve selection and processing settings across navigation, and update only the controls affected by an interaction.
+
+### Delivery slices
+1. **Navigation foundation:** icon-led Android bottom navigation with selected-workspace feedback and accessible labels; retain existing screen instances and behavior.
+2. **Shared visual hierarchy:** consistent screen headers, spacing, surface levels, typography, status chips, and primary/secondary action styles.
+3. **Record focus:** clearer recording state, meter/clipping presentation, and post-save actions.
+4. **Editor focus:** waveform scale, range controls, timecodes, preview, and safe-export confirmation.
+5. **Processing focus:** preset emphasis, collapsed advanced controls, clear progress/cancel, and A/B review.
+6. **Library and Settings:** keep Library grounded in its real file discovery behavior; add Settings only when each preference has a clear persistence contract.
+
+### Validation
+- Preserve recording, save/recovery, playback, waveform analysis, trim, processing, cancellation, and no-overwrite behavior.
+- No audio-engine or DSP semantic changes in visual-only slices.
+- All three CI jobs must pass. Manual checks should include repeated navigation, selected-state feedback, preserved trim/settings state, recording meter updates, small-screen layout, and keyboard/focus accessibility on Windows.
+- CI success is not proof of visual usability or actual audio quality; platform-specific manual checks remain separate.
+
+
+## Record screen UI slice — 2026-10-29
+
+### One-button recording interaction
+- Replace separate Start and Stop buttons with one primary toggle action on both Android and Windows.
+- Idle state: blue button labelled **Start recording**; active state: teal-green button labelled **Stop & save WAV**.
+- Disable the control only while a file picker, processing operation, or finalization makes a new action unsafe. During recording, keep the single button enabled so it can stop and save.
+- Keep elapsed time, live RMS/peak meter, clipping warning, microphone selection, and recovery flow intact.
+- Use accessible names alongside icon cues; color must not be the only recording-state signal.
+- Do not change native capture, WAV validation/publication, recovery, or DSP semantics.
+
+### Validation gates
+- CI must pass for Android, Linux native core, and Windows native core/shell.
+- Manual smoke checks: start, observe teal state and timer/meter, stop and save, verify blue idle state and WAV playback; repeat twice; cancel the save picker; check failure/recovery paths.
+- Windows runtime validation remains pending the user's Windows environment being ready.
