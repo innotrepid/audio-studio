@@ -726,7 +726,9 @@ public sealed partial class MainWindow : Window
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
     private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
 
-    private void LibrarySearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void LibrarySearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyLibrarySearchFilter();
+
+    private void ApplyLibrarySearchFilter()
     {
         var query = LibrarySearchBox.Text?.Trim() ?? string.Empty;
         var visibleCount = 0;
@@ -746,7 +748,9 @@ public sealed partial class MainWindow : Window
         {
             LibraryStatusText.Text = visibleCount == 0
                 ? $"No WAVs match “{query}”. Clear the search to see all files."
-                : $"{visibleCount} matching WAV file(s) · showing up to 100 recent files";
+                : query.Length == 0
+                    ? $"{visibleCount} recent WAV file(s) in {_libraryFolderPath} · showing up to 100"
+                    : $"{visibleCount} matching WAV file(s) · showing up to 100 recent files";
         }
     }
 
@@ -850,6 +854,7 @@ public sealed partial class MainWindow : Window
                 item.Children.Add(actions);
                 LibraryItemsPanel.Children.Add(item);
             }
+            ApplyLibrarySearchFilter();
         }
         catch (Exception exception)
         {
