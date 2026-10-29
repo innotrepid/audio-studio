@@ -573,7 +573,7 @@ class MainActivity : Activity() {
         val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val librarySection = makeSection(
             "Your audio library",
-            "Find recordings, processed copies, and trimmed exports. Editing and processing never overwrite the selected source."
+            "Find recordings, processed copies, and trimmed exports. Edit opens the waveform workspace; Process copy creates a separate file and leaves the source unchanged."
         )
         fun refreshAudioLibrary() {
             libraryItems.removeAllViews()
@@ -622,10 +622,16 @@ class MainActivity : Activity() {
                         val name = cursor.getString(nameColumn) ?: continue
                         if (!name.endsWith(".wav", ignoreCase = true)) continue
                         val folder = cursor.getString(pathColumn)?.substringAfter("Audio Studio/")?.trimEnd('/') ?: "Audio Studio"
+                        val category = when {
+                            folder.contains("Processed", ignoreCase = true) -> "Processed copy"
+                            folder.contains("Trim", ignoreCase = true) -> "Trimmed export"
+                            folder.contains("Recording", ignoreCase = true) -> "Recording"
+                            else -> "WAV export"
+                        }
                         val bytes = cursor.getLong(sizeColumn).coerceAtLeast(0L)
                         val sizeKb = (bytes / 1024L).coerceAtLeast(if (bytes > 0L) 1L else 0L)
                         val uri = ContentUris.withAppendedId(collection, cursor.getLong(idColumn))
-                        rows.add(Triple(uri, name, folder + " · " + sizeKb + " KB" + if (bytes == 0L) " · EMPTY FILE" else ""))
+                        rows.add(Triple(uri, name, "$category · $folder · $sizeKb KB" + if (bytes == 0L) " · EMPTY FILE" else ""))
                         if (rows.size >= 100) break
                     }
                 } ?: throw IOException("Android could not read the audio library.")
@@ -669,6 +675,7 @@ class MainActivity : Activity() {
                     }
                     actions.addView(Button(this).apply {
                         text = "Edit"
+                        contentDescription = "Edit $name in the waveform editor"
                         setOnClickListener {
                             librarySection.visibility = android.view.View.GONE
                             editSection.visibility = android.view.View.VISIBLE
@@ -678,7 +685,8 @@ class MainActivity : Activity() {
                         }
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     actions.addView(Button(this).apply {
-                        text = "Process"
+                        text = "Process copy"
+                        contentDescription = "Create a processed copy of $name; keep the source unchanged"
                         setOnClickListener {
                             librarySection.visibility = android.view.View.GONE
                             editSection.visibility = android.view.View.GONE
