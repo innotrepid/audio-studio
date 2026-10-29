@@ -26,6 +26,7 @@ import android.widget.TextView
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import java.util.UUID
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import android.os.Handler
@@ -37,6 +38,8 @@ private interface NoiseGateProgressCallback {
 }
 
 class MainActivity : Activity() {
+    private fun uniqueWavName(prefix: String): String = "$prefix-${UUID.randomUUID()}.wav"
+
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
@@ -803,8 +806,7 @@ class MainActivity : Activity() {
             .setMessage("Choose a temporary recording to attempt recovery. Audio Studio validates the WAV before publishing it; invalid files are retained.")
             .setItems(candidates.map { it.name }.toTypedArray()) { _, index ->
                 val partial = candidates[index]
-                val outputName = partial.name.replace(Regex("\\.partial-[0-9]+$"), "")
-                val output = File(partial.parentFile, outputName)
+                val output = File(partial.parentFile, uniqueWavName("recovered"))
                 AlertDialog.Builder(this)
                     .setTitle("Recover ${partial.name}?")
                     .setMessage("Recovery will not replace an existing recording. If the audio is invalid, the temporary file will be left in place.")
@@ -884,7 +886,7 @@ class MainActivity : Activity() {
             return
         }
 
-        val output = File(recordingDirectory, "recording-${System.currentTimeMillis()}.wav")
+        val output = File(recordingDirectory, uniqueWavName("recording"))
         diagnosticsCapture.record("recording_start", "started", mapOf("staging_name" to output.name))
         val started = try {
             nativeStartRecording(output.absolutePath)
@@ -1059,7 +1061,7 @@ class MainActivity : Activity() {
         Thread {
             var staged: File? = null
             try {
-                val file = File(filesDir, "waveform-source-${System.currentTimeMillis()}.wav")
+                val file = File(filesDir, uniqueWavName("waveform-source"))
                 staged = file
                 contentResolver.openInputStream(uri)?.use { input ->
                     file.outputStream().use { output ->
@@ -1307,7 +1309,7 @@ class MainActivity : Activity() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "audio/wav"
-            putExtra(Intent.EXTRA_TITLE, "AudioStudio-trimmed.wav")
+            putExtra(Intent.EXTRA_TITLE, uniqueWavName("AudioStudio-trimmed"))
         }
         wavPickerActive = true
         trimWaveformButton.isEnabled = false
@@ -1334,7 +1336,7 @@ class MainActivity : Activity() {
         }
         waveformStatus.text = "Trimming selected range…"
         Thread {
-            val stagedOutput = File(filesDir, "waveform-trimmed-${System.currentTimeMillis()}.wav")
+            val stagedOutput = File(filesDir, uniqueWavName("waveform-trimmed"))
             try {
                 val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFrame, endFrame)
                 if (result != "TRIMMED") {
@@ -1506,7 +1508,7 @@ class MainActivity : Activity() {
                 if (!stagingDirectory.exists() && !stagingDirectory.mkdirs()) {
                     throw IOException("Could not create processing staging folder.")
                 }
-                val inputFile = File(stagingDirectory, "source-${System.currentTimeMillis()}.wav")
+                val inputFile = File(stagingDirectory, uniqueWavName("source"))
                 input = inputFile
                 contentResolver.openInputStream(uri)?.use { source ->
                     inputFile.outputStream().use { destination ->
@@ -1522,7 +1524,7 @@ class MainActivity : Activity() {
                 if (inputFile.length() <= WAV_HEADER_BYTES) {
                     throw IOException("The selected file is empty or too small to be a WAV.")
                 }
-                val outputFile = File(stagingDirectory, "processed-${System.currentTimeMillis()}.wav")
+                val outputFile = File(stagingDirectory, uniqueWavName("processed"))
                 output = outputFile
                 if (cancelRequested) throw IOException("Processing cancelled by user.")
                 val callback = object : NoiseGateProgressCallback {
