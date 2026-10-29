@@ -151,6 +151,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         diagnosticsCapture = DiagnosticsCapture(this)
+        diagnosticsCapture.installUncaughtExceptionCapture()
         diagnosticsCapture.record("app_started", "success", mapOf("android_release" to Build.VERSION.RELEASE))
         cleanupStaleProcessingFiles()
         System.loadLibrary("audio_studio_android")
@@ -1053,6 +1054,7 @@ class MainActivity : Activity() {
     }
 
     private fun analyzeSelectedWaveform(uri: Uri) {
+        diagnosticsCapture.record("waveform_load", "started", mapOf("source_uri_authority" to (uri.authority ?: "unknown")))
         waveformStatus.text = "Analyzing WAV in bounded memory…"
         Thread {
             var staged: File? = null
@@ -1080,6 +1082,9 @@ class MainActivity : Activity() {
                 waveformSourceFile = file
                 waveformTotalFrames = metadata[0]
                 waveformSampleRate = metadata[1]
+                diagnosticsCapture.record("waveform_load", "success", mapOf(
+                    "staged_name" to file.name, "staged_bytes" to file.length(),
+                    "frames" to metadata[0], "sample_rate_hz" to metadata[1], "channels" to metadata[2]))
                 if (previousSource != null && previousSource != file) previousSource.delete()
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
@@ -1096,6 +1101,8 @@ class MainActivity : Activity() {
                     }
                 }
             } catch (exception: Exception) {
+                diagnosticsCapture.record("waveform_load", "failure", mapOf("staged_name" to (staged?.name ?: "missing"),
+                    "staged_bytes" to (staged?.length() ?: -1L)), exception)
                 mainHandler.post { if (!isFinishing && !isDestroyed) waveformStatus.text = exception.message ?: "Waveform analysis failed." }
             } finally {
                 if (staged != waveformSourceFile) staged?.delete()
@@ -1330,7 +1337,17 @@ class MainActivity : Activity() {
             val stagedOutput = File(filesDir, "waveform-trimmed-${System.currentTimeMillis()}.wav")
             try {
                 val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFrame, endFrame)
-                if (result != "TRIMMED") throw IOException(result)
+                if (result != "TRIMMED") {
+                    diagnosticsCapture.record("trim_render", "failure", mapOf(
+                        "source_name" to source.name, "source_bytes" to source.length(),
+                        "output_name" to stagedOutput.name, "native_status" to result,
+                        "start_frame" to startFrame, "end_frame" to endFrame), IOException(result))
+                    throw IOException(result)
+                }
+                diagnosticsCapture.record("trim_render", "success", mapOf(
+                    "source_name" to source.name, "source_bytes" to source.length(),
+                    "output_name" to stagedOutput.name, "output_bytes" to stagedOutput.length(),
+                    "start_frame" to startFrame, "end_frame" to endFrame))
                 val metadata = nativeGetWavMetadata(stagedOutput.absolutePath)
                 if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L ||
                     metadata[2] !in 1L..2L || stagedOutput.length() <= WAV_HEADER_BYTES) {
@@ -1420,6 +1437,8 @@ class MainActivity : Activity() {
         }
         if (requestCode == REQUEST_TRIM_OUTPUT) {
             wavPickerActive = false
+            diagnosticsCapture.record("trim_destination_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
+                mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
             if (resultCode == RESULT_OK && data?.data != null) trimSelectedWaveform(data.data!!)
             else {
                 waveformStatus.text = "Trim cancelled. No files were changed."
@@ -1429,6 +1448,8 @@ class MainActivity : Activity() {
         }
         if (requestCode == REQUEST_WAVEFORM) {
             wavPickerActive = false
+            diagnosticsCapture.record("waveform_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
+                mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
             if (resultCode == RESULT_OK && data?.data != null) analyzeSelectedWaveform(data.data!!)
             else waveformStatus.text = "Waveform selection cancelled."
             processButton.isEnabled = !recording && !processing
@@ -1437,6 +1458,8 @@ class MainActivity : Activity() {
             return
         }
         if (requestCode != REQUEST_PROCESS_WAV) return
+        diagnosticsCapture.record("processing_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
+            mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
         wavPickerActive = false
         if (resultCode != RESULT_OK) {
             processingStatus.text = "WAV selection cancelled. Nothing was processed."
@@ -1839,6 +1862,7 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        diagnosticsCapture.record("activity_lifecycle", "on_stop", mapOf("recording" to recording, "processing" to processing))
         // Comparison playback is a foreground-only preview; release it when the
         // Activity loses the foreground (including while the document picker opens).
         stopComparisonPlayback()
