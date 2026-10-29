@@ -284,7 +284,7 @@ void WavWriter::set_error(const char* message) {
 }
 
 void WavWriter::set_error(std::string message) {
-    last_error_ = std::move(message);
+    last_error_ = message;
 }
 
 }  // namespace audio_studio
