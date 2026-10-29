@@ -324,7 +324,7 @@ class MainActivity : Activity() {
                     try { nativeCancelNoiseGateProcessing() } catch (_: Exception) { }
                     text = "Cancelling…"
                     isEnabled = false
-                    statusText.text = "Cancelling safely after the current audio block…"
+                    processingStatus.text = "Cancelling safely after the current audio block…"
                 }
             }
         }
@@ -873,7 +873,7 @@ class MainActivity : Activity() {
 
     private fun chooseWavWaveform() {
         if (recording || processing || wavPickerActive || startAfterPermission) {
-            statusText.text = "Finish the current operation before loading a waveform."
+            waveformStatus.text = "Finish the current operation before loading a waveform."
             return
         }
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -1257,6 +1257,7 @@ class MainActivity : Activity() {
         if (requestCode != REQUEST_PROCESS_WAV) return
         wavPickerActive = false
         if (resultCode != RESULT_OK) {
+            processingStatus.text = "WAV selection cancelled. Nothing was processed."
             processButton.isEnabled = true
             startButton.isEnabled = true
             return
