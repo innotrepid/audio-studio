@@ -103,6 +103,7 @@ public sealed partial class MainWindow : Window
     private uint? _trimPointerId;
     private readonly List<CaptureDeviceChoice> _captureDevices = new();
     private bool _recordingUiActive;
+    private bool _restoringProcessingPreferences = true;
 
     private sealed record CaptureDeviceChoice(string Name, string Id)
     {
@@ -149,6 +150,12 @@ public sealed partial class MainWindow : Window
             var cutoff = HighPassSlider.Value < 1 ? 0 : Math.Min(500, 20 + ((int)HighPassSlider.Value - 1) * 10);
             HighPassText.Text = cutoff == 0 ? "High-pass filter: Off" : $"High-pass filter: {cutoff} Hz";
         };
+        foreach (var slider in new[] { GateThresholdSlider, GateAttenuationSlider, DspGainSlider, HighPassSlider })
+        {
+            slider.PointerCaptureLost += (_, _) => SaveProcessingPreferences();
+            slider.KeyUp += (_, _) => SaveProcessingPreferences();
+        }
+        LoadProcessingPreferences();
         TrimStartSlider.ValueChanged += (_, _) =>
         {
             if (!_applyingTrimTimecodes) CancelTrimRangePreviewForSelectionChange();
@@ -175,8 +182,72 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private static readonly string[] KnownProcessingPresets = { "Natural", "Voice clarity", "Rumble cut" };
+
+    private static double ReadProcessingSetting(
+        ApplicationDataContainer settings, string key, double fallback, double minimum, double maximum)
+    {
+        if (settings.Values.TryGetValue(key, out var storedValue) && storedValue is not null)
+        {
+            try
+            {
+                return Math.Clamp(Convert.ToDouble(storedValue), minimum, maximum);
+            }
+            catch (Exception)
+            {
+                // Treat malformed local settings as absent; the valid default is safer.
+            }
+        }
+
+        return fallback;
+    }
+
+    private void LoadProcessingPreferences()
+    {
+        _restoringProcessingPreferences = true;
+        try
+        {
+            var settings = ApplicationData.Current.LocalSettings;
+            var preset = settings.Values.TryGetValue("processing.selectedPreset", out var rawPreset) &&
+                         rawPreset is string storedPreset &&
+                         KnownProcessingPresets.Contains(storedPreset, StringComparer.Ordinal)
+                ? storedPreset
+                : "Natural";
+
+            ProcessingPresetComboBox.SelectedItem = ProcessingPresetComboBox.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Content?.ToString(), preset, StringComparison.Ordinal));
+
+            GateThresholdSlider.Value = ReadProcessingSetting(settings, "processing.thresholdDbfs", -54, -70, -20);
+            GateAttenuationSlider.Value = ReadProcessingSetting(settings, "processing.attenuationDb", -12, -36, 0);
+            DspGainSlider.Value = ReadProcessingSetting(settings, "processing.gainDb", 0, -24, 12);
+            HighPassSlider.Value = ReadProcessingSetting(settings, "processing.highPassPosition", 0, 0, 49);
+        }
+        finally
+        {
+            _restoringProcessingPreferences = false;
+        }
+    }
+
+    private void SaveProcessingPreferences()
+    {
+        if (_restoringProcessingPreferences) return;
+
+        var settings = ApplicationData.Current.LocalSettings;
+        settings.Values["processing.thresholdDbfs"] = Math.Clamp(GateThresholdSlider.Value, -70, -20);
+        settings.Values["processing.attenuationDb"] = Math.Clamp(GateAttenuationSlider.Value, -36, 0);
+        settings.Values["processing.gainDb"] = Math.Clamp(DspGainSlider.Value, -24, 12);
+        settings.Values["processing.highPassPosition"] = Math.Clamp(HighPassSlider.Value, 0, 49);
+        if (ProcessingPresetComboBox.SelectedItem is ComboBoxItem item && item.Content is string preset &&
+            KnownProcessingPresets.Contains(preset, StringComparer.Ordinal))
+        {
+            settings.Values["processing.selectedPreset"] = preset;
+        }
+    }
+
     private void ProcessingPresetComboBox_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs e)
     {
+        if (_restoringProcessingPreferences) return;
         if (ProcessingPresetComboBox.SelectedItem is not Microsoft.UI.Xaml.Controls.ComboBoxItem item ||
             item.Content is not string preset) return;
 
@@ -201,7 +272,8 @@ public sealed partial class MainWindow : Window
                 HighPassSlider.Value = 0;
                 break;
         }
-        ProcessingStatusText.Text = $"{{preset}} preset applied. Fine-tune the sliders and compare the output with the original.";
+        SaveProcessingPreferences();
+        ProcessingStatusText.Text = $"{preset} preset applied. Fine-tune the sliders and compare the output with the original.";
     }
 
     private async void LoadWaveform_Click(object sender, RoutedEventArgs e)
