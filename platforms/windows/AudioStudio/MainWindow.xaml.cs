@@ -90,6 +90,7 @@ public sealed partial class MainWindow : Window
     private ulong? _trimExactStartFrame;
     private ulong? _trimExactEndFrame;
     private bool _applyingTrimTimecodes;
+    private string? _libraryFolderPath;
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
     private string? _currentRecordingPath;
@@ -209,6 +210,11 @@ public sealed partial class MainWindow : Window
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
+        await LoadWaveformFileAsync(file);
+    }
+
+    private async Task LoadWaveformFileAsync(StorageFile file)
+    {
         CancelTrimRangePreviewForSelectionChange();
         const int buckets = 240;
         var peaks = new float[buckets * 4];
@@ -678,17 +684,20 @@ public sealed partial class MainWindow : Window
         EditorPanel.Visibility = selected == EditorPanel ? Visibility.Visible : Visibility.Collapsed;
         ProcessingPanel.Visibility = selected == ProcessingPanel ? Visibility.Visible : Visibility.Collapsed;
         ComparePanel.Visibility = selected == ComparePanel ? Visibility.Visible : Visibility.Collapsed;
+        LibraryPanel.Visibility = selected == LibraryPanel ? Visibility.Visible : Visibility.Collapsed;
 
-        // Update only the four existing navigation controls; workflow panels and their state stay alive.
+        // Update only the existing navigation controls; workflow panels and their state stay alive.
         NavigateRecordButton.IsChecked = selected == RecordPanel;
         NavigateEditorButton.IsChecked = selected == EditorPanel;
         NavigateProcessingButton.IsChecked = selected == ProcessingPanel;
         NavigateCompareButton.IsChecked = selected == ComparePanel;
+        NavigateLibraryButton.IsChecked = selected == LibraryPanel;
 
         SetNavigationAppearance(NavigateRecordButton, selected == RecordPanel);
         SetNavigationAppearance(NavigateEditorButton, selected == EditorPanel);
         SetNavigationAppearance(NavigateProcessingButton, selected == ProcessingPanel);
         SetNavigationAppearance(NavigateCompareButton, selected == ComparePanel);
+        SetNavigationAppearance(NavigateLibraryButton, selected == LibraryPanel);
     }
 
     private static void SetNavigationAppearance(ToggleButton button, bool isSelected)
@@ -714,6 +723,117 @@ public sealed partial class MainWindow : Window
     private void NavigateEditor_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(EditorPanel);
     private void NavigateProcessing_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ProcessingPanel);
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
+    private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
+
+    private async void ChooseLibraryFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FolderPicker();
+        picker.FileTypeFilter.Add("*");
+        InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder is null)
+        {
+            LibraryStatusText.Text = "Folder selection cancelled. Your current library view is unchanged.";
+            return;
+        }
+
+        _libraryFolderPath = folder.Path;
+        await RefreshLibraryAsync();
+    }
+
+    private async void RefreshLibrary_Click(object sender, RoutedEventArgs e) => await RefreshLibraryAsync();
+
+    private async Task RefreshLibraryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_libraryFolderPath) || !Directory.Exists(_libraryFolderPath))
+        {
+            LibraryStatusText.Text = "Choose an accessible folder to list WAV files.";
+            return;
+        }
+
+        RefreshLibraryButton.IsEnabled = false;
+        LibraryStatusText.Text = "Reading WAV files…";
+        try
+        {
+            var files = await Task.Run(() => Directory.EnumerateFiles(_libraryFolderPath, "*", SearchOption.TopDirectoryOnly)
+                .Where(path => string.Equals(Path.GetExtension(path), ".wav", StringComparison.OrdinalIgnoreCase))
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(info => info.LastWriteTimeUtc)
+                .Take(100)
+                .Select(info => new { info.FullName, info.Name, info.Length, info.LastWriteTime })
+                .ToList());
+
+            LibraryItemsPanel.Children.Clear();
+            if (files.Count == 0)
+            {
+                LibraryStatusText.Text = $"No WAV files found in {Path.GetFileName(_libraryFolderPath)}. Choose another folder or export a WAV first.";
+                return;
+            }
+
+            LibraryStatusText.Text = $"{files.Count} recent WAV file(s) in { _libraryFolderPath } · showing up to 100";
+            foreach (var file in files)
+            {
+                var item = new StackPanel { Spacing = 6, Padding = new Thickness(12) };
+                item.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 30));
+                item.Children.Add(new TextBlock
+                {
+                    Text = file.Name,
+                    FontSize = 15,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
+                });
+                item.Children.Add(new TextBlock
+                {
+                    Text = $"{Math.Max(1, file.Length / 1024)} KB · Modified {file.LastWriteTime:g}",
+                    FontSize = 12,
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 184, 180, 204)),
+                    TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
+                });
+                var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+                var editButton = new Button { Content = "Edit" };
+                editButton.Click += async (_, _) =>
+                {
+                    try
+                    {
+                        var storageFile = await StorageFile.GetFileFromPathAsync(file.FullName);
+                        ShowWorkflowPanel(EditorPanel);
+                        await LoadWaveformFileAsync(storageFile);
+                    }
+                    catch (Exception exception)
+                    {
+                        LibraryStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
+                    }
+                };
+                var processButton = new Button { Content = "Process" };
+                processButton.Click += async (_, _) =>
+                {
+                    try
+                    {
+                        var storageFile = await StorageFile.GetFileFromPathAsync(file.FullName);
+                        ShowWorkflowPanel(ProcessingPanel);
+                        await ProcessWavFileAsync(storageFile);
+                    }
+                    catch (Exception exception)
+                    {
+                        LibraryStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
+                    }
+                };
+                actions.Children.Add(editButton);
+                actions.Children.Add(processButton);
+                item.Children.Add(actions);
+                LibraryItemsPanel.Children.Add(item);
+            }
+        }
+        catch (Exception exception)
+        {
+            LibraryStatusText.Text = $"Could not load WAV library: {exception.Message}. Choose another folder or use the file pickers.";
+        }
+        finally
+        {
+            RefreshLibraryButton.IsEnabled = true;
+        }
+    }
 
     private void RefreshInputDevices_Click(object sender, RoutedEventArgs e) => RefreshInputDevices();
 
@@ -947,19 +1067,30 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var openPicker = new FileOpenPicker();
+        openPicker.FileTypeFilter.Add(".wav");
+        InitializeWithWindow.Initialize(openPicker, WindowNative.GetWindowHandle(this));
+        var input = await openPicker.PickSingleFileAsync();
+        if (input is null)
+        {
+            ProcessingStatusText.Text = "Processing cancelled. No files were changed.";
+            return;
+        }
+
+        await ProcessWavFileAsync(input);
+    }
+
+    private async Task ProcessWavFileAsync(StorageFile input)
+    {
+        if (NativeRecordingActive() != 0)
+        {
+            ProcessingStatusText.Text = "Stop and save the current recording before processing a WAV.";
+            return;
+        }
+
         ProcessWavButton.IsEnabled = false;
         try
         {
-            var openPicker = new FileOpenPicker();
-            openPicker.FileTypeFilter.Add(".wav");
-            InitializeWithWindow.Initialize(openPicker, WindowNative.GetWindowHandle(this));
-            var input = await openPicker.PickSingleFileAsync();
-            if (input is null)
-            {
-                ProcessingStatusText.Text = "Processing cancelled. No files were changed.";
-                return;
-            }
-
             var folderPicker = new FolderPicker();
             folderPicker.FileTypeFilter.Add("*");
             InitializeWithWindow.Initialize(folderPicker, WindowNative.GetWindowHandle(this));
@@ -989,6 +1120,7 @@ public sealed partial class MainWindow : Window
             ProcessingProgressBar.Value = 0;
             _processingTimer.Start();
         }
+
         catch (Exception exception)
         {
             ProcessingStatusText.Text = $"Could not process WAV: {exception.Message}";
