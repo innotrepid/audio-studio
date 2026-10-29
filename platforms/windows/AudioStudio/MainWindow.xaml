@@ -73,6 +73,12 @@
                         <TextBlock Text="Process" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
+                <ToggleButton x:Name="NavigateLibraryButton" Click="NavigateLibrary_Click" Style="{StaticResource WorkflowNavigationButton}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE8B7;" FontSize="16" />
+                        <TextBlock Text="Library" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
                 <ToggleButton x:Name="NavigateCompareButton" Click="NavigateCompare_Click" Style="{StaticResource WorkflowNavigationButton}">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE8A7;" FontSize="16" />
@@ -218,6 +224,21 @@
                         </StackPanel>
                     </Border>
                     <TextBlock Text="Tip: use files from the same recording. Keep playback volume similar when judging changes, and stop playback before starting another audio operation." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                </StackPanel>
+            </Border>
+            <Border x:Name="LibraryPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+                <StackPanel Spacing="16" Margin="24">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="LIBRARY" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
+                        <TextBlock Text="Find your WAV files" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Choose a folder containing recordings, processed copies, or trimmed exports. Audio Studio only lists WAVs in the folder you choose; it does not scan your whole computer or modify source files." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button x:Name="ChooseLibraryFolderButton" Content="Choose folder…" Click="ChooseLibraryFolder_Click" Style="{StaticResource PrimaryRecordButton}" />
+                        <Button x:Name="RefreshLibraryButton" Content="Refresh" Click="RefreshLibrary_Click" />
+                    </StackPanel>
+                    <TextBlock x:Name="LibraryStatusText" Text="Choose a folder to list WAV files." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                    <StackPanel x:Name="LibraryItemsPanel" Spacing="10" />
                 </StackPanel>
             </Border>
             <Border x:Name="EditorPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
