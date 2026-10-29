@@ -51,7 +51,7 @@ The roadmap is ordered by technical risk. The shared engine and real-device reco
 
 Reliability work is tracked in [HARDENING_BACKLOG.md](HARDENING_BACKLOG.md). Fix confirmed data-loss, corruption, security, and crash risks promptly. Park lower-priority concerns with a revisit trigger. After the current in-flight hardening item is merged, resume product implementation; do not start another broad hardening sweep without a trigger.
 
-**Current product milestone:** verified non-destructive trim export is implemented on Android and Windows. Both platforms support precise in/out timecodes (`MM:SS.mmm`) mapped to audio-frame positions for preview and export; slider adjustments remain available and intentionally replace precision for the moved endpoint. Windows supports selected-range preview, and Android preserves the exact selected frames through native export. Direct waveform trim handles are implemented on both platforms. The current Windows preview-safety change cancels playback when the selection or source changes, including while the media pipeline is still opening. The original file remains unchanged. Continue editing workflow capability work without broadening into a visual redesign.
+**Current product milestone:** waveform analysis, trim, and processing now accept mono/stereo PCM 8/16/24/32-bit and IEEE float32 WAV input (derived outputs are PCM16), while preserving source files. Verified non-destructive trim export is implemented on Android and Windows. Both platforms support precise in/out timecodes (`MM:SS.mmm`) mapped to audio-frame positions for preview and export; slider adjustments remain available and intentionally replace precision for the moved endpoint. Windows supports selected-range preview, and Android preserves the exact selected frames through native export. Direct waveform trim handles are implemented on both platforms. The current Windows preview-safety change cancels playback when the selection or source changes, including while the media pipeline is still opening. The original file remains unchanged. Continue editing workflow capability work without broadening into a visual redesign.
 
 ## Definition of done
 
@@ -68,3 +68,11 @@ A feature is complete only when it builds on its target platforms, has tests for
 - [x] Add Android A/B playback for the latest original-versus-processed WAV pair.
 - [x] Add persistent Android user controls for gate threshold and attenuation after initial device listening checks.
 - [ ] Evaluate spectral noise reduction and dereverberation separately; do not describe the gate as AI cancellation.
+
+
+## WAV interoperability milestone
+- [x] Accept common integer PCM WAV bit depths (8/16/24/32) and IEEE float32 in waveform analysis, trim, and streamed noise-gate processing.
+- [x] Convert supported source formats to normalized float samples and write derived exports as PCM16 WAV.
+- [x] Add regression coverage for PCM24 waveform, trim, and processing paths.
+- [ ] Validate imported WAVs from representative phones, DAWs, and Windows recording apps on real devices.
+- [ ] Consider WAVE_FORMAT_EXTENSIBLE and multi-data-chunk WAV only with dedicated fixtures and parser tests.
