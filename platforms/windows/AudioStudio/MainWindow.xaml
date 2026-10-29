@@ -234,6 +234,7 @@
                         <Button x:Name="ChooseLibraryFolderButton" Content="Choose folder…" Click="ChooseLibraryFolder_Click" Style="{StaticResource PrimaryRecordButton}" />
                         <Button x:Name="RefreshLibraryButton" Content="Refresh" Click="RefreshLibrary_Click" />
                     </StackPanel>
+                    <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search WAV names or folders…" TextChanged="LibrarySearchBox_TextChanged" AutomationProperties.Name="Search the loaded WAV library by file name or folder" />
                     <TextBlock x:Name="LibraryStatusText" Text="Choose a folder to list WAV files." TextWrapping="Wrap" Foreground="#B8B4CC" />
                     <StackPanel x:Name="LibraryItemsPanel" Spacing="10" />
                 </StackPanel>

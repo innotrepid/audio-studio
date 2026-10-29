@@ -175,3 +175,11 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - No recording, playback, processing, trim, export, or WAV publication semantics changed.
 - Settings remains a later slice until preference defaults, persistence, and reset behavior are specified.
 - Manual validation: check each library empty/error/permission state, confirm category labels match folders, open a WAV in Edit, create a Process copy, and verify the source remains unchanged.
+
+## Library search and filtering — 2026-10-29
+
+- Add a lightweight in-memory search field on Android and Windows to filter the currently loaded WAV list by filename or folder path.
+- Search must not rescan storage, reopen files, or change source data; clearing the query restores the loaded list.
+- Preserve platform discovery boundaries: Android searches the recent Audio Studio WAV list; Windows searches only the user-selected folder and its current top-level results.
+- Keep the 100-file discovery cap explicit; this search filters loaded results and is not a whole-device search.
+- Manual validation: search by full and partial filename, search a folder/category term, confirm no-match guidance, clear search, refresh, switch Library away/back, and confirm Edit/Process copy still target the correct file.
