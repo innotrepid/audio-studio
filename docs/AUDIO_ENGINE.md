@@ -43,7 +43,7 @@ The initial C++ core is not itself a recorder. Platform capture is only consider
 
 The shared C++ core now has a validated PCM16 WAV reader for mono and stereo files. It walks RIFF chunks rather than assuming that the format and data chunks are at fixed offsets, skips unknown chunks and odd-byte padding, checks declared sizes and frame alignment, and leaves the caller's existing audio buffer untouched if loading fails. Decoded samples are normalized to float for DSP.
 
-The reader API can decode a complete WAV into a buffer for callers that need it. The noise-gate export path instead parses the RIFF container and streams PCM16 audio in fixed 4,096-frame blocks, keeping DSP state continuous between blocks. Float WAV, other bit depths, compressed formats, and multi-data-chunk files are rejected rather than guessed.
+Waveform analysis, trim, and the streaming noise-gate export path accept mono/stereo integer PCM WAV at 8, 16, 24, or 32 bits, plus IEEE float32 WAV. Input samples are normalized to float; derived trim/processed outputs are written as PCM16 WAV. RIFF chunks are parsed with bounds checks and audio is processed in fixed 4,096-frame blocks. Compressed WAV, WAVE_FORMAT_EXTENSIBLE, and multi-data-chunk files remain unsupported and are rejected rather than guessed. The standalone WavReader API still decodes PCM16 into a whole AudioBuffer; broader resource-bounded reader work remains deferred.
 
 ## Noise-reduction foundation
 
