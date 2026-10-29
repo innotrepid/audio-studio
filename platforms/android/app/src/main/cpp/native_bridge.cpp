@@ -253,7 +253,10 @@ private:
         } else if (stream_failed) {
             result = "ERROR: The microphone stream was interrupted; incomplete output was discarded.";
         } else if (write_failed || !finalized) {
-            result = "ERROR: Recording could not be fully written or finalized; incomplete output was discarded.";
+            const auto detail = writer.last_error();
+            result = "ERROR: Recording could not be fully written or finalized";
+            if (!detail.empty()) result += ": " + detail;
+            result += "; incomplete output was discarded.";
         }
         set_status(std::move(result));
     }
