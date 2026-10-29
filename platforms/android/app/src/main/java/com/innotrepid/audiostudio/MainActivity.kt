@@ -571,6 +571,34 @@ class MainActivity : Activity() {
             setPadding(0, 8, 0, 8)
         }
         val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val librarySearch = EditText(this).apply {
+            hint = "Search WAV names or folders"
+            singleLine = true
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(145, 145, 165))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            contentDescription = "Search the loaded audio library by WAV name or folder"
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    val query = s?.toString()?.trim()?.lowercase().orEmpty()
+                    var visibleCount = 0
+                    for (index in 0 until libraryItems.childCount) {
+                        val item = libraryItems.getChildAt(index) as? LinearLayout ?: continue
+                        val searchable = item.tag?.toString()?.lowercase().orEmpty()
+                        val visible = query.isEmpty() || searchable.contains(query)
+                        item.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
+                        if (visible) visibleCount++
+                    }
+                    if (libraryItems.childCount > 0) {
+                        libraryStatus.text = if (visibleCount == 0) "No WAVs match “$query”. Clear the search to see all files."
+                            else "$visibleCount matching WAV file(s) · showing up to 100 recent files"
+                    }
+                }
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+            })
+        }
         val librarySection = makeSection(
             "Your audio library",
             "Find recordings, processed copies, and trimmed exports. Edit opens the waveform workspace; Process copy creates a separate file and leaves the source unchanged."
@@ -657,6 +685,7 @@ class MainActivity : Activity() {
                             setStroke(dp(1), Color.rgb(58, 54, 80))
                         }
                     }
+                    item.tag = "$name $details"
                     item.addView(TextView(this).apply {
                         text = name
                         textSize = 15f
@@ -715,6 +744,7 @@ class MainActivity : Activity() {
             text = "Export diagnostics report"
             setOnClickListener { chooseDiagnosticsExport() }
         }, matchWidth())
+        librarySection.addView(librarySearch, matchWidth())
         librarySection.addView(libraryStatus, matchWidth())
         librarySection.addView(libraryItems, matchWidth())
 
