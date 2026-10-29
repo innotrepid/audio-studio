@@ -961,7 +961,7 @@ class MainActivity : Activity() {
         recordToggleButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !started
         updateRecordToggleButton()
-                if (started) {
+        if (started) {
             recordingStartedAtMs = SystemClock.elapsedRealtime()
             statusText.text = "Recording · 00:00"
             mainHandler.removeCallbacks(recordingClock)
@@ -997,7 +997,7 @@ class MainActivity : Activity() {
         recordToggleButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         updateRecordToggleButton()
-        
+
         val nativeStatus = try {
             nativeStopRecording()
         } catch (exception: Exception) {
