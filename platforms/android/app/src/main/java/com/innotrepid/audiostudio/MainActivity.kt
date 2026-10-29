@@ -54,6 +54,7 @@ class MainActivity : Activity() {
     private external fun nativePrepareNoiseGateProcessing()
 
     private lateinit var diagnosticsCapture: DiagnosticsCapture
+    private var libraryRefreshAction: (() -> Unit)? = null
     private lateinit var statusText: TextView
     private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
@@ -551,6 +552,17 @@ class MainActivity : Activity() {
                 libraryStatus.text = "The in-app library requires Android 10 or later. Use the WAV picker on this device."
                 return
             }
+            val readPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Manifest.permission.READ_MEDIA_AUDIO
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+            if (checkSelfPermission(readPermission) != PackageManager.PERMISSION_GRANTED) {
+                libraryStatus.text = "Allow audio-file access to show WAVs in Music/Audio Studio."
+                diagnosticsCapture.record("library_permission", "requested", mapOf("permission" to readPermission))
+                requestPermissions(arrayOf(readPermission), REQUEST_LIBRARY_AUDIO)
+                return
+            }
             libraryStatus.text = "Looking for Audio Studio WAV files…"
             diagnosticsCapture.record("library_scan", "started", mapOf("scope" to "Music/Audio Studio"))
             try {
@@ -657,6 +669,7 @@ class MainActivity : Activity() {
             }
         }
 
+        libraryRefreshAction = { refreshAudioLibrary() }
         librarySection.addView(Button(this).apply {
             text = "Refresh audio library"
             setOnClickListener { refreshAudioLibrary() }
@@ -1845,6 +1858,19 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_LIBRARY_AUDIO) {
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            val permission = permissions.firstOrNull() ?: "audio_read_permission"
+            diagnosticsCapture.record("library_permission", if (granted) "granted" else "denied",
+                mapOf("permission" to permission))
+            if (granted) {
+                libraryRefreshAction?.invoke()
+            } else {
+                statusText.text = "Audio-file access was denied. The in-app library cannot list existing WAVs without it; the document picker remains available."
+            }
+            return
+        }
         if (requestCode != REQUEST_RECORD_AUDIO) return
         val shouldStart = startAfterPermission
         startAfterPermission = false
@@ -1923,6 +1949,7 @@ class MainActivity : Activity() {
         private const val REQUEST_WAVEFORM = 1003
         private const val REQUEST_TRIM_OUTPUT = 1004
         private const val REQUEST_DIAGNOSTICS_EXPORT = 1005
+        private const val REQUEST_LIBRARY_AUDIO = 1006
         private const val WAV_HEADER_BYTES = 44L
         private const val STALE_PROCESSING_FILE_AGE_MS = 24L * 60L * 60L * 1000L
     }
