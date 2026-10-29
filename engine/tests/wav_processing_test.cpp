@@ -5,6 +5,9 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -462,9 +465,44 @@ void test_waveform_analysis_returns_bounded_min_max_envelope() {
     std::remove(input.c_str());
 }
 
+
+void test_pcm24_wav_workflows() {
+    const std::string input = "audio_studio_pcm24.wav";
+    const std::string trimmed = "audio_studio_pcm24_trim.wav";
+    const std::string processed = "audio_studio_pcm24_processed.wav";
+    std::vector<unsigned char> bytes{'R','I','F','F'};
+    auto put16 = [&](std::uint16_t v) { bytes.push_back(v & 255U); bytes.push_back((v >> 8U) & 255U); };
+    auto put32 = [&](std::uint32_t v) { for (unsigned int i=0;i<4U;++i) bytes.push_back((v >> (8U*i)) & 255U); };
+    put32(48U);
+    bytes.insert(bytes.end(), {'W','A','V','E','f','m','t',' '});
+    put32(16U); put16(1U); put16(1U); put32(48000U); put32(144000U); put16(3U); put16(24U);
+    bytes.insert(bytes.end(), {'d','a','t','a'}); put32(12U);
+    for (int i=0;i<4;++i) { bytes.push_back(0U); bytes.push_back(0U); bytes.push_back(i%2==0 ? 0x40U : 0xc0U); }
+    {
+        std::ofstream file(input, std::ios::binary);
+        file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        require(static_cast<bool>(file), "write PCM24 fixture");
+    }
+    std::string error;
+    std::vector<audio_studio::WaveformPeak> peaks;
+    std::uint64_t frames=0U;
+    require(audio_studio::analyze_wav_waveform(input, 4U, peaks, nullptr, &frames, &error),
+            "waveform analysis accepts PCM24");
+    require(frames==4U, "PCM24 frame count is correct");
+    require(audio_studio::trim_wav(input, trimmed, 1U, 3U, &error), "trim accepts PCM24");
+    audio_studio::AudioBuffer result;
+    require(audio_studio::WavReader::read(trimmed, result), "PCM24 trim exports readable PCM16");
+    require(result.frame_count()==2U, "PCM24 trim preserves selected frames");
+    require(audio_studio::process_wav_with_noise_gate(input, processed, {}, &error),
+            "processing accepts PCM24");
+    require(audio_studio::WavReader::read(processed, result), "PCM24 processing exports readable PCM16");
+    std::remove(input.c_str()); std::remove(trimmed.c_str()); std::remove(processed.c_str());
+}
+
 }  // namespace
 
 int main() {
+    test_pcm24_wav_workflows();
     test_processes_to_separate_file_and_preserves_source();
     test_waveform_analysis_returns_bounded_min_max_envelope();
     test_trim_wav_writes_selected_frame_range_and_preserves_source();
