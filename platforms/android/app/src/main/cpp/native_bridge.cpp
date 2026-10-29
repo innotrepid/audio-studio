@@ -216,6 +216,10 @@ private:
                 if (!writer.write_frames(ring_.data() + offset, contiguous)) {
                     write_failed_.store(true, std::memory_order_release);
                     stop_requested_.store(true, std::memory_order_release);
+                    // A failed write cannot advance by the failed block. Drain the queue
+                    // indices so the worker exits instead of retrying the same bad block forever.
+                    read = write;
+                    read_index_.store(read, std::memory_order_release);
                     break;
                 }
                 read += contiguous;
