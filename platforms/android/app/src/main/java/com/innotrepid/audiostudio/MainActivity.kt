@@ -571,9 +571,37 @@ class MainActivity : Activity() {
             setPadding(0, 8, 0, 8)
         }
         val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val librarySearch = EditText(this).apply {
+            hint = "Search WAV names or folders"
+            setSingleLine(true)
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(145, 145, 165))
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            contentDescription = "Search the loaded audio library by WAV name or folder"
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    val query = s?.toString()?.trim()?.lowercase().orEmpty()
+                    var visibleCount = 0
+                    for (index in 0 until libraryItems.childCount) {
+                        val item = libraryItems.getChildAt(index) as? LinearLayout ?: continue
+                        val searchable = item.tag?.toString()?.lowercase().orEmpty()
+                        val visible = query.isEmpty() || searchable.contains(query)
+                        item.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
+                        if (visible) visibleCount++
+                    }
+                    if (libraryItems.childCount > 0) {
+                        libraryStatus.text = if (visibleCount == 0) "No WAVs match “$query”. Clear the search to see all files."
+                            else "$visibleCount matching WAV file(s) · showing up to 100 recent files"
+                    }
+                }
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+            })
+        }
         val librarySection = makeSection(
             "Your audio library",
-            "Find recordings, processed copies, and trimmed exports. Editing and processing never overwrite the selected source."
+            "Find recordings, processed copies, and trimmed exports. Edit opens the waveform workspace; Process copy creates a separate file and leaves the source unchanged."
         )
         fun refreshAudioLibrary() {
             libraryItems.removeAllViews()
@@ -622,10 +650,16 @@ class MainActivity : Activity() {
                         val name = cursor.getString(nameColumn) ?: continue
                         if (!name.endsWith(".wav", ignoreCase = true)) continue
                         val folder = cursor.getString(pathColumn)?.substringAfter("Audio Studio/")?.trimEnd('/') ?: "Audio Studio"
+                        val category = when {
+                            folder.contains("Processed", ignoreCase = true) -> "Processed copy"
+                            folder.contains("Trim", ignoreCase = true) -> "Trimmed export"
+                            folder.contains("Recording", ignoreCase = true) -> "Recording"
+                            else -> "WAV export"
+                        }
                         val bytes = cursor.getLong(sizeColumn).coerceAtLeast(0L)
                         val sizeKb = (bytes / 1024L).coerceAtLeast(if (bytes > 0L) 1L else 0L)
                         val uri = ContentUris.withAppendedId(collection, cursor.getLong(idColumn))
-                        rows.add(Triple(uri, name, folder + " · " + sizeKb + " KB" + if (bytes == 0L) " · EMPTY FILE" else ""))
+                        rows.add(Triple(uri, name, "$category · $folder · $sizeKb KB" + if (bytes == 0L) " · EMPTY FILE" else ""))
                         if (rows.size >= 100) break
                     }
                 } ?: throw IOException("Android could not read the audio library.")
@@ -651,6 +685,7 @@ class MainActivity : Activity() {
                             setStroke(dp(1), Color.rgb(58, 54, 80))
                         }
                     }
+                    item.tag = "$name $details"
                     item.addView(TextView(this).apply {
                         text = name
                         textSize = 15f
@@ -669,6 +704,7 @@ class MainActivity : Activity() {
                     }
                     actions.addView(Button(this).apply {
                         text = "Edit"
+                        contentDescription = "Edit $name in the waveform editor"
                         setOnClickListener {
                             librarySection.visibility = android.view.View.GONE
                             editSection.visibility = android.view.View.VISIBLE
@@ -678,7 +714,8 @@ class MainActivity : Activity() {
                         }
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     actions.addView(Button(this).apply {
-                        text = "Process"
+                        text = "Process copy"
+                        contentDescription = "Create a processed copy of $name; keep the source unchanged"
                         setOnClickListener {
                             librarySection.visibility = android.view.View.GONE
                             editSection.visibility = android.view.View.GONE
@@ -707,6 +744,7 @@ class MainActivity : Activity() {
             text = "Export diagnostics report"
             setOnClickListener { chooseDiagnosticsExport() }
         }, matchWidth())
+        librarySection.addView(librarySearch, matchWidth())
         librarySection.addView(libraryStatus, matchWidth())
         librarySection.addView(libraryItems, matchWidth())
 

@@ -30,13 +30,16 @@ Audio Studio should feel like a focused voice-production tool, not a collection 
 - Show which file is playing and recover gracefully if preview cannot start.
 - Future enhancement: matched-position A/B switching, only when playback state can be kept reliable.
 
-### 5. Library — later phase, real functionality only
-- Add only after recording discovery, sorting, deletion/rename safeguards, and file permissions are designed and tested.
-- Do not show a placeholder tab that implies a usable library exists.
+### 5. Library — real file discovery with safe actions
+- Android lists recent WAVs in Music/Audio Studio; Windows lists WAVs in a folder the user explicitly chooses.
+- Make the file category, location, and safe next action easy to understand.
+- Editing opens the waveform workspace; processing creates a separate copy and must never overwrite the source.
+- Keep empty, permission-denied, and scan-failure states actionable. Do not add destructive rename/delete controls until safeguards are designed and tested.
 
 ### 6. Settings — later phase, real functionality only
-- Add only when there are meaningful persisted preferences (for example, default output folder or preferred processing preset).
-- Avoid a settings screen that only duplicates existing controls.
+- Add only when there are meaningful persisted preferences with clear defaults, persistence scope, and reset behavior.
+- Candidate preferences include a default output location and preferred processing preset; do not duplicate controls already available in their workflow.
+- Before adding a Settings screen, document and test each preference's persistence contract.
 
 ## Visual system
 
@@ -162,3 +165,21 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - Give the processed-copy playback action a teal-green accent so it is easy to find during A/B listening; original playback remains visually secondary.
 - Preserve saved preset parameter values, processing cancellation, integrity checks, and non-destructive output behavior. This is a presentation-only slice.
 - Manual validation: switch all three presets, confirm the active state follows the selection, process a WAV, cancel another processing attempt, compare original and processed playback, and confirm the source remains unchanged.
+
+
+## Library workspace clarity — 2026-10-29
+
+- Clarify that Edit opens the waveform editor and Process copy creates a separate output while preserving the source.
+- Android library rows identify likely categories from their Audio Studio subfolder (recording, processed copy, trimmed export, or general WAV export) alongside location and size.
+- Windows continues to scan only the explicitly selected folder; no whole-device scanning or destructive file actions are introduced.
+- No recording, playback, processing, trim, export, or WAV publication semantics changed.
+- Settings remains a later slice until preference defaults, persistence, and reset behavior are specified.
+- Manual validation: check each library empty/error/permission state, confirm category labels match folders, open a WAV in Edit, create a Process copy, and verify the source remains unchanged.
+
+## Library search and filtering — 2026-10-29
+
+- Add a lightweight in-memory search field on Android and Windows to filter the currently loaded WAV list by filename or folder path.
+- Search must not rescan storage, reopen files, or change source data; clearing the query restores the loaded list.
+- Preserve platform discovery boundaries: Android searches the recent Audio Studio WAV list; Windows searches only the user-selected folder and its current top-level results.
+- Keep the 100-file discovery cap explicit; this search filters loaded results and is not a whole-device search.
+- Manual validation: search by full and partial filename, search a folder/category term, confirm no-match guidance, clear search, refresh, switch Library away/back, and confirm Edit/Process copy still target the correct file.

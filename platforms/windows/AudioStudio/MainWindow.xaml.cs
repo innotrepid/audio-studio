@@ -726,6 +726,30 @@ public sealed partial class MainWindow : Window
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
     private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
 
+    private void LibrarySearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var query = LibrarySearchBox.Text?.Trim() ?? string.Empty;
+        var visibleCount = 0;
+        foreach (var child in LibraryItemsPanel.Children)
+        {
+            if (child is not FrameworkElement item)
+                continue;
+
+            var searchable = item.Tag?.ToString() ?? string.Empty;
+            var visible = query.Length == 0 || searchable.Contains(query, StringComparison.OrdinalIgnoreCase);
+            item.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            if (visible)
+                visibleCount++;
+        }
+
+        if (LibraryItemsPanel.Children.Count > 0)
+        {
+            LibraryStatusText.Text = visibleCount == 0
+                ? $"No WAVs match “{query}”. Clear the search to see all files."
+                : $"{visibleCount} matching WAV file(s) · showing up to 100 recent files";
+        }
+    }
+
     private async void ChooseLibraryFolder_Click(object sender, RoutedEventArgs e)
     {
         var picker = new FolderPicker();
@@ -775,6 +799,7 @@ public sealed partial class MainWindow : Window
             foreach (var file in files)
             {
                 var item = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 10) };
+                item.Tag = $"{file.Name} {file.FullName}";
                 item.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 30));
                 item.Children.Add(new TextBlock
                 {
@@ -806,7 +831,7 @@ public sealed partial class MainWindow : Window
                         ProcessingStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
                     }
                 };
-                var processButton = new Button { Content = "Process" };
+                var processButton = new Button { Content = "Process copy" };
                 processButton.Click += async (_, _) =>
                 {
                     try

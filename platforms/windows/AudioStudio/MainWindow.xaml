@@ -228,12 +228,13 @@
                     <StackPanel Spacing="5">
                         <TextBlock Text="LIBRARY" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
                         <TextBlock Text="Find your WAV files" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Choose a folder containing recordings, processed copies, or trimmed exports. Audio Studio only lists WAVs in the folder you choose; it does not scan your whole computer or modify source files." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock Text="Choose a folder containing recordings, processed copies, or trimmed exports. Audio Studio only lists WAVs in that folder. Edit opens the waveform editor; Process copy creates a separate output and leaves the source unchanged." TextWrapping="Wrap" Foreground="#B8B4CC" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button x:Name="ChooseLibraryFolderButton" Content="Choose folder…" Click="ChooseLibraryFolder_Click" Style="{StaticResource PrimaryRecordButton}" />
                         <Button x:Name="RefreshLibraryButton" Content="Refresh" Click="RefreshLibrary_Click" />
                     </StackPanel>
+                    <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search WAV names or folders…" TextChanged="LibrarySearchBox_TextChanged" AutomationProperties.Name="Search the loaded WAV library by file name or folder" />
                     <TextBlock x:Name="LibraryStatusText" Text="Choose a folder to list WAV files." TextWrapping="Wrap" Foreground="#B8B4CC" />
                     <StackPanel x:Name="LibraryItemsPanel" Spacing="10" />
                 </StackPanel>
