@@ -2,6 +2,7 @@ add_library(audio_studio_core
     src/audio_types.cpp
     src/wav_writer.cpp
     src/wav_reader.cpp
+    src/audio_decoder.cpp
     src/wav_recovery.cpp
     src/noise_gate.cpp
     src/dsp_effects.cpp
