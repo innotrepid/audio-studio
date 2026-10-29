@@ -201,3 +201,10 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - Preserve distinct loading, empty-folder, no-search-match, permission, and scan-failure messages. Search remains in-memory and must not trigger scanning.
 - Preserve discovery boundaries (Android Audio Studio WAVs; Windows explicitly selected top-level folder) and the 100-file cap. No audio, recording, processing, trim, export, or publication behavior changes.
 - Manual validation: empty folder, missing/inaccessible folder, picker cancellation, refresh success/failure, Android permission grant/denial, no-match query, clear query, and Edit/Process copy actions on refreshed results.
+
+
+## Settings preference contract — 2026-10-29
+
+- The initial durable preference scope is processing configuration only; see `docs/SETTINGS-PREFERENCE-CONTRACT.md` for the Android persistence audit, Windows parity gap, defaults, validation, reset semantics, and implementation order.
+- Do not add a Settings screen until both platforms persist the same processing configuration and focused tests cover restart, reset, and invalid stored values.
+- Resolve the fresh-install mismatch between Android's visually selected Natural preset and its current slider fallbacks before exposing persisted preferences.
