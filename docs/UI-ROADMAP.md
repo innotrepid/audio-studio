@@ -130,3 +130,19 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - No audio-engine or DSP semantic changes in visual-only slices.
 - All three CI jobs must pass. Manual checks should include repeated navigation, selected-state feedback, preserved trim/settings state, recording meter updates, small-screen layout, and keyboard/focus accessibility on Windows.
 - CI success is not proof of visual usability or actual audio quality; platform-specific manual checks remain separate.
+
+
+## Record screen UI slice — 2026-10-29
+
+### One-button recording interaction
+- Replace separate Start and Stop buttons with one primary toggle action on both Android and Windows.
+- Idle state: blue button labelled **Start recording**; active state: teal-green button labelled **Stop & save WAV**.
+- Disable the control only while a file picker, processing operation, or finalization makes a new action unsafe. During recording, keep the single button enabled so it can stop and save.
+- Keep elapsed time, live RMS/peak meter, clipping warning, microphone selection, and recovery flow intact.
+- Use accessible names alongside icon cues; color must not be the only recording-state signal.
+- Do not change native capture, WAV validation/publication, recovery, or DSP semantics.
+
+### Validation gates
+- CI must pass for Android, Linux native core, and Windows native core/shell.
+- Manual smoke checks: start, observe teal state and timer/meter, stop and save, verify blue idle state and WAV playback; repeat twice; cancel the save picker; check failure/recovery paths.
+- Windows runtime validation remains pending the user's Windows environment being ready.
