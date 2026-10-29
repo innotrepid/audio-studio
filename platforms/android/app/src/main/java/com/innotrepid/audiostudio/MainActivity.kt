@@ -573,7 +573,7 @@ class MainActivity : Activity() {
         val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val librarySearch = EditText(this).apply {
             hint = "Search WAV names or folders"
-            singleLine = true
+            setSingleLine(true)
             textSize = 14f
             setTextColor(Color.WHITE)
             setHintTextColor(Color.rgb(145, 145, 165))
