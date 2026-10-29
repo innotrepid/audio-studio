@@ -82,8 +82,14 @@ void test_destination_created_after_open_is_never_overwritten() {
         std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     require(actual == std::vector<unsigned char>(sentinel.begin(), sentinel.end()),
             "late-created destination bytes must remain unchanged");
-    require(!has_partial_file_for(path),
-            "failed publication must clean the writer-owned temporary file");
+    require(has_partial_file_for(path),
+            "failed publication must retain a recoverable writer-owned partial file");
+    for (const auto& entry : std::filesystem::directory_iterator(".")) {
+        const auto name = entry.path().filename().string();
+        if (name.find("audio_studio_late_destination.wav.partial-") == 0U) {
+            std::filesystem::remove(entry.path());
+        }
+    }
     std::remove(path.c_str());
 }
 

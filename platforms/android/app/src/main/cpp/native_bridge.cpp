@@ -216,6 +216,10 @@ private:
                 if (!writer.write_frames(ring_.data() + offset, contiguous)) {
                     write_failed_.store(true, std::memory_order_release);
                     stop_requested_.store(true, std::memory_order_release);
+                    // A failed write cannot advance by the failed block. Drain the queue
+                    // indices so the worker exits instead of retrying the same bad block forever.
+                    read = write;
+                    read_index_.store(read, std::memory_order_release);
                     break;
                 }
                 read += contiguous;
@@ -239,21 +243,28 @@ private:
         const bool write_failed = write_failed_.load(std::memory_order_acquire);
         bool finalized = false;
         if (overflowed || stream_failed || write_failed) {
-            // Do not publish a plausible-looking WAV after a capture or disk-write failure.
-            writer.abort();
+            // Preserve the writer-owned partial file for the app's explicit recovery flow.
+            writer.preserve_partial();
         } else {
             finalized = writer.finalize();
-            if (!finalized) writer.abort();
+            if (!finalized) writer.preserve_partial();
         }
 
+        const auto partial_path = writer.partial_path();
         std::string result = "Saved recording: " + path + " (" +
                              std::to_string(frames) + " frames).";
         if (overflowed) {
-            result = "ERROR: Recording stopped because the audio queue filled; incomplete output was discarded.";
+            result = "ERROR: Recording stopped because the audio queue filled; a recoverable partial was retained.";
         } else if (stream_failed) {
-            result = "ERROR: The microphone stream was interrupted; incomplete output was discarded.";
+            result = "ERROR: The microphone stream was interrupted; a recoverable partial was retained.";
         } else if (write_failed || !finalized) {
-            result = "ERROR: Recording could not be fully written or finalized; incomplete output was discarded.";
+            const auto detail = writer.last_error();
+            result = "ERROR: Recording could not be fully written or finalized";
+            if (!detail.empty()) result += ": " + detail;
+            result += "; a recoverable partial was retained.";
+        }
+        if (!finalized || overflowed || stream_failed || write_failed) {
+            if (!partial_path.empty()) result += " Partial: " + partial_path;
         }
         set_status(std::move(result));
     }

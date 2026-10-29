@@ -194,7 +194,7 @@ bool WavWriter::finalize() {
     stream_.close();
     if (!flushed) {
         set_error("Could not finalize the WAV header or flush the temporary file.");
-        abort();
+        preserve_partial();
         return false;
     }
 
@@ -206,7 +206,7 @@ bool WavWriter::finalize() {
     std::filesystem::create_hard_link(temporary_path_, output_path_, path_error);
     if (path_error) {
         set_error("Could not publish the finalized WAV without replacing an existing file.");
-        abort();
+        preserve_partial();
         return false;
     }
 

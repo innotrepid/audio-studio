@@ -32,6 +32,7 @@ public:
     [[nodiscard]] bool is_open() const noexcept { return stream_.is_open(); }
     [[nodiscard]] std::uint64_t frames_written() const noexcept { return frames_written_; }
     [[nodiscard]] const std::string& last_error() const noexcept { return last_error_; }
+    [[nodiscard]] std::string partial_path() const { return temporary_path_.string(); }
 
 private:
     void set_error(const char* message);

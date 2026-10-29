@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private external fun nativeCancelNoiseGateProcessing()
     private external fun nativePrepareNoiseGateProcessing()
 
+    private lateinit var diagnosticsCapture: DiagnosticsCapture
     private lateinit var statusText: TextView
     private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
@@ -149,6 +150,9 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        diagnosticsCapture = DiagnosticsCapture(this)
+        diagnosticsCapture.installUncaughtExceptionCapture()
+        diagnosticsCapture.record("app_started", "success", mapOf("android_release" to Build.VERSION.RELEASE))
         cleanupStaleProcessingFiles()
         System.loadLibrary("audio_studio_android")
 
@@ -545,34 +549,46 @@ class MainActivity : Activity() {
                 return
             }
             libraryStatus.text = "Looking for Audio Studio WAV files…"
+            diagnosticsCapture.record("library_scan", "started", mapOf("scope" to "Music/Audio Studio"))
             try {
-                val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+                // Query Files rather than Audio.Media: WAVs are sometimes indexed with
+                // audio/x-wav or a generic MIME type, so MIME filtering hides valid files.
+                val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
                 val projection = arrayOf(
-                    MediaStore.Audio.Media._ID,
-                    MediaStore.Audio.Media.DISPLAY_NAME,
-                    MediaStore.Audio.Media.RELATIVE_PATH,
-                    MediaStore.Audio.Media.SIZE
+                    MediaStore.Files.FileColumns._ID,
+                    MediaStore.MediaColumns.DISPLAY_NAME,
+                    MediaStore.MediaColumns.RELATIVE_PATH,
+                    MediaStore.MediaColumns.SIZE
                 )
                 val rows = mutableListOf<Triple<Uri, String, String>>()
+                var scannedRows = 0
                 contentResolver.query(
                     collection,
                     projection,
-                    "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Audio.Media.MIME_TYPE} = ?",
-                    arrayOf("Music/Audio Studio/%", "audio/wav"),
-                    "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+                    "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
+                    arrayOf("Music/Audio Studio/%"),
+                    "${MediaStore.MediaColumns.DATE_ADDED} DESC"
                 )?.use { cursor ->
-                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                    val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-                    val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
-                    val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
-                    while (cursor.moveToNext() && rows.size < 100) {
-                        val name = cursor.getString(nameColumn) ?: "Untitled WAV"
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+                    val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                    val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.RELATIVE_PATH)
+                    val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+                    while (cursor.moveToNext()) {
+                        scannedRows++
+                        val name = cursor.getString(nameColumn) ?: continue
+                        if (!name.endsWith(".wav", ignoreCase = true)) continue
                         val folder = cursor.getString(pathColumn)?.substringAfter("Audio Studio/")?.trimEnd('/') ?: "Audio Studio"
-                        val sizeKb = (cursor.getLong(sizeColumn).coerceAtLeast(0L) / 1024L).coerceAtLeast(1L)
+                        val bytes = cursor.getLong(sizeColumn).coerceAtLeast(0L)
+                        val sizeKb = (bytes / 1024L).coerceAtLeast(if (bytes > 0L) 1L else 0L)
                         val uri = ContentUris.withAppendedId(collection, cursor.getLong(idColumn))
-                        rows.add(Triple(uri, name, folder + " · " + sizeKb + " KB"))
+                        rows.add(Triple(uri, name, folder + " · " + sizeKb + " KB" + if (bytes == 0L) " · EMPTY FILE" else ""))
+                        if (rows.size >= 100) break
                     }
                 } ?: throw IOException("Android could not read the audio library.")
+                diagnosticsCapture.record("library_scan", "success", mapOf(
+                    "indexed_rows_in_scope" to scannedRows,
+                    "wav_rows_found" to rows.size
+                ))
                 if (rows.isEmpty()) {
                     libraryStatus.text = "No WAV files found in Music/Audio Studio yet. Record or export a WAV first."
                     return
@@ -633,6 +649,7 @@ class MainActivity : Activity() {
                     ).apply { bottomMargin = dp(10) })
                 }
             } catch (exception: Exception) {
+                diagnosticsCapture.record("library_scan", "failure", error = exception)
                 libraryStatus.text = "Could not load the library: " + (exception.message ?: "unknown error") + ". You can still use the WAV picker."
             }
         }
@@ -640,6 +657,10 @@ class MainActivity : Activity() {
         librarySection.addView(Button(this).apply {
             text = "Refresh audio library"
             setOnClickListener { refreshAudioLibrary() }
+        }, matchWidth())
+        librarySection.addView(Button(this).apply {
+            text = "Export diagnostics report"
+            setOnClickListener { chooseDiagnosticsExport() }
         }, matchWidth())
         librarySection.addView(libraryStatus, matchWidth())
         librarySection.addView(libraryItems, matchWidth())
@@ -864,12 +885,16 @@ class MainActivity : Activity() {
         }
 
         val output = File(recordingDirectory, "recording-${System.currentTimeMillis()}.wav")
+        diagnosticsCapture.record("recording_start", "started", mapOf("staging_name" to output.name))
         val started = try {
             nativeStartRecording(output.absolutePath)
         } catch (exception: Exception) {
+            diagnosticsCapture.record("recording_start", "failure", mapOf("staging_name" to output.name), exception)
             statusText.text = "Could not start recording: ${exception.message ?: "unknown error"}"
             false
         }
+        diagnosticsCapture.record("recording_start", if (started) "success" else "failure",
+            mapOf("staging_name" to output.name, "staging_exists" to output.exists(), "staging_bytes" to output.length()))
 
         recording = started
         currentRecordingFile = if (started) output else null
@@ -917,12 +942,19 @@ class MainActivity : Activity() {
         }
         val stagedFile = currentRecordingFile
         currentRecordingFile = null
+        diagnosticsCapture.record("recording_finalize", if (nativeStatus.startsWith("Saved recording:")) "success" else "failure",
+            mapOf("native_status" to nativeStatus.replace(filesDir.absolutePath, "<app-private>").take(1200), "staging_name" to (stagedFile?.name ?: "missing"),
+                "staging_exists" to (stagedFile?.exists() == true), "staging_bytes" to (stagedFile?.length() ?: -1L)))
         if (!nativeStatus.startsWith("Saved recording:")) {
             statusText.text = interruptionNotice + "RECOVERABLE / INCOMPLETE TAKE — finalization did not succeed.\n\n" + nativeStatus +
-                "\n\nThe staged file, if present, was retained in app-private storage for recovery."
+                "\n\nThe recoverable partial, if present, was retained in app-private storage. Open “Check for interrupted recordings” to inspect it."
             return
         }
         if (stagedFile == null || !isCompletePcmWav(stagedFile)) {
+            diagnosticsCapture.record("recording_validation", "failure", mapOf(
+                "staging_name" to (stagedFile?.name ?: "missing"),
+                "staging_exists" to (stagedFile?.exists() == true),
+                "staging_bytes" to (stagedFile?.length() ?: -1L)))
             statusText.text = interruptionNotice +
                 "UNVERIFIED TAKE — WAV validation failed. The staged file was retained in app-private storage and was not exported."
             return
@@ -932,6 +964,7 @@ class MainActivity : Activity() {
         statusText.text = try {
             val publicUri = publishRecording(stagedFile)
             if (publicUri != null) {
+                diagnosticsCapture.record("recording_export", "success", mapOf("staging_name" to stagedFile.name, "source_bytes" to stagedFile.length()))
                 if (!stagedFile.delete()) {
                     interruptionNotice + "FINALIZED AND VERIFIED — recording exported successfully, but the private staging copy could not be removed."
                 } else {
@@ -941,6 +974,7 @@ class MainActivity : Activity() {
                 interruptionNotice + "FINALIZED AND VERIFIED — automatic public export is unavailable on this Android version. The verified WAV remains in app-private storage."
             }
         } catch (exception: Exception) {
+            diagnosticsCapture.record("recording_export", "failure", mapOf("staging_name" to stagedFile.name, "source_bytes" to stagedFile.length()), exception)
             interruptionNotice + "FINALIZED AND VERIFIED — export failed: ${exception.message ?: "unknown error"}. The verified WAV remains in app-private storage."
         }.let { message ->
             if (takeDetails != null) message + "\n\n" + takeDetails else message
@@ -1020,6 +1054,7 @@ class MainActivity : Activity() {
     }
 
     private fun analyzeSelectedWaveform(uri: Uri) {
+        diagnosticsCapture.record("waveform_load", "started", mapOf("source_uri_authority" to (uri.authority ?: "unknown")))
         waveformStatus.text = "Analyzing WAV in bounded memory…"
         Thread {
             var staged: File? = null
@@ -1047,6 +1082,9 @@ class MainActivity : Activity() {
                 waveformSourceFile = file
                 waveformTotalFrames = metadata[0]
                 waveformSampleRate = metadata[1]
+                diagnosticsCapture.record("waveform_load", "success", mapOf(
+                    "staged_name" to file.name, "staged_bytes" to file.length(),
+                    "frames" to metadata[0], "sample_rate_hz" to metadata[1], "channels" to metadata[2]))
                 if (previousSource != null && previousSource != file) previousSource.delete()
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
@@ -1063,6 +1101,8 @@ class MainActivity : Activity() {
                     }
                 }
             } catch (exception: Exception) {
+                diagnosticsCapture.record("waveform_load", "failure", mapOf("staged_name" to (staged?.name ?: "missing"),
+                    "staged_bytes" to (staged?.length() ?: -1L)), exception)
                 mainHandler.post { if (!isFinishing && !isDestroyed) waveformStatus.text = exception.message ?: "Waveform analysis failed." }
             } finally {
                 if (staged != waveformSourceFile) staged?.delete()
@@ -1297,7 +1337,17 @@ class MainActivity : Activity() {
             val stagedOutput = File(filesDir, "waveform-trimmed-${System.currentTimeMillis()}.wav")
             try {
                 val result = nativeTrimWav(source.absolutePath, stagedOutput.absolutePath, startFrame, endFrame)
-                if (result != "TRIMMED") throw IOException(result)
+                if (result != "TRIMMED") {
+                    diagnosticsCapture.record("trim_render", "failure", mapOf(
+                        "source_name" to source.name, "source_bytes" to source.length(),
+                        "output_name" to stagedOutput.name, "native_status" to result,
+                        "start_frame" to startFrame, "end_frame" to endFrame), IOException(result))
+                    throw IOException(result)
+                }
+                diagnosticsCapture.record("trim_render", "success", mapOf(
+                    "source_name" to source.name, "source_bytes" to source.length(),
+                    "output_name" to stagedOutput.name, "output_bytes" to stagedOutput.length(),
+                    "start_frame" to startFrame, "end_frame" to endFrame))
                 val metadata = nativeGetWavMetadata(stagedOutput.absolutePath)
                 if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L ||
                     metadata[2] !in 1L..2L || stagedOutput.length() <= WAV_HEADER_BYTES) {
@@ -1315,9 +1365,15 @@ class MainActivity : Activity() {
                         }
                     }
                 } ?: throw IOException("Could not open the chosen output file.")
-                if (copiedBytes != stagedOutput.length()) {
+                if (copiedBytes != stagedOutput.length() || copiedBytes <= WAV_HEADER_BYTES) {
                     throw IOException("Trim export was incomplete ($copiedBytes of ${stagedOutput.length()} bytes written). The original recording is preserved.")
                 }
+                val exportedBytes = verifyExportedWav(destination, stagedOutput.length())
+                diagnosticsCapture.record("trim_export", "success", mapOf(
+                    "source_name" to source.name,
+                    "output_bytes" to stagedOutput.length(),
+                    "destination_bytes_verified" to exportedBytes,
+                    "selected_frames" to (endFrame - startFrame)))
                 val seconds = metadata[0] / metadata[1]
                 val minutes = seconds / 60L
                 val remainder = seconds % 60L
@@ -1329,9 +1385,15 @@ class MainActivity : Activity() {
                         )
                 }
             } catch (exception: Exception) {
+                diagnosticsCapture.record("trim_export", "failure", mapOf(
+                    "source_name" to (source.name),
+                    "staged_output_exists" to stagedOutput.isFile,
+                    "staged_output_bytes" to stagedOutput.length(),
+                    "selected_frames" to (endFrame - startFrame)), exception)
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed)
-                        waveformStatus.text = exception.message ?: "Trim failed. Original file preserved."
+                        waveformStatus.text = (exception.message ?: "Trim failed. Original file preserved.") +
+                            " The source was not modified; inspect the chosen destination before reusing it."
                 }
             } finally {
                 stagedOutput.delete()
@@ -1368,8 +1430,15 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform document picker result API for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_DIAGNOSTICS_EXPORT) {
+            if (resultCode == RESULT_OK && data?.data != null) exportDiagnostics(data.data!!)
+            else diagnosticsCapture.record("diagnostics_export", "cancelled")
+            return
+        }
         if (requestCode == REQUEST_TRIM_OUTPUT) {
             wavPickerActive = false
+            diagnosticsCapture.record("trim_destination_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
+                mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
             if (resultCode == RESULT_OK && data?.data != null) trimSelectedWaveform(data.data!!)
             else {
                 waveformStatus.text = "Trim cancelled. No files were changed."
@@ -1379,6 +1448,8 @@ class MainActivity : Activity() {
         }
         if (requestCode == REQUEST_WAVEFORM) {
             wavPickerActive = false
+            diagnosticsCapture.record("waveform_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
+                mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
             if (resultCode == RESULT_OK && data?.data != null) analyzeSelectedWaveform(data.data!!)
             else waveformStatus.text = "Waveform selection cancelled."
             processButton.isEnabled = !recording && !processing
@@ -1387,6 +1458,8 @@ class MainActivity : Activity() {
             return
         }
         if (requestCode != REQUEST_PROCESS_WAV) return
+        diagnosticsCapture.record("processing_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
+            mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
         wavPickerActive = false
         if (resultCode != RESULT_OK) {
             processingStatus.text = "WAV selection cancelled. Nothing was processed."
@@ -1474,6 +1547,9 @@ class MainActivity : Activity() {
                     callback
                 )
                 if (!nativeStatus.startsWith("Processed WAV:")) {
+                    diagnosticsCapture.record("noise_gate_process", "failure", mapOf(
+                        "source_name" to inputFile.name, "source_bytes" to inputFile.length(),
+                        "native_status" to nativeStatus.take(1200)), IOException(nativeStatus))
                     throw IOException(nativeStatus.removePrefix("ERROR:").trim())
                 }
                 if (!isCompletePcmWav(outputFile)) {
@@ -1482,6 +1558,9 @@ class MainActivity : Activity() {
                 if (cancelRequested) throw IOException("Processing cancelled by user.")
                 val publicUri = publishRecording(outputFile, "Processed") { cancelRequested }
                     ?: throw IOException("Public export requires Android 10 or later. The processed file remains in app-private storage.")
+                diagnosticsCapture.record("noise_gate_export", "success", mapOf(
+                    "output_name" to outputFile.name, "source_bytes" to inputFile.length(),
+                    "output_bytes" to outputFile.length()))
                 if (cancelRequested) {
                     contentResolver.delete(publicUri, null, null)
                     throw IOException("Processing cancelled by user.")
@@ -1498,6 +1577,10 @@ class MainActivity : Activity() {
                     }
                 }
             } catch (exception: Exception) {
+                diagnosticsCapture.record("noise_gate_process", "failure", mapOf(
+                    "input_name" to (input?.name ?: "missing"), "input_bytes" to (input?.length() ?: -1L),
+                    "output_name" to (output?.name ?: "missing"), "output_bytes" to (output?.length() ?: -1L),
+                    "cancel_requested" to cancelRequested), exception)
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         val message = exception.message ?: "unknown error"
@@ -1615,14 +1698,16 @@ class MainActivity : Activity() {
         }
 
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        diagnosticsCapture.record("media_store_export", "started", mapOf(
+            "source_name" to source.name, "source_bytes" to source.length(), "folder" to folder))
         val destination = contentResolver.insert(collection, values)
             ?: throw IOException("Android could not create the public WAV entry")
 
+        var copiedBytes = 0L
         try {
             if (!source.isFile) throw IOException("The source WAV is no longer available.")
             val expectedBytes = source.length()
             if (expectedBytes <= 0L) throw IOException("The source WAV is empty.")
-            var copiedBytes = 0L
             val output = contentResolver.openOutputStream(destination, "w")
                 ?: throw IOException("Android could not open the exported WAV")
             output.use { stream ->
@@ -1650,6 +1735,10 @@ class MainActivity : Activity() {
             if (isCancelled?.invoke() == true) {
                 throw IOException("Export cancelled by user.")
             }
+            val verifiedBytes = verifyExportedWav(destination, expectedBytes)
+            if (verifiedBytes != expectedBytes) {
+                throw IOException("WAV export read-back size did not match the source ($verifiedBytes of $expectedBytes bytes).")
+            }
 
             val completedValues = ContentValues().apply {
                 put(MediaStore.Audio.Media.IS_PENDING, 0)
@@ -1657,11 +1746,95 @@ class MainActivity : Activity() {
             if (contentResolver.update(destination, completedValues, null, null) <= 0) {
                 throw IOException("Android could not finalize the exported WAV")
             }
+            diagnosticsCapture.record("media_store_export", "success", mapOf(
+                "source_name" to source.name, "source_bytes" to expectedBytes, "copied_bytes" to copiedBytes,
+                "verified_bytes" to verifiedBytes, "folder" to folder))
             return destination
         } catch (exception: Exception) {
+            diagnosticsCapture.record("media_store_export", "failure", mapOf(
+                "source_name" to source.name, "source_bytes" to source.length(), "copied_bytes" to copiedBytes,
+                "folder" to folder), exception)
             contentResolver.delete(destination, null, null)
             throw exception
         }
+    }
+
+    /** Read the destination back after close; catches providers that return a successful stream but persist 0 bytes. */
+    @Throws(IOException::class)
+    private fun verifyExportedWav(uri: Uri, expectedBytes: Long): Long {
+        var count = 0L
+        val header = ByteArray(12)
+        var headerCount = 0
+        contentResolver.openInputStream(uri)?.use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read == 0) continue
+                if (headerCount < header.size) {
+                    val copy = minOf(read, header.size - headerCount)
+                    System.arraycopy(buffer, 0, header, headerCount, copy)
+                    headerCount += copy
+                }
+                count += read.toLong()
+            }
+        } ?: throw IOException("Could not reopen the exported WAV for verification.")
+        if (count != expectedBytes) {
+            throw IOException("Export read-back size mismatch: expected $expectedBytes bytes, found $count.")
+        }
+        if (count <= WAV_HEADER_BYTES || headerCount < 12 ||
+            String(header, 0, 4, Charsets.US_ASCII) != "RIFF" ||
+            String(header, 8, 4, Charsets.US_ASCII) != "WAVE") {
+            throw IOException("Exported destination is empty or does not contain a RIFF/WAVE header.")
+        }
+        return count
+    }
+
+    private fun chooseDiagnosticsExport() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TITLE, "audio-studio-diagnostics.txt")
+        }
+        try {
+            startActivityForResult(intent, REQUEST_DIAGNOSTICS_EXPORT)
+            diagnosticsCapture.record("diagnostics_export", "picker_opened")
+        } catch (exception: Exception) {
+            diagnosticsCapture.record("diagnostics_export", "picker_failed", error = exception)
+            libraryStatusMessage("Could not open diagnostics export: ${exception.message ?: "unknown error"}")
+        }
+    }
+
+    private fun libraryStatusMessage(message: String) {
+        // Find the current library status without rebuilding the screen.
+        diagnosticsCapture.record("diagnostics_ui_message", "info", mapOf("message" to message))
+        statusText.text = message
+    }
+
+    private fun exportDiagnostics(destination: Uri) {
+        Thread {
+            try {
+                val report = diagnosticsCapture.reportBytes()
+                contentResolver.openOutputStream(destination, "w")?.use { it.write(report) }
+                    ?: throw IOException("Could not open the chosen diagnostics destination.")
+                val exported = contentResolver.openInputStream(destination)?.use { input ->
+                    var count = 0L
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        count += n
+                    }
+                    count
+                } ?: throw IOException("Could not verify the exported diagnostics report.")
+                if (exported != report.size.toLong()) throw IOException("Diagnostics report verification failed.")
+                diagnosticsCapture.record("diagnostics_export", "success", mapOf("report_bytes" to exported))
+                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Diagnostics report exported and verified. It contains no audio samples." }
+            } catch (exception: Exception) {
+                diagnosticsCapture.record("diagnostics_export", "failure", error = exception)
+                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Diagnostics export failed: ${exception.message ?: "unknown error"}" }
+            }
+        }.start()
     }
 
     override fun onRequestPermissionsResult(
@@ -1689,6 +1862,7 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        diagnosticsCapture.record("activity_lifecycle", "on_stop", mapOf("recording" to recording, "processing" to processing))
         // Comparison playback is a foreground-only preview; release it when the
         // Activity loses the foreground (including while the document picker opens).
         stopComparisonPlayback()
@@ -1746,6 +1920,7 @@ class MainActivity : Activity() {
         private const val REQUEST_PROCESS_WAV = 1002
         private const val REQUEST_WAVEFORM = 1003
         private const val REQUEST_TRIM_OUTPUT = 1004
+        private const val REQUEST_DIAGNOSTICS_EXPORT = 1005
         private const val WAV_HEADER_BYTES = 44L
         private const val STALE_PROCESSING_FILE_AGE_MS = 24L * 60L * 60L * 1000L
     }
