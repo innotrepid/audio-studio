@@ -773,7 +773,7 @@ public sealed partial class MainWindow : Window
             LibraryStatusText.Text = $"{files.Count} recent WAV file(s) in { _libraryFolderPath } · showing up to 100";
             foreach (var file in files)
             {
-                var item = new StackPanel { Spacing = 6, Padding = new Thickness(12) };
+                var item = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 10) };
                 item.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 20, 20, 30));
                 item.Children.Add(new TextBlock
                 {
@@ -802,7 +802,7 @@ public sealed partial class MainWindow : Window
                     }
                     catch (Exception exception)
                     {
-                        LibraryStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
+                        ProcessingStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
                     }
                 };
                 var processButton = new Button { Content = "Process" };
@@ -1082,6 +1082,12 @@ public sealed partial class MainWindow : Window
 
     private async Task ProcessWavFileAsync(StorageFile input)
     {
+        if (NativeProcessingActive() != 0)
+        {
+            ProcessingStatusText.Text = "Another WAV processing job is already running.";
+            return;
+        }
+
         if (NativeRecordingActive() != 0)
         {
             ProcessingStatusText.Text = "Stop and save the current recording before processing a WAV.";
