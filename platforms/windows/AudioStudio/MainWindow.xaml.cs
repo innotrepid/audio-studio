@@ -1297,7 +1297,7 @@ public sealed partial class MainWindow : Window
 
             // A disconnected microphone can stop capture without the user pressing Stop.
             // Reconcile the UI from the native state instead of leaving a stale meter
-            // and a disabled Start button indefinitely.
+            // and a stale recording toggle indefinitely.
             if (NativeRecordingActive() == 0 && _recordingUiActive)
             {
                 _meterTimer.Stop();
