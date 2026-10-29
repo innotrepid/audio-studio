@@ -359,7 +359,7 @@ class MainActivity : Activity() {
         }
         thresholdSeekBar = SeekBar(this).apply {
             max = 50
-            progress = gatePreferences.getInt("threshold_progress", 22).coerceIn(0, max)
+            progress = gatePreferences.getInt("threshold_progress", 16).coerceIn(0, max)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     thresholdLabel.text = "Noise threshold: ${progress - 70} dBFS"
@@ -377,7 +377,7 @@ class MainActivity : Activity() {
         }
         attenuationSeekBar = SeekBar(this).apply {
             max = 36
-            progress = gatePreferences.getInt("attenuation_progress", 18).coerceIn(0, max)
+            progress = gatePreferences.getInt("attenuation_progress", 24).coerceIn(0, max)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     attenuationLabel.text = "Noise reduction strength: ${progress - 36} dB"
