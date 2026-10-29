@@ -27,6 +27,7 @@ add_library(audio_studio_core STATIC
     ../../../../../../engine/src/audio_types.cpp
     ../../../../../../engine/src/wav_writer.cpp
     ../../../../../../engine/src/wav_reader.cpp
+    ../../../../../../engine/src/audio_decoder.cpp
     ../../../../../../engine/src/wav_recovery.cpp
     ../../../../../../engine/src/noise_gate.cpp
     ../../../../../../engine/src/dsp_effects.cpp

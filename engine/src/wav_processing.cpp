@@ -1,6 +1,7 @@
 #include "audio_studio/wav_processing.hpp"
 
 #include "audio_studio/wav_writer.hpp"
+#include "audio_studio/audio_decoder.hpp"
 #include "audio_studio/dsp_effects.hpp"
 
 #include <algorithm>
@@ -392,24 +393,16 @@ bool analyze_wav_waveform(const std::string& input_path,
         return fail(error, "Waveform bucket count must be between 1 and 1000000.");
     }
 
-    const auto input_fs = std::filesystem::u8path(input_path);
-    std::error_code ec;
-    const auto file_size = std::filesystem::file_size(input_fs, ec);
-    if (ec) return fail(error, "Could not determine the input file size.");
-    std::ifstream input(input_fs, std::ios::binary);
-    if (!input.is_open()) return fail(error, "Could not open the input WAV file.");
+    auto decoder = open_audio_decoder(input_path, error);
+    if (!decoder) return false;
 
-    AudioFormat format{};
-    std::uint64_t data_offset = 0U;
-    std::uint32_t data_size = 0U;
-    std::uint16_t encoding = 0U, bits_per_sample = 0U, block_align = 0U;
-    if (!parse_wav_header(input, file_size, format, data_offset, data_size,
-                          encoding, bits_per_sample, block_align, error)) return false;
-
+    const AudioFormat format = decoder->format();
     const std::size_t channels = format.channel_count;
-    const std::size_t bytes_per_sample = bits_per_sample / 8U;
-    const std::size_t bytes_per_frame = block_align;
-    const std::uint64_t frames = data_size / bytes_per_frame;
+    const std::uint64_t frames = decoder->total_frames();
+    if (frames == 0U || (channels != 1U && channels != 2U)) {
+        return fail(error, "Audio decoder returned an empty or unsupported audio stream.");
+    }
+
     const std::size_t output_buckets = static_cast<std::size_t>(
         std::min<std::uint64_t>(frames, static_cast<std::uint64_t>(bucket_count)));
     std::vector<WaveformPeak> result(output_buckets);
@@ -420,31 +413,23 @@ bool analyze_wav_waveform(const std::string& input_path,
         peak.max_right = -1.0F;
     }
 
-    std::vector<unsigned char> raw(kFramesPerBlock * bytes_per_frame);
-    input.clear();
-    input.seekg(static_cast<std::streamoff>(data_offset), std::ios::beg);
-    if (!input) return fail(error, "Could not seek to WAV audio data.");
-
+    std::vector<float> block(kFramesPerBlock * channels);
     std::uint64_t frame_index = 0U;
     while (frame_index < frames) {
-        const std::size_t block_frames = static_cast<std::size_t>(
+        const std::size_t requested = static_cast<std::size_t>(
             std::min<std::uint64_t>(frames - frame_index, kFramesPerBlock));
-        const std::size_t bytes_to_read = block_frames * bytes_per_frame;
-        if (!read_exact(input, raw.data(), bytes_to_read)) {
+        std::size_t frames_read = 0U;
+        if (!decoder->read_frames(block.data(), requested, frames_read, error)) {
             peaks.clear();
-            return fail(error, "Could not read the complete WAV audio data.");
+            return false;
         }
-        for (std::size_t i = 0U; i < block_frames; ++i, ++frame_index) {
-            const auto decode = [&](std::size_t channel, float& value) {
-                return decode_sample(raw.data() + i * bytes_per_frame + channel * bytes_per_sample,
-                                     encoding, bits_per_sample, value);
-            };
-            float left = 0.0F, right = 0.0F;
-            if (!decode(0U, left) || (channels == 2U && !decode(1U, right))) {
-                peaks.clear();
-                return fail(error, "WAV contains a non-finite or unsupported audio sample.");
-            }
-            if (channels == 1U) right = left;
+        if (frames_read == 0U || frames_read > requested) {
+            peaks.clear();
+            return fail(error, "Audio decoder returned an invalid waveform block.");
+        }
+        for (std::size_t i = 0U; i < frames_read; ++i, ++frame_index) {
+            float left = block[i * channels];
+            float right = channels == 2U ? block[i * channels + 1U] : left;
             left = std::clamp(left, -1.0F, 1.0F);
             right = std::clamp(right, -1.0F, 1.0F);
             const std::size_t bucket = static_cast<std::size_t>(
@@ -462,7 +447,6 @@ bool analyze_wav_waveform(const std::string& input_path,
     if (total_frames_out != nullptr) *total_frames_out = frames;
     return true;
 }
-
 
 bool trim_wav(const std::string& input_path,
               const std::string& output_path,
