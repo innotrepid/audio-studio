@@ -76,3 +76,12 @@ A feature is complete only when it builds on its target platforms, has tests for
 - [x] Add regression coverage for PCM24 waveform, trim, and processing paths.
 - [ ] Validate imported WAVs from representative phones, DAWs, and Windows recording apps on real devices.
 - [ ] Consider WAVE_FORMAT_EXTENSIBLE and multi-data-chunk WAV only with dedicated fixtures and parser tests.
+
+
+## WAV compatibility roadmap
+- [x] Common mono/stereo PCM 8/16/24/32-bit and IEEE float32 inputs in waveform, trim, and processing paths.
+- [x] Standard WAVE_FORMAT_EXTENSIBLE wrappers for PCM/IEEE float with matching valid/container bit depths.
+- [ ] Extract a shared streaming decoder/format-probe interface so WAV and future formats feed the same normalized-float DSP pipeline.
+- [ ] Add RF64/BW64 and >4 GiB-safe WAV support, including dedicated large-file fixtures.
+- [ ] Add multi-data-chunk handling and broaden channel layouts only after downstream DSP/output semantics are explicit.
+- [ ] Add codec-backed compressed formats (e.g. FLAC/MP3/AAC) as separate decoder modules with licensing, security, and resource limits reviewed.

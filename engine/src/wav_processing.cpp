@@ -125,6 +125,33 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
             const std::uint32_t byte_rate = read_u32_le(fmt.data() + 8U);
             block_align = read_u16_le(fmt.data() + 12U);
             bits_per_sample = read_u16_le(fmt.data() + 14U);
+            // WAVE_FORMAT_EXTENSIBLE wraps the actual subformat in a GUID.
+            // Resolve only the canonical PCM/IEEE-float GUIDs; do not guess codecs.
+            if (encoding == 0xfffeU) {
+                if (chunk_size < 40U) {
+                    return fail(error, "WAVE_FORMAT_EXTENSIBLE format chunk is too short.");
+                }
+                std::array<unsigned char, 24U> extension{};
+                stream.seekg(static_cast<std::streamoff>(payload + 16U), std::ios::beg);
+                if (!read_exact(stream, extension.data(), extension.size())) {
+                    return fail(error, "Could not read the WAVE_FORMAT_EXTENSIBLE fields.");
+                }
+                const std::uint16_t extension_size = read_u16_le(extension.data());
+                const std::uint16_t valid_bits = read_u16_le(extension.data() + 2U);
+                const std::uint32_t subformat = read_u32_le(extension.data() + 8U);
+                const std::array<unsigned char, 12U> guid_tail{
+                    extension[12], extension[13], extension[14], extension[15],
+                    extension[16], extension[17], extension[18], extension[19],
+                    extension[20], extension[21], extension[22], extension[23]};
+                const std::array<unsigned char, 12U> canonical_tail{
+                    0x00U, 0x00U, 0x10U, 0x00U, 0x80U, 0x00U,
+                    0x00U, 0xaaU, 0x00U, 0x38U, 0x9bU, 0x71U};
+                if (extension_size < 22U || valid_bits != bits_per_sample ||
+                    guid_tail != canonical_tail || (subformat != 1U && subformat != 3U)) {
+                    return fail(error, "Unsupported WAVE_FORMAT_EXTENSIBLE subformat or valid-bit layout.");
+                }
+                encoding = static_cast<std::uint16_t>(subformat);
+            }
             const bool pcm_supported = encoding == 1U &&
                 (bits_per_sample == 8U || bits_per_sample == 16U ||
                  bits_per_sample == 24U || bits_per_sample == 32U);
@@ -135,7 +162,7 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
                 sample_rate < 8000U || sample_rate > 192000U ||
                 block_align != channels * bytes_per_sample ||
                 byte_rate != sample_rate * static_cast<std::uint32_t>(block_align)) {
-                return fail(error, "Supported WAV input is mono/stereo PCM 8/16/24/32-bit or IEEE float32.");
+                return fail(error, "Supported WAV input is mono/stereo PCM 8/16/24/32-bit or IEEE float32, including standard WAVE_FORMAT_EXTENSIBLE wrappers.");
             }
             have_format = true;
         } else if (tag_is(chunk_tag, "data")) {
