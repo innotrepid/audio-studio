@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ContentValues
+import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -525,15 +526,135 @@ class MainActivity : Activity() {
         processingSection.addView(stopPlaybackButton, matchWidth())
         processingSection.addView(notice, matchWidth())
 
+        // Browse WAVs exported by Audio Studio without reopening a document picker.
+        val libraryStatus = TextView(this).apply {
+            text = "Your Audio Studio WAV files will appear here."
+            textSize = 14f
+            setTextColor(Color.rgb(190, 198, 214))
+            setPadding(0, 8, 0, 8)
+        }
+        val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val librarySection = makeSection(
+            "Your audio library",
+            "Find recordings, processed copies, and trimmed exports. Editing and processing never overwrite the selected source."
+        )
+        fun refreshAudioLibrary() {
+            libraryItems.removeAllViews()
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                libraryStatus.text = "The in-app library requires Android 10 or later. Use the WAV picker on this device."
+                return
+            }
+            libraryStatus.text = "Looking for Audio Studio WAV files…"
+            try {
+                val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+                val projection = arrayOf(
+                    MediaStore.Audio.Media._ID,
+                    MediaStore.Audio.Media.DISPLAY_NAME,
+                    MediaStore.Audio.Media.RELATIVE_PATH,
+                    MediaStore.Audio.Media.SIZE
+                )
+                val rows = mutableListOf<Triple<Uri, String, String>>()
+                contentResolver.query(
+                    collection,
+                    projection,
+                    "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ? AND ${MediaStore.Audio.Media.MIME_TYPE} = ?",
+                    arrayOf("Music/Audio Studio/%", "audio/wav"),
+                    "${MediaStore.Audio.Media.DATE_ADDED} DESC"
+                )?.use { cursor ->
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                    val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+                    val pathColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
+                    val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+                    while (cursor.moveToNext() && rows.size < 100) {
+                        val name = cursor.getString(nameColumn) ?: "Untitled WAV"
+                        val folder = cursor.getString(pathColumn)?.substringAfter("Audio Studio/")?.trimEnd('/') ?: "Audio Studio"
+                        val sizeKb = (cursor.getLong(sizeColumn).coerceAtLeast(0L) / 1024L).coerceAtLeast(1L)
+                        val uri = ContentUris.withAppendedId(collection, cursor.getLong(idColumn))
+                        rows.add(Triple(uri, name, folder + " · " + sizeKb + " KB"))
+                    }
+                } ?: throw IOException("Android could not read the audio library.")
+                if (rows.isEmpty()) {
+                    libraryStatus.text = "No WAV files found in Music/Audio Studio yet. Record or export a WAV first."
+                    return
+                }
+                libraryStatus.text = rows.size.toString() + " recent WAV file(s) · showing up to 100"
+                rows.forEach { row ->
+                    val uri = row.first
+                    val name = row.second
+                    val details = row.third
+                    val item = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(12, 12, 12, 12)
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            setColor(Color.rgb(20, 20, 30))
+                            cornerRadius = dp(12).toFloat()
+                            setStroke(dp(1), Color.rgb(58, 54, 80))
+                        }
+                    }
+                    item.addView(TextView(this).apply {
+                        text = name
+                        textSize = 15f
+                        setTextColor(Color.WHITE)
+                        setTypeface(null, android.graphics.Typeface.BOLD)
+                    }, matchWidth())
+                    item.addView(TextView(this).apply {
+                        text = details
+                        textSize = 12f
+                        setTextColor(Color.rgb(190, 198, 214))
+                        setPadding(0, dp(3), 0, dp(8))
+                    }, matchWidth())
+                    val actions = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER
+                    }
+                    actions.addView(Button(this).apply {
+                        text = "Edit"
+                        setOnClickListener {
+                            librarySection.visibility = android.view.View.GONE
+                            editSection.visibility = android.view.View.VISIBLE
+                            recordSection.visibility = android.view.View.GONE
+                            processingSection.visibility = android.view.View.GONE
+                            analyzeSelectedWaveform(uri)
+                        }
+                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    actions.addView(Button(this).apply {
+                        text = "Process"
+                        setOnClickListener {
+                            librarySection.visibility = android.view.View.GONE
+                            editSection.visibility = android.view.View.GONE
+                            recordSection.visibility = android.view.View.GONE
+                            processingSection.visibility = android.view.View.VISIBLE
+                            onActivityResult(REQUEST_PROCESS_WAV, RESULT_OK, Intent().setData(uri))
+                        }
+                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    item.addView(actions, matchWidth())
+                    libraryItems.addView(item, LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { bottomMargin = dp(10) })
+                }
+            } catch (exception: Exception) {
+                libraryStatus.text = "Could not load the library: " + (exception.message ?: "unknown error") + ". You can still use the WAV picker."
+            }
+        }
+
+        librarySection.addView(Button(this).apply {
+            text = "Refresh audio library"
+            setOnClickListener { refreshAudioLibrary() }
+        }, matchWidth())
+        librarySection.addView(libraryStatus, matchWidth())
+        librarySection.addView(libraryItems, matchWidth())
+
         fun sectionLayoutParams() = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = 18 }
         recordSection.visibility = android.view.View.VISIBLE
         editSection.visibility = android.view.View.GONE
         processingSection.visibility = android.view.View.GONE
+        librarySection.visibility = android.view.View.GONE
         root.addView(recordSection, sectionLayoutParams())
         root.addView(editSection, sectionLayoutParams())
         root.addView(processingSection, sectionLayoutParams())
+        root.addView(librarySection, sectionLayoutParams())
 
         val navBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -548,6 +669,8 @@ class MainActivity : Activity() {
                 recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
                 editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
                 processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
+                librarySection.visibility = if (target === librarySection) android.view.View.VISIBLE else android.view.View.GONE
+                if (target === librarySection) refreshAudioLibrary()
 
                 // Navigation must be a single tap. Do not force an orientation change here:
                 // Android can deliver it asynchronously and some devices recreate or relayout
@@ -558,7 +681,8 @@ class MainActivity : Activity() {
         listOf(
             navButton("Record", recordSection),
             navButton("Edit", editSection),
-            navButton("Process", processingSection)
+            navButton("Process", processingSection),
+            navButton("Library", librarySection)
         ).forEach { navBar.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
 
         val screenScroll = ScrollView(this).apply {
