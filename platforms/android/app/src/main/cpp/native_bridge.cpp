@@ -431,6 +431,23 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
 
 
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeWavAnalysisError(
+    JNIEnv* env, jobject /* thiz */, jstring input_path) {
+    if (input_path == nullptr) return env->NewStringUTF("ERROR: No WAV file path was provided.");
+    const char* chars = env->GetStringUTFChars(input_path, nullptr);
+    if (chars == nullptr) return env->NewStringUTF("ERROR: Could not read the selected file path.");
+    const std::string input(chars);
+    env->ReleaseStringUTFChars(input_path, chars);
+    std::vector<audio_studio::WaveformPeak> peaks;
+    std::string error;
+    if (audio_studio::analyze_wav_waveform(input, 1U, peaks, nullptr, nullptr, &error)) {
+        return env->NewStringUTF("OK");
+    }
+    const std::string message = "ERROR: " + error;
+    return env->NewStringUTF(message.c_str());
+}
+
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeGetWavMetadata(
     JNIEnv* env, jobject /* thiz */, jstring input_path) {
