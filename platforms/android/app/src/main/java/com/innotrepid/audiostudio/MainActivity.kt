@@ -1309,7 +1309,7 @@ class MainActivity : Activity() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "audio/wav"
-            putExtra(Intent.EXTRA_TITLE, "AudioStudio-trimmed.wav")
+            putExtra(Intent.EXTRA_TITLE, uniqueWavName("AudioStudio-trimmed"))
         }
         wavPickerActive = true
         trimWaveformButton.isEnabled = false
