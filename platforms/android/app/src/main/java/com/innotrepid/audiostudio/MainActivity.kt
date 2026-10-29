@@ -852,7 +852,7 @@ class MainActivity : Activity() {
         emphasize(trimWaveformButton, Color.rgb(79, 125, 255))
         emphasize(cancelProcessingButton, Color.rgb(255, 122, 134))
         emphasize(playProcessedButton, Color.rgb(32, 201, 151))
-        applyProcessingPreset("Natural")
+        updateProcessingPresetVisual(getSharedPreferences("noise_gate_preferences", MODE_PRIVATE).getString("selected_preset", "Natural") ?: "Natural")
 
         setContentView(appShell)
         root.post { showInterruptedRecordings(showWhenNone = false) }
@@ -870,6 +870,18 @@ class MainActivity : Activity() {
         attenuationSeekBar.progress = values[1]
         dspGainSeekBar.progress = values[2]
         highPassSeekBar.progress = values[3]
+        updateProcessingPresetVisual(preset)
+        getSharedPreferences("noise_gate_preferences", MODE_PRIVATE).edit()
+            .putInt("threshold_progress", values[0])
+            .putInt("attenuation_progress", values[1])
+            .putInt("dsp_gain_progress", values[2])
+            .putInt("high_pass_progress", values[3])
+            .putString("selected_preset", preset)
+            .apply()
+        statusText.text = "${preset} preset applied. Adjust the sliders to taste; always A/B-check the result."
+    }
+
+    private fun updateProcessingPresetVisual(preset: String) {
         processingPresetButtons.forEach { (name, button) ->
             val selected = name == preset
             button.background = android.graphics.drawable.GradientDrawable().apply {
@@ -883,13 +895,6 @@ class MainActivity : Activity() {
             )
             button.isSelected = selected
         }
-        getSharedPreferences("noise_gate_preferences", MODE_PRIVATE).edit()
-            .putInt("threshold_progress", values[0])
-            .putInt("attenuation_progress", values[1])
-            .putInt("dsp_gain_progress", values[2])
-            .putInt("high_pass_progress", values[3])
-            .apply()
-        statusText.text = "${preset} preset applied. Adjust the sliders to taste; always A/B-check the result."
     }
 
     private fun showInterruptedRecordings(showWhenNone: Boolean = true) {
