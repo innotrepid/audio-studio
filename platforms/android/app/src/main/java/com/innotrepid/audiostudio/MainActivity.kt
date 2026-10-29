@@ -696,31 +696,79 @@ class MainActivity : Activity() {
         val navBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(8, 8, 8, 8)
-            setBackgroundColor(Color.rgb(28, 34, 45))
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+            setBackgroundColor(Color.rgb(20, 20, 30))
         }
-        fun navButton(label: String, target: LinearLayout): Button = Button(this).apply {
-            text = label
-            isAllCaps = false
-            setOnClickListener {
-                recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
-                editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
-                processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
-                librarySection.visibility = if (target === librarySection) android.view.View.VISIBLE else android.view.View.GONE
-                if (target === librarySection) refreshAudioLibrary()
-
-                // Navigation must be a single tap. Do not force an orientation change here:
-                // Android can deliver it asynchronously and some devices recreate or relayout
-                // the Activity while a picker is being launched. The existing ScrollView
-                // handles portrait and landscape without rebuilding the view tree.
+        val navItems = mutableListOf<Pair<LinearLayout, LinearLayout>>()
+        fun applyNavSelection(selectedTarget: LinearLayout) {
+            navItems.forEach { (item, target) ->
+                val selected = target === selectedTarget
+                item.isSelected = selected
+                item.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(if (selected) Color.rgb(55, 45, 83) else Color.TRANSPARENT)
+                    cornerRadius = dp(12).toFloat()
+                    if (selected) setStroke(dp(1), Color.rgb(178, 155, 255))
+                }
+                item.getChildAt(0).let { icon ->
+                    if (icon is TextView) icon.setTextColor(
+                        if (selected) Color.rgb(205, 188, 255) else Color.rgb(160, 155, 180)
+                    )
+                }
+                item.getChildAt(1).let { label ->
+                    if (label is TextView) {
+                        label.setTextColor(if (selected) Color.WHITE else Color.rgb(190, 185, 208))
+                        label.typeface = android.graphics.Typeface.create(
+                            "sans-serif", if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+                        )
+                    }
+                }
             }
         }
+        fun navButton(label: String, iconGlyph: String, target: LinearLayout): LinearLayout {
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                minimumHeight = dp(54)
+                setPadding(dp(4), dp(5), dp(4), dp(5))
+                isClickable = true
+                isFocusable = true
+                contentDescription = label
+                setOnClickListener {
+                    recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
+                    editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
+                    processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
+                    librarySection.visibility = if (target === librarySection) android.view.View.VISIBLE else android.view.View.GONE
+                    applyNavSelection(target)
+                    if (target === librarySection) refreshAudioLibrary()
+
+                    // Keep the existing view tree and operation state alive across navigation.
+                    // Do not force orientation changes or rebuild the screen.
+                }
+            }
+            item.addView(TextView(this).apply {
+                text = iconGlyph
+                textSize = 19f
+                gravity = Gravity.CENTER
+                setTextColor(Color.rgb(160, 155, 180))
+                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(24)))
+            item.addView(TextView(this).apply {
+                text = label
+                textSize = 10f
+                gravity = Gravity.CENTER
+                maxLines = 1
+                setTextColor(Color.rgb(190, 185, 208))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            navItems.add(item to target)
+            return item
+        }
         listOf(
-            navButton("Record", recordSection),
-            navButton("Edit", editSection),
-            navButton("Process", processingSection),
-            navButton("Library", librarySection)
+            navButton("Record", "●", recordSection),
+            navButton("Edit", "⌁", editSection),
+            navButton("Process", "✧", processingSection),
+            navButton("Library", "▤", librarySection)
         ).forEach { navBar.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
+        applyNavSelection(recordSection)
 
         val screenScroll = ScrollView(this).apply {
             isFillViewport = true
