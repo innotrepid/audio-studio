@@ -55,6 +55,7 @@ class MainActivity : Activity() {
 
     private lateinit var diagnosticsCapture: DiagnosticsCapture
     private var libraryRefreshAction: (() -> Unit)? = null
+    private var libraryStatusView: TextView? = null
     private lateinit var statusText: TextView
     private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
@@ -571,6 +572,7 @@ class MainActivity : Activity() {
             setPadding(0, 8, 0, 8)
         }
         val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        libraryStatusView = libraryStatus
         var applyLibrarySearchFilter: () -> Unit = {}
         val librarySearch = EditText(this).apply {
             hint = "Search WAV names or folders"
@@ -2017,7 +2019,7 @@ class MainActivity : Activity() {
             if (granted) {
                 libraryRefreshAction?.invoke()
             } else {
-                statusText.text = "Audio-file access was denied. The in-app library cannot list existing WAVs without it; the document picker remains available."
+                libraryStatusView?.text = "Audio-file access was denied. Allow audio access in system settings, then tap Refresh audio library. The WAV picker remains available."
             }
             return
         }
