@@ -201,3 +201,13 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - Preserve distinct loading, empty-folder, no-search-match, permission, and scan-failure messages. Search remains in-memory and must not trigger scanning.
 - Preserve discovery boundaries (Android Audio Studio WAVs; Windows explicitly selected top-level folder) and the 100-file cap. No audio, recording, processing, trim, export, or publication behavior changes.
 - Manual validation: empty folder, missing/inaccessible folder, picker cancellation, refresh success/failure, Android permission grant/denial, no-match query, clear query, and Edit/Process copy actions on refreshed results.
+
+
+## Cross-platform processing preference persistence — 2026-10-29
+
+- Fresh-install processing defaults match the Natural preset: threshold −54 dBFS, attenuation −12 dB, output gain 0 dB, and high-pass Off.
+- Android's existing app-private preference keys remain intact; only fallback values are aligned, so saved user settings are not migrated or overwritten.
+- Windows stores the same four processing values and selected preset in app-local settings, validates/clamps loaded values, and preserves valid custom values when an unknown preset label falls back to Natural.
+- Windows sliders use the same ranges as Android. Persist values at drag release/keyboard completion rather than on every slider movement; applying a preset explicitly saves its label and values.
+- The processing operation continues to read the selected slider values at start; no recording, WAV, or DSP algorithm behavior changes.
+- Follow-up gate: add focused automated coverage for preference defaults, clamping, restart restoration, unknown labels, reset isolation, and processing snapshots before exposing a dedicated Settings screen.
