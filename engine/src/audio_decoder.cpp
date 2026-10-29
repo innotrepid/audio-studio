@@ -157,11 +157,14 @@ public:
             std::min<std::uint64_t>(requested, total_frames_ - position_frames_));
         if (frames == 0U) return true;
         const std::size_t bytes = frames * block_align_;
+        if (bytes > static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max()))
+            return fail(error, "Requested audio block exceeds the stream read limit.");
         std::vector<unsigned char> raw(bytes);
         if (!stream_.read(reinterpret_cast<char*>(raw.data()), static_cast<std::streamsize>(bytes)))
             return fail(error, "Could not read the complete WAV audio block.");
         const std::size_t bytes_per_sample = bits_ / 8U;
         const std::size_t samples = frames * format_.channel_count;
+        std::vector<float> decoded(samples);
         for (std::size_t i = 0; i < samples; ++i) {
             const auto* p = raw.data() + i * bytes_per_sample;
             float value = 0.0F;
@@ -188,8 +191,9 @@ public:
                 value = v < 0 ? static_cast<float>(v / 2147483648.0) :
                                 static_cast<float>(v / 2147483647.0);
             }
-            destination[i] = value;
+            decoded[i] = value;
         }
+        std::copy(decoded.begin(), decoded.end(), destination);
         position_frames_ += frames;
         read = frames;
         return true;
