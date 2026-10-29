@@ -571,6 +571,7 @@ class MainActivity : Activity() {
             setPadding(0, 8, 0, 8)
         }
         val libraryItems = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var applyLibrarySearchFilter: () -> Unit = {}
         val librarySearch = EditText(this).apply {
             hint = "Search WAV names or folders"
             setSingleLine(true)
@@ -582,22 +583,26 @@ class MainActivity : Activity() {
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    val query = s?.toString()?.trim()?.lowercase().orEmpty()
-                    var visibleCount = 0
-                    for (index in 0 until libraryItems.childCount) {
-                        val item = libraryItems.getChildAt(index) as? LinearLayout ?: continue
-                        val searchable = item.tag?.toString()?.lowercase().orEmpty()
-                        val visible = query.isEmpty() || searchable.contains(query)
-                        item.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
-                        if (visible) visibleCount++
-                    }
-                    if (libraryItems.childCount > 0) {
-                        libraryStatus.text = if (visibleCount == 0) "No WAVs match “$query”. Clear the search to see all files."
-                            else "$visibleCount matching WAV file(s) · showing up to 100 recent files"
-                    }
+                    applyLibrarySearchFilter()
                 }
                 override fun afterTextChanged(s: android.text.Editable?) = Unit
             })
+        }
+        applyLibrarySearchFilter = {
+            val query = librarySearch.text?.toString()?.trim()?.lowercase().orEmpty()
+            var visibleCount = 0
+            for (index in 0 until libraryItems.childCount) {
+                val item = libraryItems.getChildAt(index) as? LinearLayout ?: continue
+                val searchable = item.tag?.toString()?.lowercase().orEmpty()
+                val visible = query.isEmpty() || searchable.contains(query)
+                item.visibility = if (visible) android.view.View.VISIBLE else android.view.View.GONE
+                if (visible) visibleCount++
+            }
+            if (libraryItems.childCount > 0) {
+                libraryStatus.text = if (visibleCount == 0) "No WAVs match “$query”. Clear the search to see all files."
+                    else if (query.isEmpty()) "$visibleCount recent WAV file(s) · showing up to 100"
+                    else "$visibleCount matching WAV file(s) · showing up to 100 recent files"
+            }
         }
         val librarySection = makeSection(
             "Your audio library",
@@ -729,6 +734,7 @@ class MainActivity : Activity() {
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
                     ).apply { bottomMargin = dp(10) })
                 }
+                applyLibrarySearchFilter()
             } catch (exception: Exception) {
                 diagnosticsCapture.record("library_scan", "failure", error = exception)
                 libraryStatus.text = "Could not load the library: " + (exception.message ?: "unknown error") + ". You can still use the WAV picker."
