@@ -86,6 +86,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherTimer _trimPreviewTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private readonly MediaPlayer _previewPlayer = new();
     private TimeSpan _trimPreviewEndPosition;
+    private int _trimPreviewGeneration;
     private ulong? _trimExactStartFrame;
     private ulong? _trimExactEndFrame;
     private bool _applyingTrimTimecodes;
@@ -148,12 +149,14 @@ public sealed partial class MainWindow : Window
         };
         TrimStartSlider.ValueChanged += (_, _) =>
         {
+            if (!_applyingTrimTimecodes) CancelTrimRangePreviewForSelectionChange();
             if (!_applyingTrimTimecodes) _trimExactStartFrame = null;
             TrimStartText.Text = $"Trim start: {TrimStartSlider.Value / 10.0:0.0}%";
             UpdateWaveformSelectionMarkers();
         };
         TrimEndSlider.ValueChanged += (_, _) =>
         {
+            if (!_applyingTrimTimecodes) CancelTrimRangePreviewForSelectionChange();
             if (!_applyingTrimTimecodes) _trimExactEndFrame = null;
             TrimEndText.Text = $"Trim end: {TrimEndSlider.Value / 10.0:0.0}%";
             UpdateWaveformSelectionMarkers();
@@ -206,6 +209,7 @@ public sealed partial class MainWindow : Window
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
         var file = await picker.PickSingleFileAsync();
         if (file is null) return;
+        CancelTrimRangePreviewForSelectionChange();
         const int buckets = 240;
         var peaks = new float[buckets * 4];
         try
@@ -353,6 +357,7 @@ public sealed partial class MainWindow : Window
         var width = Math.Max(1.0, WaveformCanvas.ActualWidth > 0 ? WaveformCanvas.ActualWidth : WaveformCanvas.Width);
         var fraction = Math.Clamp(point.Position.X / width, 0.0, 1.0);
         var requestedFrame = (ulong)Math.Round(fraction * _waveformTotalFrames, MidpointRounding.AwayFromZero);
+        CancelTrimRangePreviewForSelectionChange();
         var (rawStart, rawEnd) = GetTrimRangeFrames();
         // Normalize a range left temporarily collapsed by the legacy sliders so
         // a drag can recover it without unsigned underflow or an empty selection.
@@ -497,6 +502,7 @@ public sealed partial class MainWindow : Window
         {
             _applyingTrimTimecodes = false;
         }
+        CancelTrimRangePreviewForSelectionChange();
         _trimExactStartFrame = startFrame;
         _trimExactEndFrame = endFrame;
         UpdateWaveformSelectionMarkers();
@@ -544,7 +550,9 @@ public sealed partial class MainWindow : Window
         }
 
         var startPosition = TimeSpan.FromSeconds((double)startFrame / _waveformSampleRate);
-        _trimPreviewEndPosition = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
+        var endPosition = TimeSpan.FromSeconds((double)endFrame / _waveformSampleRate);
+        var previewGeneration = ++_trimPreviewGeneration;
+        _trimPreviewEndPosition = endPosition;
         PreviewTrimRangeButton.IsEnabled = false;
         _trimPreviewTimer.Stop();
         try
@@ -556,6 +564,10 @@ public sealed partial class MainWindow : Window
 
             // Give the media pipeline a moment to open the WAV before seeking.
             await Task.Delay(150);
+            if (previewGeneration != _trimPreviewGeneration ||
+                !string.Equals(sourcePath, _waveformFilePath, StringComparison.OrdinalIgnoreCase))
+                return;
+
             _previewPlayer.PlaybackSession.Position = startPosition;
             _previewPlayer.Play();
             _trimPreviewTimer.Start();
@@ -563,22 +575,35 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            _trimPreviewTimer.Stop();
-            _trimPreviewEndPosition = TimeSpan.Zero;
-            WaveformStatusText.Text = $"Could not preview selected range: {exception.Message}";
+            if (previewGeneration == _trimPreviewGeneration)
+            {
+                _trimPreviewTimer.Stop();
+                _trimPreviewEndPosition = TimeSpan.Zero;
+                WaveformStatusText.Text = $"Could not preview selected range: {exception.Message}";
+            }
         }
         finally
         {
-            PreviewTrimRangeButton.IsEnabled = !string.IsNullOrWhiteSpace(_waveformFilePath) && _waveformTotalFrames > 1;
+            if (previewGeneration == _trimPreviewGeneration)
+                PreviewTrimRangeButton.IsEnabled = !string.IsNullOrWhiteSpace(_waveformFilePath) && _waveformTotalFrames > 1;
         }
+    }
+
+    private void CancelTrimRangePreviewForSelectionChange()
+    {
+        if (_trimPreviewEndPosition <= TimeSpan.Zero && !_trimPreviewTimer.IsEnabled)
+            return;
+        StopTrimRangePreview(updateStatus: false);
     }
 
     private void StopTrimRangePreview(bool updateStatus)
     {
+        _trimPreviewGeneration++;
         _trimPreviewTimer.Stop();
         _trimPreviewEndPosition = TimeSpan.Zero;
         _previewPlayer.Pause();
         _previewPlayer.Source = null;
+        PreviewTrimRangeButton.IsEnabled = !string.IsNullOrWhiteSpace(_waveformFilePath) && _waveformTotalFrames > 1;
         if (updateStatus)
             WaveformStatusText.Text = "Selection preview finished. Adjust the range or export the trim.";
     }
