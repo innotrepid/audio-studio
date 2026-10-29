@@ -104,6 +104,25 @@ This visual direction supersedes the earlier mint-only visual treatment as the l
 - Icon glyphs are decorative cues, not replacements for accessible text labels.
 
 
-## UI redesign pause — 2026-10-28
+## Record screen UI slice — 2026-10-29
 
-The user has explicitly paused further UI redesign while feature development and targeted hardening continue. Treat the current interface as a functional interim shell, not the intended final product. Do not add more visual-only PRs until a dedicated UI brainstorm and deeper research phase is requested. Preserve the current visual direction and incremental-update performance contract; record any newly discovered UI issues as notes rather than opportunistically redesigning screens. PR #79 adds icon-led Windows navigation and selected-workspace feedback; Android/Windows visual parity, broader iconography, and screen composition remain deferred pending that research.
+### One-button recording interaction
+- Replace separate Start and Stop buttons with one primary toggle action on both Android and Windows.
+- Idle state: blue button labelled **Start recording**.
+- Active state: teal-green button labelled **Stop & save WAV**.
+- Disable the control only while a file picker, processing operation, or finalization makes a new action unsafe. During recording, keep the single button enabled so it can stop and save.
+- Keep the existing elapsed timer, live RMS/peak meter, clipping warning, microphone selection, and recovery flow intact.
+- Use accessible names in addition to icon-like visual cues; color must not be the only recording-state signal.
+- Do not change native capture, WAV validation/publication, recovery, or DSP semantics.
+
+### Record screen hierarchy
+- Recording state and elapsed time first, then the input meter/clipping state.
+- One large primary action with blue idle / teal active colors; use charcoal surfaces and concise labels.
+- Microphone selection and refresh stay visible but visually secondary.
+- Recovery remains available without competing with the primary recording action.
+
+### Validation gates
+- CI must pass for Android, Linux native core, and Windows native shell/core.
+- Manual smoke checks: start, observe teal state and timer/meter, stop and save, verify blue idle state and WAV playback; repeat twice; cancel the save picker; check failure/recovery paths.
+- Windows runtime validation remains pending the user's Windows environment being ready.
+
