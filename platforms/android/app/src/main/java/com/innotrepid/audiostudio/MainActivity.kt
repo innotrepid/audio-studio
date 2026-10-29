@@ -6,7 +6,6 @@ import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.media.MediaPlayer
@@ -50,6 +49,7 @@ class MainActivity : Activity() {
     private external fun nativePrepareNoiseGateProcessing()
 
     private lateinit var statusText: TextView
+    private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
     private lateinit var inputMeter: ProgressBar
     private lateinit var startButton: Button
@@ -203,6 +203,13 @@ class MainActivity : Activity() {
             text = "Reduce background noise in a WAV"
             setOnClickListener { chooseWavToProcess() }
         }
+        processingStatus = TextView(this).apply {
+            text = "Choose a PCM16 WAV to create a noise-reduced copy."
+            textSize = 13f
+            setTextColor(Color.rgb(190, 198, 214))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(8))
+        }
         waveformStatus = TextView(this).apply { text = "No waveform loaded."; textSize = 13f; setTextColor(Color.rgb(190, 198, 214)); gravity = Gravity.CENTER }
         waveformView = WaveformView(this)
         trimStartLabel = TextView(this).apply {
@@ -317,7 +324,7 @@ class MainActivity : Activity() {
                     try { nativeCancelNoiseGateProcessing() } catch (_: Exception) { }
                     text = "Cancelling…"
                     isEnabled = false
-                    statusText.text = "Cancelling safely after the current audio block…"
+                    processingStatus.text = "Cancelling safely after the current audio block…"
                 }
             }
         }
@@ -484,6 +491,7 @@ class MainActivity : Activity() {
 
         val processingSection = makeSection("Clean up audio", "Choose a preset first. Advanced controls are available below; processing creates a separate copy.")
         processingSection.addView(processButton, matchWidth())
+        processingSection.addView(processingStatus, matchWidth())
         processingSection.addView(presetRow, matchWidth())
 
         val advancedControls = LinearLayout(this).apply {
@@ -540,13 +548,10 @@ class MainActivity : Activity() {
                 editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
                 processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
 
-                // Editing and processing benefit from the wider waveform/control layout.
-                // Keep the existing activity and view tree alive while the system rotates it.
-                requestedOrientation = if (target === editSection || target === processingSection) {
-                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                } else {
-                    ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                }
+                // Navigation must be a single tap. Do not force an orientation change here:
+                // Android can deliver it asynchronously and some devices recreate or relayout
+                // the Activity while a picker is being launched. The existing ScrollView
+                // handles portrait and landscape without rebuilding the view tree.
             }
         }
         listOf(
@@ -868,7 +873,7 @@ class MainActivity : Activity() {
 
     private fun chooseWavWaveform() {
         if (recording || processing || wavPickerActive || startAfterPermission) {
-            statusText.text = "Finish the current operation before loading a waveform."
+            waveformStatus.text = "Finish the current operation before loading a waveform."
             return
         }
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -1208,7 +1213,7 @@ class MainActivity : Activity() {
 
     private fun chooseWavToProcess() {
         if (recording || processing || wavPickerActive || startAfterPermission) {
-            statusText.text = "Stop the current operation before processing a WAV."
+            processingStatus.text = "Stop the current operation before processing a WAV."
             return
         }
         val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -1224,7 +1229,7 @@ class MainActivity : Activity() {
             wavPickerActive = false
             processButton.isEnabled = true
             startButton.isEnabled = true
-            statusText.text = "Could not open the document picker: ${exception.message ?: "unknown error"}"
+            processingStatus.text = "Could not open the document picker: ${exception.message ?: "unknown error"}"
         }
     }
 
@@ -1252,12 +1257,13 @@ class MainActivity : Activity() {
         if (requestCode != REQUEST_PROCESS_WAV) return
         wavPickerActive = false
         if (resultCode != RESULT_OK) {
+            processingStatus.text = "WAV selection cancelled. Nothing was processed."
             processButton.isEnabled = true
             startButton.isEnabled = true
             return
         }
         val uri = data?.data ?: run {
-            statusText.text = "No WAV file was selected."
+            processingStatus.text = "No WAV file was selected."
             processButton.isEnabled = true
             startButton.isEnabled = true
             return
@@ -1285,7 +1291,7 @@ class MainActivity : Activity() {
         val gainDb = (dspGainSeekBar.progress - 24).toFloat()
         val highPassHz = if (highPassSeekBar.progress == 0) 0.0F else
             (20 + (highPassSeekBar.progress - 1) * 10).coerceAtMost(500).toFloat()
-        statusText.text = "Preparing WAV for noise reduction…"
+        processingStatus.text = "Preparing WAV for noise reduction…"
         Thread {
             val stagingDirectory = File(filesDir, "processing-staging")
             var input: File? = null
@@ -1321,7 +1327,7 @@ class MainActivity : Activity() {
                         mainHandler.post {
                             if (!isFinishing && !isDestroyed && processing) {
                                 processingProgress.progress = percent
-                                statusText.text = "Reducing background noise… $percent%"
+                                processingStatus.text = "Reducing background noise… $percent%"
                             }
                         }
                     }
@@ -1356,14 +1362,14 @@ class MainActivity : Activity() {
                     if (!isFinishing && !isDestroyed) {
                         playOriginalButton.isEnabled = true
                         playProcessedButton.isEnabled = true
-                        statusText.text = "Noise-reduced copy saved as " + outputName + ". Use Play original and Play noise-reduced copy to compare them. Your source is unchanged."
+                        processingStatus.text = "Noise-reduced copy saved as " + outputName + ". Use Play original and Play noise-reduced copy to compare them. Your source is unchanged."
                     }
                 }
             } catch (exception: Exception) {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         val message = exception.message ?: "unknown error"
-                        statusText.text = if (cancelRequested || message.contains("cancelled", ignoreCase = true)) {
+                        processingStatus.text = if (cancelRequested || message.contains("cancelled", ignoreCase = true)) {
                             "Processing cancelled. The original was not modified."
                         } else {
                             "Could not process WAV: $message. The original was not modified."
@@ -1392,11 +1398,11 @@ class MainActivity : Activity() {
 
     private fun playComparisonFile(file: File?, label: String) {
         if (recording || processing || wavPickerActive || startAfterPermission) {
-            statusText.text = "Wait until the current operation finishes before playback."
+            processingStatus.text = "Wait until the current operation finishes before playback."
             return
         }
         if (file == null || !file.isFile || file.length() <= WAV_HEADER_BYTES) {
-            statusText.text = "No comparison file is available. Process a WAV first."
+            processingStatus.text = "No comparison file is available. Process a WAV first."
             return
         }
         stopComparisonPlayback()
@@ -1408,7 +1414,7 @@ class MainActivity : Activity() {
                 if (playback === prepared && !isFinishing && !isDestroyed) {
                     prepared.start()
                     stopPlaybackButton.isEnabled = true
-                    statusText.text = "Playing " + label + " recording. You can switch to the other version at any time."
+                    processingStatus.text = "Playing " + label + " recording. You can switch to the other version at any time."
                 } else {
                     prepared.release()
                 }
@@ -1418,7 +1424,7 @@ class MainActivity : Activity() {
                     completed.release()
                     playback = null
                     stopPlaybackButton.isEnabled = false
-                    statusText.text = "Playback finished. Compare the other version or process another WAV."
+                    processingStatus.text = "Playback finished. Compare the other version or process another WAV."
                 }
             }
             player.setOnErrorListener { failed, _, _ ->
@@ -1427,17 +1433,17 @@ class MainActivity : Activity() {
                     playback = null
                 }
                 stopPlaybackButton.isEnabled = false
-                statusText.text = "Playback failed for the " + label + " file. Try another PCM16 WAV."
+                processingStatus.text = "Playback failed for the " + label + " file. Try another PCM16 WAV."
                 true
             }
             stopPlaybackButton.isEnabled = true
-            statusText.text = "Preparing " + label + " playback…"
+            processingStatus.text = "Preparing " + label + " playback…"
             player.prepareAsync()
         } catch (exception: Exception) {
             playback?.release()
             playback = null
             stopPlaybackButton.isEnabled = false
-            statusText.text = "Could not play " + label + " recording: " + (exception.message ?: "unknown error")
+            processingStatus.text = "Could not play " + label + " recording: " + (exception.message ?: "unknown error")
         }
     }
 
