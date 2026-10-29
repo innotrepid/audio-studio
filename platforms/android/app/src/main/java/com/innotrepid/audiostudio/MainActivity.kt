@@ -59,8 +59,7 @@ class MainActivity : Activity() {
     private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
     private lateinit var inputMeter: ProgressBar
-    private lateinit var startButton: Button
-    private lateinit var stopButton: Button
+    private lateinit var recordToggleButton: Button
     private lateinit var processButton: Button
     private lateinit var waveformButton: Button
     private lateinit var waveformStatus: TextView
@@ -200,15 +199,14 @@ class MainActivity : Activity() {
             progress = 0
         }
 
-        startButton = Button(this).apply {
-            text = "Start recording"
-            setOnClickListener { requestPermissionOrStart() }
+        recordToggleButton = Button(this).apply {
+            text = "●  Start recording"
+            textSize = 16f
+            minHeight = dp(56)
+            contentDescription = "Start recording"
+            setOnClickListener { if (recording) stopRecording() else requestPermissionOrStart() }
         }
-        stopButton = Button(this).apply {
-            text = "Stop and save WAV"
-            isEnabled = false
-            setOnClickListener { stopRecording() }
-        }
+        updateRecordToggleButton()
         processButton = Button(this).apply {
             text = "Reduce background noise in a WAV"
             setOnClickListener { chooseWavToProcess() }
@@ -474,8 +472,7 @@ class MainActivity : Activity() {
         recordSection.addView(statusText, matchWidth())
         recordSection.addView(inputMeterLabel, matchWidth())
         recordSection.addView(inputMeter, matchWidth())
-        recordSection.addView(startButton, matchWidth())
-        recordSection.addView(stopButton, matchWidth())
+        recordSection.addView(recordToggleButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
 
         val editSection = makeSection("Edit a recording", "Inspect the waveform, preview a range, and export a trim. Your source stays unchanged.")
@@ -818,10 +815,9 @@ class MainActivity : Activity() {
             button.setTextColor(text)
             button.typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
-        emphasize(startButton, Color.rgb(178, 155, 255))
-        emphasize(processButton, Color.rgb(178, 155, 255))
-        emphasize(trimWaveformButton, Color.rgb(178, 155, 255))
-        emphasize(stopButton, Color.rgb(255, 122, 134))
+        updateRecordToggleButton()
+        emphasize(processButton, Color.rgb(79, 125, 255))
+        emphasize(trimWaveformButton, Color.rgb(79, 125, 255))
         emphasize(cancelProcessingButton, Color.rgb(255, 122, 134))
 
         setContentView(appShell)
@@ -881,7 +877,7 @@ class MainActivity : Activity() {
 
     private fun recoverInterruptedRecording(partial: File, output: File) {
         recoverButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         processButton.isEnabled = false
         statusText.text = "Validating and recovering ${partial.name}…"
         Thread {
@@ -908,7 +904,7 @@ class MainActivity : Activity() {
                 if (!isFinishing && !isDestroyed) {
                     statusText.text = finalResult
                     recoverButton.isEnabled = true
-                    startButton.isEnabled = !recording && !processing && !wavPickerActive
+                    recordToggleButton.isEnabled = !recording && !processing && !wavPickerActive
                     processButton.isEnabled = !recording && !processing && !wavPickerActive
                     if (finalResult.startsWith("Recovered")) showInterruptedRecordings(showWhenNone = false)
                 }
@@ -926,13 +922,13 @@ class MainActivity : Activity() {
         } else {
             startAfterPermission = true
             processButton.isEnabled = false
-            startButton.isEnabled = false
+            recordToggleButton.isEnabled = false
             try {
                 requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
             } catch (exception: Exception) {
                 startAfterPermission = false
                 processButton.isEnabled = true
-                startButton.isEnabled = true
+                recordToggleButton.isEnabled = true
                 statusText.text = "Could not request microphone permission: ${exception.message ?: "unknown error"}"
             }
         }
@@ -962,10 +958,10 @@ class MainActivity : Activity() {
         recording = started
         currentRecordingFile = if (started) output else null
         if (!started) output.delete()
-        startButton.isEnabled = !started
+        recordToggleButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !started
-        stopButton.isEnabled = started
-        if (started) {
+        updateRecordToggleButton()
+                if (started) {
             recordingStartedAtMs = SystemClock.elapsedRealtime()
             statusText.text = "Recording · 00:00"
             mainHandler.removeCallbacks(recordingClock)
@@ -982,16 +978,26 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun updateRecordToggleButton() {
+        val recordingNow = recording
+        recordToggleButton.text = if (recordingNow) "■  Stop & save WAV" else "●  Start recording"
+        recordToggleButton.contentDescription = if (recordingNow) "Stop recording and save WAV" else "Start recording"
+        val tint = if (recordingNow) Color.rgb(32, 201, 151) else Color.rgb(79, 125, 255)
+        recordToggleButton.backgroundTintList = android.content.res.ColorStateList.valueOf(tint)
+        recordToggleButton.setTextColor(Color.rgb(8, 18, 28))
+        recordToggleButton.typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+    }
+
     private fun stopRecording(interrupted: Boolean = false) {
         if (!recording) return
         recording = false
         mainHandler.removeCallbacks(recordingClock)
         mainHandler.removeCallbacks(recordingMeterClock)
         inputMeter.progress = 0
-        startButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
+        recordToggleButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
         processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
-        stopButton.isEnabled = false
-
+        updateRecordToggleButton()
+        
         val nativeStatus = try {
             nativeStopRecording()
         } catch (exception: Exception) {
@@ -1105,13 +1111,13 @@ class MainActivity : Activity() {
         wavPickerActive = true
         waveformButton.isEnabled = false
         processButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         try { startActivityForResult(picker, REQUEST_WAVEFORM) }
         catch (exception: Exception) {
             wavPickerActive = false
             waveformButton.isEnabled = true
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             waveformStatus.text = "Could not open file picker: ${exception.message ?: "unknown error"}"
         }
     }
@@ -1479,13 +1485,13 @@ class MainActivity : Activity() {
         }
         wavPickerActive = true
         processButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         try {
             startActivityForResult(picker, REQUEST_PROCESS_WAV)
         } catch (exception: Exception) {
             wavPickerActive = false
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             processingStatus.text = "Could not open the document picker: ${exception.message ?: "unknown error"}"
         }
     }
@@ -1516,7 +1522,7 @@ class MainActivity : Activity() {
             if (resultCode == RESULT_OK && data?.data != null) analyzeSelectedWaveform(data.data!!)
             else waveformStatus.text = "Waveform selection cancelled."
             processButton.isEnabled = !recording && !processing
-            startButton.isEnabled = !recording && !processing
+            recordToggleButton.isEnabled = !recording && !processing
             waveformButton.isEnabled = !recording && !processing
             return
         }
@@ -1527,18 +1533,18 @@ class MainActivity : Activity() {
         if (resultCode != RESULT_OK) {
             processingStatus.text = "WAV selection cancelled. Nothing was processed."
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             return
         }
         val uri = data?.data ?: run {
             processingStatus.text = "No WAV file was selected."
             processButton.isEnabled = true
-            startButton.isEnabled = true
+            recordToggleButton.isEnabled = true
             return
         }
         stopComparisonPlayback()
         processButton.isEnabled = false
-        startButton.isEnabled = false
+        recordToggleButton.isEnabled = false
         playOriginalButton.isEnabled = false
         playProcessedButton.isEnabled = false
         comparisonOriginalFile?.delete()
@@ -1664,7 +1670,7 @@ class MainActivity : Activity() {
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed) {
                         processButton.isEnabled = true
-                        startButton.isEnabled = true
+                        recordToggleButton.isEnabled = true
                         cancelProcessingButton.isEnabled = false
                         cancelProcessingButton.text = "Cancel processing"
                         processingProgress.visibility = android.view.View.GONE
@@ -1923,7 +1929,7 @@ class MainActivity : Activity() {
         val shouldStart = startAfterPermission
         startAfterPermission = false
         processButton.isEnabled = !recording && !processing && !wavPickerActive
-        startButton.isEnabled = !recording && !processing && !wavPickerActive
+        recordToggleButton.isEnabled = !recording && !processing && !wavPickerActive
         if (shouldStart && grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
         ) {
