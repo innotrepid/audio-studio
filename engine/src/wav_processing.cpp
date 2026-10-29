@@ -146,8 +146,9 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
                 const std::array<unsigned char, 12U> canonical_tail{
                     0x00U, 0x00U, 0x10U, 0x00U, 0x80U, 0x00U,
                     0x00U, 0xaaU, 0x00U, 0x38U, 0x9bU, 0x71U};
-                if (extension_size < 22U || valid_bits != bits_per_sample ||
-                    guid_tail != canonical_tail || (subformat != 1U && subformat != 3U)) {
+                if (extension_size < 22U || extension_size > chunk_size - 18U ||
+                    valid_bits != bits_per_sample || guid_tail != canonical_tail ||
+                    (subformat != 1U && subformat != 3U)) {
                     return fail(error, "Unsupported WAVE_FORMAT_EXTENSIBLE subformat or valid-bit layout.");
                 }
                 encoding = static_cast<std::uint16_t>(subformat);
