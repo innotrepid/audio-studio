@@ -1303,6 +1303,7 @@ public sealed partial class MainWindow : Window
                 _meterTimer.Stop();
                 _recordingUiActive = false;
                 RecordToggleButton.IsEnabled = NativeProcessingActive() == 0;
+                UpdateRecordToggleVisual(isRecording: false);
                 InputDeviceComboBox.IsEnabled = true;
                 RefreshInputDevicesButton.IsEnabled = true;
                 InputLevelBar.Value = 0;
