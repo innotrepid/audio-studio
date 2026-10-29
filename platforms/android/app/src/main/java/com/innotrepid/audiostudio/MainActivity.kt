@@ -40,6 +40,7 @@ class MainActivity : Activity() {
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
+    private external fun nativeWavAnalysisError(inputPath: String): String
     private external fun nativeGetWavMetadata(inputPath: String): LongArray
     private external fun nativeTrimWav(inputPath: String, outputPath: String, startFrame: Long, endFrame: Long): String
     private external fun nativeStopRecording(): String
@@ -908,7 +909,14 @@ class MainActivity : Activity() {
                     }
                 } ?: throw IOException("Could not open the selected file.")
                 val peaks = nativeAnalyzeWavWaveform(file.absolutePath, 240)
-                if (peaks.size != 960) throw IOException("Could not analyze this file. Choose a valid PCM16 WAV.")
+                if (peaks.isEmpty()) {
+                    val detail = nativeWavAnalysisError(file.absolutePath)
+                    throw IOException(
+                        if (detail.startsWith("ERROR:")) detail.removePrefix("ERROR:").trim()
+                        else "Could not analyze the selected WAV. Choose a valid mono/stereo PCM16 WAV."
+                    )
+                }
+                if (peaks.size != 960) throw IOException("Waveform analysis returned an incomplete result. Try another PCM16 WAV.")
                 val metadata = nativeGetWavMetadata(file.absolutePath)
                 if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L) throw IOException("Could not read WAV duration metadata.")
                 val previousSource = waveformSourceFile
