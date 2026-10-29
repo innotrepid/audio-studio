@@ -146,3 +146,11 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - CI must pass for Android, Linux native core, and Windows native core/shell.
 - Manual smoke checks: start, observe teal state and timer/meter, stop and save, verify blue idle state and WAV playback; repeat twice; cancel the save picker; check failure/recovery paths.
 - Windows runtime validation remains pending the user's Windows environment being ready.
+
+## Editor waveform focus — 2026-10-29
+
+- Give the Android waveform more vertical space and make selected duration the most visible piece of trim feedback.
+- Keep the in/out timecodes together in one compact row while retaining readable time formats and a full-width apply action.
+- Keep preview and export as distinct actions; exporting creates a new WAV and preserves the source.
+- Keep waveform peak analysis cached; dragging handles updates selection feedback only and must not re-read or re-analyze the file.
+- No native audio or trim semantics changed. Manual validation: load a WAV, drag both handles, apply exact timecodes, preview the selection, export a trim, and verify the source remains unchanged.

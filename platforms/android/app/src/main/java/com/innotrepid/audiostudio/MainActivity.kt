@@ -264,8 +264,15 @@ class MainActivity : Activity() {
         }
         trimSelectionSummary = TextView(this).apply {
             text = "Selected duration: load a WAV"
-            textSize = 13f
-            setTextColor(Color.rgb(190, 198, 214))
+            textSize = 16f
+            setTextColor(Color.rgb(220, 210, 255))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.rgb(20, 20, 30))
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), Color.rgb(70, 60, 100))
+            }
         }
 
         trimStartTimeInput = EditText(this).apply {
@@ -475,23 +482,33 @@ class MainActivity : Activity() {
         recordSection.addView(recordToggleButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
 
-        val editSection = makeSection("Edit a recording", "Inspect the waveform, preview a range, and export a trim. Your source stays unchanged.")
+        val editSection = makeSection("Edit a recording", "Shape the exact range you need. The waveform is the main workspace; preview and export always leave the source untouched.")
         editSection.addView(waveformButton, matchWidth())
-        editSection.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 180))
+        editSection.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(224)))
+        editSection.addView(trimSelectionSummary, matchWidth())
         editSection.addView(trimStartLabel, matchWidth())
         editSection.addView(trimStartSeekBar, matchWidth())
         editSection.addView(trimEndLabel, matchWidth())
         editSection.addView(trimEndSeekBar, matchWidth())
         editSection.addView(TextView(this).apply {
-            text = "PRECISE TIME CODES · minutes:seconds.milliseconds"
-            textSize = 12f
-            setTextColor(Color.rgb(190, 198, 214))
-            setPadding(0, 10, 0, 2)
+            text = "PRECISE IN / OUT POINTS"
+            textSize = 11f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(178, 155, 255))
+            setPadding(0, dp(12), 0, dp(2))
         }, matchWidth())
-        editSection.addView(trimStartTimeInput, matchWidth())
-        editSection.addView(trimEndTimeInput, matchWidth())
+        val trimTimecodeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        trimTimecodeRow.addView(trimStartTimeInput, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginEnd = dp(6)
+        })
+        trimTimecodeRow.addView(trimEndTimeInput, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dp(6)
+        })
+        editSection.addView(trimTimecodeRow, matchWidth())
         editSection.addView(applyTrimTimecodesButton, matchWidth())
-        editSection.addView(trimSelectionSummary, matchWidth())
         editSection.addView(previewSelectionButton, matchWidth())
         editSection.addView(trimWaveformButton, matchWidth())
         editSection.addView(waveformStatus, matchWidth())
