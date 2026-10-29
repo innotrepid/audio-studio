@@ -14,7 +14,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
-import android.provider.DocumentsContract
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
@@ -1374,11 +1373,10 @@ class MainActivity : Activity() {
                     "staged_output_exists" to stagedOutput.isFile,
                     "staged_output_bytes" to stagedOutput.length(),
                     "selected_frames" to (endFrame - startFrame)), exception)
-                try { DocumentsContract.deleteDocument(contentResolver, destination) } catch (_: Exception) { }
                 mainHandler.post {
                     if (!isFinishing && !isDestroyed)
                         waveformStatus.text = (exception.message ?: "Trim failed. Original file preserved.") +
-                            " Any incomplete destination was removed when the document provider allowed it."
+                            " The source was not modified; inspect the chosen destination before reusing it."
                 }
             } finally {
                 stagedOutput.delete()
