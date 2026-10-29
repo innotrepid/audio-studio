@@ -154,3 +154,11 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - Keep preview and export as distinct actions; exporting creates a new WAV and preserves the source.
 - Keep waveform peak analysis cached; dragging handles updates selection feedback only and must not re-read or re-analyze the file.
 - No native audio or trim semantics changed. Manual validation: load a WAV, drag both handles, apply exact timecodes, preview the selection, export a trim, and verify the source remains unchanged.
+
+## Processing preset focus — 2026-10-29
+
+- Put the three existing presets first in the Android Processing workflow and visually distinguish the selected preset.
+- Keep the process/export action immediately after preset selection; advanced noise-gate, gain, and high-pass controls remain collapsed by default.
+- Give the processed-copy playback action a teal-green accent so it is easy to find during A/B listening; original playback remains visually secondary.
+- Preserve saved preset parameter values, processing cancellation, integrity checks, and non-destructive output behavior. This is a presentation-only slice.
+- Manual validation: switch all three presets, confirm the active state follows the selection, process a WAV, cancel another processing attempt, compare original and processed playback, and confirm the source remains unchanged.
