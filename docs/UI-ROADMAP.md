@@ -183,3 +183,11 @@ The dedicated UI brainstorm has resumed. Research references include Audacity's 
 - Preserve platform discovery boundaries: Android searches the recent Audio Studio WAV list; Windows searches only the user-selected folder and its current top-level results.
 - Keep the 100-file discovery cap explicit; this search filters loaded results and is not a whole-device search.
 - Manual validation: search by full and partial filename, search a folder/category term, confirm no-match guidance, clear search, refresh, switch Library away/back, and confirm Edit/Process copy still target the correct file.
+
+
+## Library search refresh consistency — 2026-10-29
+
+- Reapply the current search query after refreshing/reloading library entries so newly discovered WAVs are filtered immediately.
+- Preserve the query across a refresh and keep the status line accurate for all-results, matching-results, and no-match states.
+- Search remains in-memory and does not trigger extra scans; refresh is still the only action that reloads the file list.
+- Manual validation: enter a query, refresh, confirm matching rows remain filtered and status is correct; clear query, refresh again, and confirm all loaded rows return. Repeat on Android and Windows.
