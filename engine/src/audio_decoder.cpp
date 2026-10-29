@@ -1,5 +1,6 @@
 #include "audio_studio/audio_decoder.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
