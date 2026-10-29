@@ -19,6 +19,15 @@ internal class DiagnosticsCapture(context: Context) {
     private val backupFile = File(directory, "audio-studio-diagnostics.previous.jsonl")
     private val lock = Any()
 
+    fun installUncaughtExceptionCapture() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            record("uncaught_exception", "fatal", mapOf("thread_name" to thread.name), throwable)
+            if (previous != null) previous.uncaughtException(thread, throwable)
+            else throwable.printStackTrace()
+        }
+    }
+
     fun record(event: String, outcome: String, details: Map<String, Any?> = emptyMap(), error: Throwable? = null) {
         synchronized(lock) {
             try {
