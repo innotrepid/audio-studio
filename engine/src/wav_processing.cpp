@@ -8,6 +8,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -64,7 +65,9 @@ bool tag_is(const std::array<unsigned char, 4U>& tag, const char* expected) noex
 
 bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
                       AudioFormat& format, std::uint64_t& data_offset,
-                      std::uint32_t& data_size, std::string* error) {
+                      std::uint32_t& data_size, std::uint16_t& encoding_out,
+                      std::uint16_t& bits_per_sample_out, std::uint16_t& block_align_out,
+                      std::string* error) {
     if (file_size < 12U) return fail(error, "WAV file is too small to contain a RIFF header.");
 
     std::array<unsigned char, 12U> header{};
@@ -122,12 +125,17 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
             const std::uint32_t byte_rate = read_u32_le(fmt.data() + 8U);
             block_align = read_u16_le(fmt.data() + 12U);
             bits_per_sample = read_u16_le(fmt.data() + 14U);
-            if (encoding != 1U || bits_per_sample != 16U ||
+            const bool pcm_supported = encoding == 1U &&
+                (bits_per_sample == 8U || bits_per_sample == 16U ||
+                 bits_per_sample == 24U || bits_per_sample == 32U);
+            const bool float_supported = encoding == 3U && bits_per_sample == 32U;
+            const std::uint16_t bytes_per_sample = static_cast<std::uint16_t>(bits_per_sample / 8U);
+            if ((!pcm_supported && !float_supported) ||
                 (channels != 1U && channels != 2U) ||
                 sample_rate < 8000U || sample_rate > 192000U ||
-                block_align != channels * 2U ||
+                block_align != channels * bytes_per_sample ||
                 byte_rate != sample_rate * static_cast<std::uint32_t>(block_align)) {
-                return fail(error, "Only valid mono/stereo PCM16 WAV files are supported.");
+                return fail(error, "Supported WAV input is mono/stereo PCM 8/16/24/32-bit or IEEE float32.");
             }
             have_format = true;
         } else if (tag_is(chunk_tag, "data")) {
@@ -151,7 +159,54 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
     }
 
     format = {sample_rate, channels};
+    encoding_out = encoding;
+    bits_per_sample_out = bits_per_sample;
+    block_align_out = block_align;
     return true;
+}
+
+bool decode_sample(const unsigned char* bytes, std::uint16_t encoding,
+                   std::uint16_t bits_per_sample, float& sample) noexcept {
+    if (encoding == 3U && bits_per_sample == 32U) {
+        std::uint32_t raw = read_u32_le(bytes);
+        std::memcpy(&sample, &raw, sizeof(sample));
+        return std::isfinite(sample);
+    }
+    if (encoding != 1U) return false;
+    switch (bits_per_sample) {
+    case 8U:
+        sample = (static_cast<int>(bytes[0]) - 128) / 128.0F;
+        return true;
+    case 16U: {
+        const auto raw = read_u16_le(bytes);
+        const auto value = static_cast<std::int16_t>(raw);
+        sample = value < 0 ? static_cast<float>(value) / 32768.0F
+                           : static_cast<float>(value) / 32767.0F;
+        return true;
+    }
+    case 24U: {
+        std::int32_t raw = static_cast<std::int32_t>(bytes[0]) |
+            (static_cast<std::int32_t>(bytes[1]) << 8U) |
+            (static_cast<std::int32_t>(bytes[2]) << 16U);
+        const std::int64_t value = (raw & 0x800000) != 0
+            ? static_cast<std::int64_t>(raw) - 0x1000000LL
+            : static_cast<std::int64_t>(raw);
+        sample = value < 0 ? static_cast<float>(value / 8388608.0)
+                           : static_cast<float>(value / 8388607.0);
+        return true;
+    }
+    case 32U: {
+        const std::uint32_t raw = read_u32_le(bytes);
+        const std::int64_t value = raw >= 0x80000000U
+            ? static_cast<std::int64_t>(raw) - 0x100000000LL
+            : static_cast<std::int64_t>(raw);
+        sample = value < 0 ? static_cast<float>(value / 2147483648.0)
+                           : static_cast<float>(value / 2147483647.0);
+        return true;
+    }
+    default:
+        return false;
+    }
 }
 }  // namespace
 
@@ -203,7 +258,9 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     AudioFormat format{};
     std::uint64_t data_offset = 0U;
     std::uint32_t data_size = 0U;
-    if (!parse_wav_header(input, input_size, format, data_offset, data_size, error)) return false;
+    std::uint16_t encoding = 0U, bits_per_sample = 0U, block_align = 0U;
+    if (!parse_wav_header(input, input_size, format, data_offset, data_size,
+                          encoding, bits_per_sample, block_align, error)) return false;
 
     NoiseGate gate(settings);
     DspEffects dsp_effects;
@@ -214,7 +271,8 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     }
 
     const std::size_t channels = format.channel_count;
-    const std::size_t bytes_per_frame = channels * 2U;
+    const std::size_t bytes_per_sample = bits_per_sample / 8U;
+    const std::size_t bytes_per_frame = block_align;
     const std::uint64_t total_frames = data_size / bytes_per_frame;
     std::vector<unsigned char> raw(kFramesPerBlock * bytes_per_frame);
     AudioBuffer block;
@@ -251,11 +309,11 @@ bool process_wav_with_noise_gate(const std::string& input_path,
 
         block.samples.resize(sample_count);
         for (std::size_t i = 0U; i < sample_count; ++i) {
-            const auto raw_sample = read_u16_le(raw.data() + i * 2U);
-            const auto sample = static_cast<std::int16_t>(raw_sample);
-            block.samples[i] = sample < 0
-                ? static_cast<float>(sample) / 32768.0F
-                : static_cast<float>(sample) / 32767.0F;
+            if (!decode_sample(raw.data() + i * bytes_per_sample, encoding,
+                               bits_per_sample, block.samples[i])) {
+                writer.abort();
+                return fail(error, "WAV contains a non-finite or unsupported audio sample.");
+            }
         }
         if (!gate.process(block)) {
             writer.abort();
@@ -316,10 +374,13 @@ bool analyze_wav_waveform(const std::string& input_path,
     AudioFormat format{};
     std::uint64_t data_offset = 0U;
     std::uint32_t data_size = 0U;
-    if (!parse_wav_header(input, file_size, format, data_offset, data_size, error)) return false;
+    std::uint16_t encoding = 0U, bits_per_sample = 0U, block_align = 0U;
+    if (!parse_wav_header(input, file_size, format, data_offset, data_size,
+                          encoding, bits_per_sample, block_align, error)) return false;
 
     const std::size_t channels = format.channel_count;
-    const std::size_t bytes_per_frame = channels * 2U;
+    const std::size_t bytes_per_sample = bits_per_sample / 8U;
+    const std::size_t bytes_per_frame = block_align;
     const std::uint64_t frames = data_size / bytes_per_frame;
     const std::size_t output_buckets = static_cast<std::size_t>(
         std::min<std::uint64_t>(frames, static_cast<std::uint64_t>(bucket_count)));
@@ -346,15 +407,18 @@ bool analyze_wav_waveform(const std::string& input_path,
             return fail(error, "Could not read the complete WAV audio data.");
         }
         for (std::size_t i = 0U; i < block_frames; ++i, ++frame_index) {
-            const auto decode = [&](std::size_t channel) {
-                const auto raw_sample = read_u16_le(raw.data() + i * bytes_per_frame + channel * 2U);
-                const auto sample = static_cast<std::int16_t>(raw_sample);
-                return sample < 0
-                    ? static_cast<float>(sample) / 32768.0F
-                    : static_cast<float>(sample) / 32767.0F;
+            const auto decode = [&](std::size_t channel, float& value) {
+                return decode_sample(raw.data() + i * bytes_per_frame + channel * bytes_per_sample,
+                                     encoding, bits_per_sample, value);
             };
-            const float left = decode(0U);
-            const float right = channels == 2U ? decode(1U) : left;
+            float left = 0.0F, right = 0.0F;
+            if (!decode(0U, left) || (channels == 2U && !decode(1U, right))) {
+                peaks.clear();
+                return fail(error, "WAV contains a non-finite or unsupported audio sample.");
+            }
+            if (channels == 1U) right = left;
+            left = std::clamp(left, -1.0F, 1.0F);
+            right = std::clamp(right, -1.0F, 1.0F);
             const std::size_t bucket = static_cast<std::size_t>(
                 (frame_index * static_cast<std::uint64_t>(output_buckets)) / frames);
             auto& peak = result[std::min(bucket, output_buckets - 1U)];
@@ -416,10 +480,11 @@ bool trim_wav(const std::string& input_path,
     AudioFormat format{};
     std::uint64_t data_offset = 0U;
     std::uint32_t data_size = 0U;
-    if (!parse_wav_header(input, input_size, format, data_offset, data_size, error)) return false;
+    std::uint16_t encoding = 0U, bits_per_sample = 0U, block_align = 0U;
+    if (!parse_wav_header(input, input_size, format, data_offset, data_size,
+                          encoding, bits_per_sample, block_align, error)) return false;
 
-    const std::uint64_t bytes_per_frame =
-        static_cast<std::uint64_t>(format.channel_count) * 2U;
+    const std::uint64_t bytes_per_frame = block_align;
     const std::uint64_t total_frames = data_size / bytes_per_frame;
     if (end_frame > total_frames) {
         return fail(error, "Trim range extends beyond the end of the WAV file.");
@@ -439,7 +504,8 @@ bool trim_wav(const std::string& input_path,
     }
 
     const std::size_t channels = format.channel_count;
-    const std::size_t bytes_per_frame_size = channels * 2U;
+    const std::size_t bytes_per_sample = bits_per_sample / 8U;
+    const std::size_t bytes_per_frame_size = block_align;
     std::vector<unsigned char> raw(kFramesPerBlock * bytes_per_frame_size);
     std::vector<float> samples(kFramesPerBlock * channels);
     std::uint64_t remaining = end_frame - start_frame;
@@ -453,11 +519,11 @@ bool trim_wav(const std::string& input_path,
             return fail(error, "Could not read the selected WAV trim range.");
         }
         for (std::size_t i = 0U; i < sample_count; ++i) {
-            const auto bits = read_u16_le(raw.data() + i * 2U);
-            const auto sample = static_cast<std::int16_t>(bits);
-            samples[i] = sample < 0
-                ? static_cast<float>(sample) / 32768.0F
-                : static_cast<float>(sample) / 32767.0F;
+            if (!decode_sample(raw.data() + i * bytes_per_sample, encoding,
+                               bits_per_sample, samples[i])) {
+                writer.abort();
+                return fail(error, "WAV contains a non-finite or unsupported audio sample.");
+            }
         }
         if (!writer.write_frames(samples.data(), frames)) {
             const std::string message = "Could not write trimmed WAV: " + writer.last_error();
