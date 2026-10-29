@@ -806,7 +806,7 @@ public sealed partial class MainWindow : Window
                         ProcessingStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
                     }
                 };
-                var processButton = new Button { Content = "Process" };
+                var processButton = new Button { Content = "Process copy" };
                 processButton.Click += async (_, _) =>
                 {
                     try
