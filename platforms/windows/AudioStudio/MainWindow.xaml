@@ -6,8 +6,8 @@
 
     <Grid Background="#0C0C14">
     <Grid.Resources>
-        <SolidColorBrush x:Key="StudioAccentBrush" Color="#B29BFF" />
-        <SolidColorBrush x:Key="StudioRecordBrush" Color="#77E0B5" />
+        <SolidColorBrush x:Key="StudioAccentBrush" Color="#4F7DFF" />
+        <SolidColorBrush x:Key="StudioRecordBrush" Color="#20C997" />
         <SolidColorBrush x:Key="StudioSecondaryBrush" Color="#FF7AC8" />
         <SolidColorBrush x:Key="StudioCardBrush" Color="#1A1A26" />
         <SolidColorBrush x:Key="StudioMutedBrush" Color="#B8B4CC" />
@@ -36,9 +36,9 @@
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style x:Key="PrimaryRecordButton" TargetType="Button">
-            <Setter Property="Background" Value="#B29BFF" />
+            <Setter Property="Background" Value="#4F7DFF" />
             <Setter Property="Foreground" Value="#0C0C14" />
-            <Setter Property="BorderBrush" Value="#B29BFF" />
+            <Setter Property="BorderBrush" Value="#4F7DFF" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Padding" Value="20,10" />
             <Setter Property="MinHeight" Value="46" />
@@ -117,10 +117,7 @@
                             <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
-                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Button x:Name="StartRecordingButton" Content="Start recording" Style="{StaticResource PrimaryRecordButton}" Click="StartRecording_Click" />
-                        <Button x:Name="StopRecordingButton" Content="Stop and save" Click="StopRecording_Click" IsEnabled="False" />
-                    </StackPanel>
+                    <Button x:Name="RecordToggleButton" Content="●  Start recording" Style="{StaticResource PrimaryRecordButton}" Click="RecordToggle_Click" HorizontalAlignment="Center" MinWidth="240" />
                     <Border Background="#14141E" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="8">
                             <TextBlock Text="RECOVERY" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
