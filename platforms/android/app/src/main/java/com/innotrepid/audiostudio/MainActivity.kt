@@ -538,13 +538,6 @@ class MainActivity : Activity() {
             "Your audio library",
             "Find recordings, processed copies, and trimmed exports. Editing and processing never overwrite the selected source."
         )
-        librarySection.addView(Button(this).apply {
-            text = "Refresh audio library"
-            setOnClickListener { refreshAudioLibrary() }
-        }, matchWidth())
-        librarySection.addView(libraryStatus, matchWidth())
-        librarySection.addView(libraryItems, matchWidth())
-
         fun refreshAudioLibrary() {
             libraryItems.removeAllViews()
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -643,6 +636,13 @@ class MainActivity : Activity() {
                 libraryStatus.text = "Could not load the library: " + (exception.message ?: "unknown error") + ". You can still use the WAV picker."
             }
         }
+
+        librarySection.addView(Button(this).apply {
+            text = "Refresh audio library"
+            setOnClickListener { refreshAudioLibrary() }
+        }, matchWidth())
+        librarySection.addView(libraryStatus, matchWidth())
+        librarySection.addView(libraryItems, matchWidth())
 
         fun sectionLayoutParams() = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
