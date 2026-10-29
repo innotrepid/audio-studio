@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.Storage;
@@ -183,23 +184,17 @@ public sealed partial class MainWindow : Window
     }
 
     private static readonly string[] KnownProcessingPresets = { "Natural", "Voice clarity", "Rumble cut" };
+    private static string ProcessingPreferencesPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "AudioStudio", "processing-preferences.json");
 
-    private static double ReadProcessingSetting(
-        ApplicationDataContainer settings, string key, double fallback, double minimum, double maximum)
+    private sealed class ProcessingPreferenceState
     {
-        if (settings.Values.TryGetValue(key, out var storedValue) && storedValue is not null)
-        {
-            try
-            {
-                return Math.Clamp(Convert.ToDouble(storedValue), minimum, maximum);
-            }
-            catch (Exception)
-            {
-                // Treat malformed local settings as absent; the valid default is safer.
-            }
-        }
-
-        return fallback;
+        public double ThresholdDbfs { get; set; } = -54;
+        public double AttenuationDb { get; set; } = -12;
+        public double GainDb { get; set; } = 0;
+        public double HighPassPosition { get; set; } = 0;
+        public string SelectedPreset { get; set; } = "Natural";
     }
 
     private void LoadProcessingPreferences()
@@ -207,21 +202,32 @@ public sealed partial class MainWindow : Window
         _restoringProcessingPreferences = true;
         try
         {
-            var settings = ApplicationData.Current.LocalSettings;
-            var preset = settings.Values.TryGetValue("processing.selectedPreset", out var rawPreset) &&
-                         rawPreset is string storedPreset &&
-                         KnownProcessingPresets.Contains(storedPreset, StringComparer.Ordinal)
-                ? storedPreset
+            var preferences = new ProcessingPreferenceState();
+            try
+            {
+                var path = ProcessingPreferencesPath;
+                if (File.Exists(path))
+                    preferences = JsonSerializer.Deserialize<ProcessingPreferenceState>(File.ReadAllText(path))
+                        ?? new ProcessingPreferenceState();
+            }
+            catch (Exception)
+            {
+                // Malformed or inaccessible settings fall back to safe defaults.
+                preferences = new ProcessingPreferenceState();
+            }
+
+            var preset = KnownProcessingPresets.Contains(preferences.SelectedPreset, StringComparer.Ordinal)
+                ? preferences.SelectedPreset
                 : "Natural";
 
             ProcessingPresetComboBox.SelectedItem = ProcessingPresetComboBox.Items
                 .OfType<ComboBoxItem>()
                 .FirstOrDefault(item => string.Equals(item.Content?.ToString(), preset, StringComparison.Ordinal));
 
-            GateThresholdSlider.Value = ReadProcessingSetting(settings, "processing.thresholdDbfs", -54, -70, -20);
-            GateAttenuationSlider.Value = ReadProcessingSetting(settings, "processing.attenuationDb", -12, -36, 0);
-            DspGainSlider.Value = ReadProcessingSetting(settings, "processing.gainDb", 0, -24, 12);
-            HighPassSlider.Value = ReadProcessingSetting(settings, "processing.highPassPosition", 0, 0, 49);
+            GateThresholdSlider.Value = Math.Clamp(preferences.ThresholdDbfs, -70, -20);
+            GateAttenuationSlider.Value = Math.Clamp(preferences.AttenuationDb, -36, 0);
+            DspGainSlider.Value = Math.Clamp(preferences.GainDb, -24, 12);
+            HighPassSlider.Value = Math.Clamp(preferences.HighPassPosition, 0, 49);
         }
         finally
         {
@@ -233,15 +239,32 @@ public sealed partial class MainWindow : Window
     {
         if (_restoringProcessingPreferences) return;
 
-        var settings = ApplicationData.Current.LocalSettings;
-        settings.Values["processing.thresholdDbfs"] = Math.Clamp(GateThresholdSlider.Value, -70, -20);
-        settings.Values["processing.attenuationDb"] = Math.Clamp(GateAttenuationSlider.Value, -36, 0);
-        settings.Values["processing.gainDb"] = Math.Clamp(DspGainSlider.Value, -24, 12);
-        settings.Values["processing.highPassPosition"] = Math.Clamp(HighPassSlider.Value, 0, 49);
-        if (ProcessingPresetComboBox.SelectedItem is ComboBoxItem item && item.Content is string preset &&
-            KnownProcessingPresets.Contains(preset, StringComparer.Ordinal))
+        var preset = ProcessingPresetComboBox.SelectedItem is ComboBoxItem item &&
+                     item.Content is string selectedPreset &&
+                     KnownProcessingPresets.Contains(selectedPreset, StringComparer.Ordinal)
+            ? selectedPreset
+            : "Natural";
+        var preferences = new ProcessingPreferenceState
         {
-            settings.Values["processing.selectedPreset"] = preset;
+            ThresholdDbfs = Math.Clamp(GateThresholdSlider.Value, -70, -20),
+            AttenuationDb = Math.Clamp(GateAttenuationSlider.Value, -36, 0),
+            GainDb = Math.Clamp(DspGainSlider.Value, -24, 12),
+            HighPassPosition = Math.Clamp(HighPassSlider.Value, 0, 49),
+            SelectedPreset = preset
+        };
+
+        try
+        {
+            var path = ProcessingPreferencesPath;
+            var directory = Path.GetDirectoryName(path)!;
+            Directory.CreateDirectory(directory);
+            var temporaryPath = path + ".tmp";
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(preferences));
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        catch (Exception exception)
+        {
+            ProcessingStatusText.Text = $"Could not save processing preferences: {exception.Message}";
         }
     }
 
