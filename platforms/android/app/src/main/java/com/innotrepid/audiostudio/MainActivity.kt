@@ -1682,11 +1682,11 @@ class MainActivity : Activity() {
         val destination = contentResolver.insert(collection, values)
             ?: throw IOException("Android could not create the public WAV entry")
 
+        var copiedBytes = 0L
         try {
             if (!source.isFile) throw IOException("The source WAV is no longer available.")
             val expectedBytes = source.length()
             if (expectedBytes <= 0L) throw IOException("The source WAV is empty.")
-            var copiedBytes = 0L
             val output = contentResolver.openOutputStream(destination, "w")
                 ?: throw IOException("Android could not open the exported WAV")
             output.use { stream ->
