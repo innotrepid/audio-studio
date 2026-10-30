@@ -6,6 +6,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.util.UUID
@@ -39,6 +42,7 @@ internal class CreatorProjectStore(context: Context) {
 
     private val file = File(context.filesDir, "creator/projects/default-project.json")
     private val atomicFile = AtomicFile(file)
+    private val previousFile = File(file.parentFile, file.name + ".previous")
     private val maxDocumentBytes = 1_048_576
     private val maxTitleLength = 200
     private val maxSectionTextLength = 100_000
@@ -46,7 +50,7 @@ internal class CreatorProjectStore(context: Context) {
     @Synchronized
     @Throws(IOException::class)
     fun loadOrCreate(): Project {
-        if (!file.exists() && !File(file.path + ".bak").exists()) {
+        if (!file.exists() && !previousFile.exists() && !File(file.path + ".bak").exists()) {
             val now = Instant.now().toString()
             val project = Project(
                 projectId = UUID.randomUUID().toString(),
@@ -59,9 +63,7 @@ internal class CreatorProjectStore(context: Context) {
                         title = "First script",
                         createdUtc = now,
                         updatedUtc = now,
-                        sections = listOf(
-                            Section(UUID.randomUUID().toString(), "Opening", "", 0)
-                        )
+                        sections = listOf(Section(UUID.randomUUID().toString(), "Opening", "", 0))
                     )
                 )
             )
@@ -69,16 +71,38 @@ internal class CreatorProjectStore(context: Context) {
             return project
         }
 
-        val bytes = atomicFile.openRead().use { input ->
-            val output = input.readBytes()
-            if (output.size > maxDocumentBytes) throw IOException("Project file exceeds the 1 MB safety limit.")
-            output
+        var primaryError: Exception? = null
+        if (file.exists() || File(file.path + ".bak").exists()) {
+            try {
+                return decode(readPrimaryBytes())
+            } catch (error: Exception) {
+                primaryError = error
+            }
         }
-        return try {
-            decode(String(bytes, StandardCharsets.UTF_8))
-        } catch (error: Exception) {
-            throw IOException("The saved Creator project is invalid. The original file was preserved: ${error.message}", error)
+
+        if (previousFile.exists()) {
+            try {
+                val recovered = decode(previousFile.readText(StandardCharsets.UTF_8))
+                writePrimary(encode(recovered).toByteArray(StandardCharsets.UTF_8))
+                return recovered
+            } catch (backupError: Exception) {
+                throw IOException(
+                    "The Creator project and its recovery copy are invalid. Both files were preserved. Primary: ${primaryError?.message ?: "missing"}. Recovery: ${backupError.message}",
+                    backupError
+                )
+            }
         }
+
+        throw IOException(
+            "The saved Creator project is invalid and was preserved: ${primaryError?.message ?: "unknown error"}",
+            primaryError
+        )
+    }
+
+    private fun readPrimaryBytes(): ByteArray {
+        val bytes = atomicFile.openRead().use { it.readBytes() }
+        if (bytes.size > maxDocumentBytes) throw IOException("Project file exceeds the 1 MB safety limit.")
+        return bytes
     }
 
     @Synchronized
@@ -89,6 +113,33 @@ internal class CreatorProjectStore(context: Context) {
         val bytes = encode(updated).toByteArray(StandardCharsets.UTF_8)
         if (bytes.size > maxDocumentBytes) throw IOException("Project file exceeds the 1 MB safety limit.")
 
+        // Preserve the last valid generation independently of AtomicFile's in-flight backup.
+        if (file.exists()) {
+            try {
+                val current = readPrimaryBytes()
+                decode(String(current, StandardCharsets.UTF_8))
+                writePrevious(current)
+            } catch (_: Exception) {
+                // Never replace a valid recovery generation with a malformed primary file.
+            }
+        }
+        writePrimary(bytes)
+        return updated
+    }
+
+    private fun writePrevious(bytes: ByteArray) {
+        val temporary = File(file.parentFile, file.name + ".previous.tmp")
+        FileOutputStream(temporary).use { output ->
+            output.write(bytes)
+            output.fd.sync()
+        }
+        Files.move(
+            temporary.toPath(), previousFile.toPath(),
+            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING
+        )
+    }
+
+    private fun writePrimary(bytes: ByteArray) {
         var stream: java.io.FileOutputStream? = null
         try {
             stream = atomicFile.startWrite()
@@ -99,7 +150,6 @@ internal class CreatorProjectStore(context: Context) {
             if (stream != null) atomicFile.failWrite(stream)
             throw IOException("Could not safely save the Creator project: ${error.message}", error)
         }
-        return updated
     }
 
     private fun validate(project: Project) {
