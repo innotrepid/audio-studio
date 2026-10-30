@@ -149,6 +149,11 @@
                             </StackPanel>
                             <TextBlock x:Name="TeleprompterSpeedText" Text="Scroll speed · 42 px/s" Foreground="#AEB9CC" FontSize="12" />
                             <Slider x:Name="TeleprompterSpeedSlider" Minimum="15" Maximum="120" Value="42" />
+                            <TextBlock Text="TEXT SIZE" Foreground="#AEB9CC" FontSize="10" FontWeight="Bold" />
+                            <TextBlock x:Name="TeleprompterFontSizeText" Text="Text size · 28 px" Foreground="#AEB9CC" FontSize="12" />
+                            <Slider x:Name="TeleprompterFontSizeSlider" Minimum="20" Maximum="40" Value="28" AutomationProperties.Name="Teleprompter text size" />
+                            <TextBlock x:Name="TeleprompterLineSpacingText" Text="Line spacing · 1.5×" Foreground="#AEB9CC" FontSize="12" />
+                            <Slider x:Name="TeleprompterLineSpacingSlider" Minimum="1.2" Maximum="2.0" Value="1.5" AutomationProperties.Name="Teleprompter line spacing" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button x:Name="StartStudioTakeButton" Content="Start studio take" Click="StartStudioTake_Click" Style="{StaticResource PrimaryRecordButton}" />
                                 <Button x:Name="PauseTeleprompterButton" Content="Pause scroll" Click="PauseTeleprompter_Click" IsEnabled="False" />
