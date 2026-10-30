@@ -162,7 +162,6 @@ public sealed partial class MainWindow : Window
             SaveProcessingPreferences();
         };
         DenoiserStrengthSlider.KeyUp += (_, _) => SaveProcessingPreferences();
-        ProcessingEngineComboBox.SelectionChanged += (_, _) => SaveProcessingPreferences();
         LoadProcessingPreferences();
         TrimStartSlider.ValueChanged += (_, _) =>
         {
