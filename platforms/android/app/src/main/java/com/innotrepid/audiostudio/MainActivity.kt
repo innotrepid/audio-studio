@@ -738,9 +738,45 @@ class MainActivity : Activity() {
         )
 
         val creatorSection = makeSection(
-            "Creator / Scripts",
-            "Write and refine the script for your next take. Script metadata is stored privately on this device; audio recordings remain separate and are never moved or overwritten here."
+            "Creator",
+            "Build the material for your next take. Scripts are saved locally; audio recordings remain separate and are never moved or overwritten."
         )
+        val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val creatorWorkspaceContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        val creatorSubworkspaceNotice = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(190, 198, 214))
+            setPadding(dp(12), dp(16), dp(12), dp(16))
+            visibility = ViewGroup.GONE
+        }
+        val creatorSubnav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        listOf("Scripts", "Teleprompter", "Captions", "Production").forEach { workspace ->
+            val workspaceButton = Button(this).apply {
+                text = workspace
+                contentDescription = "Open Creator $workspace workspace"
+                minHeight = dp(44)
+                setOnClickListener {
+                    val scriptsSelected = workspace == "Scripts"
+                    creatorScriptsPanel.visibility = if (scriptsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                    creatorSubworkspaceNotice.visibility = if (scriptsSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                    creatorSubworkspaceNotice.text = when (workspace) {
+                        "Teleprompter" -> "TELEPROMPTER\nThis workspace is planned for the integrated recording teleprompter, countdown, synchronized scrolling, and reading controls. Your scripts remain saved in Scripts."
+                        "Captions" -> "TRANSCRIPTS & CAPTIONS\nThis workspace will hold editable transcript segments, caption timing, and SRT / WebVTT export. No unverified timing is presented as synchronized."
+                        "Production" -> "PRODUCTION\nThis workspace is planned for production markers, retake notes, and take review linked to your project."
+                        else -> ""
+                    }
+                }
+            }
+            creatorSubnav.addView(workspaceButton, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = dp(3)
+                marginStart = dp(3)
+            })
+        }
         val creatorStore = CreatorProjectStore(this)
         var creatorProject: CreatorProjectStore.Project? = null
         val creatorTitleInput = EditText(this).apply {
@@ -825,32 +861,36 @@ class MainActivity : Activity() {
             pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
             saveCreatorScript()
         }
-        creatorSection.addView(TextView(this).apply {
+        creatorScriptsPanel.addView(TextView(this).apply {
             text = "SCRIPT TITLE"
             textSize = 10f
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, dp(8), 0, dp(2))
         }, matchWidth())
-        creatorSection.addView(creatorTitleInput, matchWidth())
-        creatorSection.addView(TextView(this).apply {
+        creatorScriptsPanel.addView(creatorTitleInput, matchWidth())
+        creatorScriptsPanel.addView(TextView(this).apply {
             text = "SCRIPT"
             textSize = 10f
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, dp(10), 0, dp(2))
         }, matchWidth())
-        creatorSection.addView(creatorBodyInput, LinearLayout.LayoutParams(
+        creatorScriptsPanel.addView(creatorBodyInput, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(280)
         ))
-        creatorSection.addView(creatorSaveButton, matchWidth())
-        creatorSection.addView(creatorSaveStatus, matchWidth())
-        creatorSection.addView(TextView(this).apply {
+        creatorScriptsPanel.addView(creatorSaveButton, matchWidth())
+        creatorScriptsPanel.addView(creatorSaveStatus, matchWidth())
+        creatorScriptsPanel.addView(TextView(this).apply {
             text = "NEXT IN CREATOR\nIntegrated teleprompter · countdown and synchronized scroll · transcripts & captions · production notes"
             textSize = 12f
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, dp(12), 0, dp(4))
         }, matchWidth())
+        creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())
+        creatorWorkspaceContent.addView(creatorSubworkspaceNotice, matchWidth())
+        creatorSection.addView(creatorSubnav, matchWidth())
+        creatorSection.addView(creatorWorkspaceContent, matchWidth())
 
         openLatestTakeButton.setOnClickListener {
             val savedUri = latestVerifiedTakeUri
