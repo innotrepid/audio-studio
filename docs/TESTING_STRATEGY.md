@@ -2,73 +2,94 @@
 
 ## Test layers
 
-### Static checks
-- Dart formatting.
-- Flutter/Dart static analysis.
-- Dependency and license review.
-- Platform build checks where runners support them.
+### Static and build checks
 
-### Unit tests
-- Project and take models.
-- Recording-session state transitions.
-- Error mapping and recovery logic.
-- Processing-preset validation.
-- Export naming and metadata.
-- Project schema migrations.
+- CMake configure/build and C++ compiler diagnostics.
+- C++ unit/regression tests on Linux and Windows.
+- Android Gradle/Kotlin/NDK build and native integration checks configured in CI.
+- Windows WinUI/.NET/native bridge build checks configured in CI.
+- Dependency and license review when dependencies change.
+- Do not list Flutter or Dart checks: the product uses native Kotlin/Android and C++ plus C#/WinUI on Windows.
 
-### Integration tests
-- Permission granted/denied.
-- Start, stop, and finalize recording.
-- Playback of a completed file.
-- Device unavailable or removed.
+### C++ unit and regression tests
+
+- Audio format parsing, validation, and buffer invariants.
+- WAV chunk traversal, malformed/truncated input, and supported PCM/float formats.
+- Bounded decoding and waveform envelope generation.
+- Frame-accurate trim ranges and PCM16 export behavior.
+- Processing parameter validation, block continuity, progress, cancellation, and cleanup.
+- Source preservation and no-overwrite publication behavior.
+
+### Platform and application tests
+
+- Recording-session state transitions and native capture lifecycle.
+- Permission granted/denied and retry.
+- Start, stop, WAV finalization, playback, and repeated sessions.
+- Input device unavailable/removed and route changes.
 - Interrupted recording and recovery.
-- Low storage/write failure behavior.
-- Project reopen and export verification.
+- Low storage, failed writes, and finalization errors.
+- Processing from a selected file, cancellation, output validation, and source preservation.
+- UI navigation, selection/state retention, scrolling, and incremental updates.
 
-### Recording hardening checklist
+### Creator tests (as features are implemented)
+
+- Project schema validation, migration, atomic save, autosave, and recovery.
+- Script/section create, edit, reorder, and reload.
+- Teleprompter pace/font/spacing persistence, automatic scroll, manual scroll, pause/resume, and section navigation.
+- Transcript segment and caption cue timing validation.
+- SRT/WebVTT export ordering, timestamps, encoding, and round-trip behavior.
+- Production marker persistence and references.
+- Phrase replacement requires verified audio-frame/time anchors and must preserve original and replacement source takes.
+
+## Recording hardening checklist
 
 Before treating Android capture as hardened on a device, verify:
+
 - Record and save three consecutive sessions; each file must open and play independently.
-- Record for at least five minutes; compare the WAV duration and file size with the captured session.
-- Background the app during recording; the app should stop cleanly, export a valid WAV when possible, and clearly report why recording stopped.
-- Deny microphone permission, then grant it and retry; no stale recording state should remain.
-- Simulate a storage/export failure where practical; never report a successful export when writing, finalization, or WAV-header validation failed.
-- Confirm the elapsed-time indicator advances while recording and resets on the next session.
+- Record for at least five minutes; compare WAV duration and file size with the captured session.
+- Background/interruption behavior is clear and leaves a valid finalized or recoverable file.
+- Deny microphone permission, then grant it and retry; no stale recording state remains.
+- Simulate storage/export failure where practical; never report success when writing, finalization, or WAV validation fails.
+- Confirm elapsed time advances while recording and resets on the next session.
 
-These checks require a physical Android device; CI validates the native build and deterministic WAV-writer tests, not hardware microphone behavior.
+These checks require a physical Android device; CI does not validate hardware microphone behavior.
 
-## Audio tests
-- Known test signals for sample format, channels, duration, and clipping behavior.
+## Audio quality and performance tests
+
+- Known test signals for sample format, channels, duration, and clipping.
 - Repeatable speech fixtures for noise-reduction comparisons.
 - Regression checks for unexpected silence, truncation, distortion, or channel swapping.
-- Manual listening evaluation for naturalness and intelligibility.
-
-### Performance tests
-- Capture dropouts and buffer underruns.
-- CPU and memory under sustained recording.
-- Startup time and stop/finalization latency.
-- Processing duration versus source duration.
-- Battery impact on Android where applicable.
+- Structured listening evaluation for naturalness and intelligibility.
+- Capture dropouts, buffer underruns, CPU/memory under sustained recording, startup/stop latency, processing duration, and Android battery impact where applicable.
 
 ## Manual hardware matrix
 
 For each release candidate, record:
+
 - Device and OS version.
 - Microphone/input route.
 - Sample rate and channel configuration.
-- Duration of test recording.
-- Whether the app was backgrounded or interrupted.
-- Result and relevant logs (without private audio content).
+- Recording duration and interruption conditions.
+- Processing engine/preset and relevant settings.
+- Result and relevant logs, without private audio content.
 
-At minimum, test a real Android device and a real Windows computer before claiming both are ready.
+At minimum, test a real Android device and a real Windows computer before claiming both platforms are ready.
+
+## UI redesign validation
+
+- Repeated navigation does not reset loaded files, waveform peaks, trim selection, or processing preferences.
+- Slider/trim gestures update only affected controls and do not reload/re-analyze audio.
+- Android scrolling and font scaling remain usable on small screens.
+- Windows keyboard navigation and visible focus work.
+- Empty, loading, permission-denied, no-match, and failure states remain distinct and actionable.
 
 ## Release gates
 
-- CI checks pass.
-- No known data-loss or corrupted-output defect in the tested recording flow.
-- Permission, interruption, and error paths have been exercised.
+- All configured CI jobs pass.
+- No known data-loss or corrupted-output defect in the tested workflows.
+- Permission, interruption, cancellation, and error paths have been exercised.
 - Audio artifacts and limitations are documented.
-- Original recording remains intact after processing.
-- Versioning and migration behavior are tested when project formats change.
+- Original recordings remain intact after processing, trim, and assembly.
+- Project versioning and migration behavior are tested when project formats change.
 
-A green CI run proves only the checks executed by CI passed. It does not establish microphone quality, noise-removal quality, or real-device reliability.
+A green CI run proves only the checks executed by CI passed. It does not establish microphone quality, noise-removal quality, visual usability, or real-device reliability.
