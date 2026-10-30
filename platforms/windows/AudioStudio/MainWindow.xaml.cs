@@ -348,6 +348,10 @@ public sealed partial class MainWindow : Window
         {
             var file = await StorageFile.GetFileFromPathAsync(_lastVerifiedRecordingPath);
             await LoadWaveformFileAsync(file);
+            if (!string.Equals(_waveformFilePath, file.Path, StringComparison.OrdinalIgnoreCase) ||
+                _waveformTotalFrames < 2)
+                return;
+
             ShowWorkflowPanel(EditorPanel);
             WaveformStatusText.Text = $"Latest verified take loaded: {file.Name}";
         }
