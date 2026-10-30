@@ -578,23 +578,6 @@ class MainActivity : Activity() {
             text = "Open latest verified take in Editor"
             isEnabled = false
             minHeight = dp(48)
-            setOnClickListener {
-                val savedUri = latestVerifiedTakeUri
-                if (savedUri == null) {
-                    statusText.text = "No verified take is available in this session yet."
-                } else {
-                    isEnabled = false
-                    waveformStatus.text = "Opening the latest verified take…"
-                    analyzeSelectedWaveform(savedUri) {
-                        editSection.visibility = android.view.View.VISIBLE
-                        recordSection.visibility = android.view.View.GONE
-                        processingSection.visibility = android.view.View.GONE
-                        creatorSection.visibility = android.view.View.GONE
-                        librarySection.visibility = android.view.View.GONE
-                        statusText.text = "Latest verified take loaded in Editor. Original recording unchanged."
-                    }
-                }
-            }
         }
         recordSection.addView(openLatestTakeButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
@@ -770,6 +753,24 @@ class MainActivity : Activity() {
             textSize = 13f
             setTextColor(Color.rgb(175, 198, 225))
         }, matchWidth())
+
+        openLatestTakeButton.setOnClickListener {
+            val savedUri = latestVerifiedTakeUri
+            if (savedUri == null) {
+                statusText.text = "No verified take is available in this session yet."
+            } else {
+                openLatestTakeButton.isEnabled = false
+                waveformStatus.text = "Opening the latest verified take…"
+                analyzeSelectedWaveform(savedUri) {
+                    editSection.visibility = android.view.View.VISIBLE
+                    recordSection.visibility = android.view.View.GONE
+                    processingSection.visibility = android.view.View.GONE
+                    creatorSection.visibility = android.view.View.GONE
+                    librarySection.visibility = android.view.View.GONE
+                    statusText.text = "Latest verified take loaded in Editor. Original recording unchanged."
+                }
+            }
+        }
 
         editSection.addView(Button(this).apply {
             text = "Noise reduction & A/B comparison"
