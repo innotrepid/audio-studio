@@ -1564,7 +1564,7 @@ public sealed partial class MainWindow : Window
             var remainingSeconds = totalSeconds % 60UL;
             var fileSizeMb = new FileInfo(path).Length / (1024.0 * 1024.0);
             var channelLabel = channels == 1 ? "Mono" : "Stereo";
-            return $"Take details: {totalMinutes:00}:{remainingSeconds:00} · {sampleRate / 1000.0:0.#} kHz · {channelLabel} · {fileSizeMb:0.00} MB";
+            return $"Saved take: {Path.GetFileName(path)} · {totalMinutes:00}:{remainingSeconds:00} · {sampleRate / 1000.0:0.#} kHz · {channelLabel} · {fileSizeMb:0.00} MB";
         }
         catch
         {
