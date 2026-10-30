@@ -623,21 +623,6 @@ class MainActivity : Activity() {
         recordSection.addView(inputMeterLabel, matchWidth())
         recordSection.addView(inputMeter, matchWidth())
         recordSection.addView(recordToggleButton, matchWidth())
-        recordSection.addView(teleprompterHeading, matchWidth())
-        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)
-        ))
-        recordSection.addView(teleprompterCountdown, matchWidth())
-        recordSection.addView(teleprompterSpeedLabel, matchWidth())
-        recordSection.addView(teleprompterSpeed, matchWidth())
-        recordSection.addView(teleprompterControls, matchWidth())
-        recordSection.addView(teleprompterCountdownStatus, matchWidth())
-        openLatestTakeButton = Button(this).apply {
-            text = "Open latest verified take in Editor"
-            isEnabled = false
-            minHeight = dp(48)
-        }
-        recordSection.addView(openLatestTakeButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
 
         val editSection = makeSection("Editor", "Shape the exact range you need. Inspect the waveform, set precise in and out points, preview the selection, then export a separate WAV. Your source recording is never overwritten.")
@@ -941,6 +926,23 @@ class MainActivity : Activity() {
             textSize = 12f
             setTextColor(Color.rgb(174, 185, 204))
         }.also { teleprompterCountdownText = it }
+
+        // Attach teleprompter views only after their local declarations are initialized.
+        recordSection.addView(teleprompterHeading, matchWidth())
+        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)
+        ))
+        recordSection.addView(teleprompterCountdown, matchWidth())
+        recordSection.addView(teleprompterSpeedLabel, matchWidth())
+        recordSection.addView(teleprompterSpeed, matchWidth())
+        recordSection.addView(teleprompterControls, matchWidth())
+        recordSection.addView(teleprompterCountdownStatus, matchWidth())
+        openLatestTakeButton = Button(this).apply {
+            text = "Open latest verified take in Editor"
+            isEnabled = false
+            minHeight = dp(48)
+        }
+        recordSection.addView(openLatestTakeButton, matchWidth())
 
         val creatorSaveStatus = TextView(this).apply {
             text = "Loading local project…"
