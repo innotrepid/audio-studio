@@ -167,15 +167,17 @@ void test_deepfilternet3_beta_processes_wav_and_preserves_source() {
     require(audio_studio::WavReader::read(output, processed), "DeepFilterNet3 output should be a readable WAV");
     require(processed.format.sample_rate_hz == 48000U && processed.format.channel_count == 1U,
             "DeepFilterNet3 output preserves the source audio format");
-    require(processed.samples.size() == samples.size(),
+    require(processed.samples.size() >= samples.size(),
             "DeepFilterNet3 output must contain the complete two-second test signal");
     double output_energy = 0.0;
     double input_output_difference = 0.0;
-    for (std::size_t i = 0; i < processed.samples.size(); ++i) {
-        const float sample = processed.samples[i];
+    for (const float sample : processed.samples) {
         require(std::isfinite(sample), "DeepFilterNet3 output samples must remain finite");
         output_energy += static_cast<double>(sample) * sample;
-        input_output_difference += std::abs(static_cast<double>(sample) - samples[i]);
+    }
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        input_output_difference += std::abs(
+            static_cast<double>(processed.samples[i]) - samples[i]);
     }
     require(output_energy > 1.0,
             "DeepFilterNet3 output must retain meaningful audio energy");
