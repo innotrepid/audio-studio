@@ -139,7 +139,7 @@ void test_rnnoise_engine_processes_wav_and_preserves_source() {
 void test_deepfilternet3_beta_processes_wav_and_preserves_source() {
     const std::string input = "audio_studio_deepfilternet_source.wav";
     const std::string output = "audio_studio_deepfilternet_result.wav";
-    const std::string models = std::filesystem::absolute("../vendor/noise-cancellation-model/models").string();
+    const std::string models = std::filesystem::absolute("../../vendor/noise-cancellation-model/models").string();
     std::array<float, 19200U> samples{};
     for (std::size_t i = 0; i < samples.size(); ++i) {
         const double t = static_cast<double>(i) / 48000.0;
