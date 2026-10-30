@@ -2,121 +2,134 @@
 
 ## Goal
 
-Replace the current long, control-heavy screen with a calm, task-oriented interface without changing the reliable audio engine underneath it. Recording, review, cleanup, editing, and export should each have a clear home. Keep the original recording safe and make the next action obvious.
+Provide one connected voice-production workflow without overwhelming creators or compromising precise audio tools. Preserve the native audio engine and file-safety behavior while giving each task a clear home.
 
 ## Navigation model
 
-Use the same product concepts on Android and Windows, but adapt the navigation to each device:
+The shared product destinations are:
 
-- **Android:** four-item bottom navigation — Record, Library, Edit, Settings. Keep the primary record/stop action prominent on the Record screen. Avoid squeezing desktop-style panels onto a phone.
-- **Windows:** a persistent left navigation rail — Record, Library, Editor, Processing, Settings — with a wider work area and room for side-by-side comparison.
-- Use a shared project/file model and shared labels, while allowing platform-native controls and layouts.
-- Do not introduce a separate dashboard/home screen yet; open directly into Record, with a compact recent-recordings shortcut.
+1. **Record** — capture speech and monitor input.
+2. **Editor** — waveform, trim, processing, playback comparison, and export.
+3. **Creator** — scripts, teleprompter, transcripts/captions, and production.
+4. **Library** — projects, recordings, takes, and derived outputs as project capabilities arrive.
 
-## Screen 1 — Record
+Settings remains a secondary app-level destination. Processing and Compare are contextual Editor workflows, not separate top-level destinations.
 
-**Purpose:** Start a recording quickly and confidently monitor input.
+### Android
 
-- Microphone/input-device selector and refresh action.
-- Large, unmistakable Record / Stop control and elapsed timer.
-- Live RMS/input level meter and peak/clipping warning, which already exist and must be preserved.
-- Clear recording state and useful permission/device/storage errors.
-- After stopping, show a concise saved confirmation and actions to play, rename/manage, or open the take in Edit.
-- Recovery for interrupted recordings belongs here but should be secondary, not a dominant panel.
+- Four-item bottom navigation: Record, Editor, Creator, Library.
+- Touch-first, vertically composed screens with comfortable targets and readable timecodes.
+- Keep recording controls and live input feedback immediately visible.
+- Creator uses focused sub-navigation rather than one long screen.
+- Preserve the existing activity and screen state where practical; navigation must not restart audio resources or discard loaded selections/preferences.
 
-**Do not put** all noise-processing sliders, waveform trim controls, and A/B file pickers on this screen.
+### Windows
 
-## Screen 2 — Library
+- Persistent left navigation rail: Record, Editor, Creator, Library.
+- Wider work area for waveform editing, contextual controls, and side-by-side comparison.
+- Keyboard navigation, visible focus, scalable window layouts, and accessible labels.
+- Same concepts and terminology as Android, with desktop-appropriate layouts.
 
-**Purpose:** Find and manage recordings and generated versions.
+## Record
 
-- List recordings with filename/title, duration, date, and status.
-- Distinguish original recordings, processed copies, and trimmed exports.
-- Search/sort when the list grows; start with a simple, fast list.
-- Per-item actions: play, open in Editor, process, rename, and delete only with clear confirmation.
-- Make source-versus-derived relationships clear; never silently replace the original.
-- Empty state should guide the user to record or import a WAV.
+**Purpose:** Start and stop a recording confidently.
 
-A richer project/take organization can come later; do not block the first UI redesign on a database or complex project manager.
+- Input-device selector and refresh.
+- One prominent Start/Stop action with clear text and state.
+- Elapsed time, live RMS/peak meter, and clipping warning.
+- Clear permission, device, storage, and finalization errors.
+- Interrupted-recording recovery remains discoverable but secondary.
+- After saving, offer playback, opening in Editor, and future project/section association.
+- Do not put waveform trim or advanced processing controls here.
 
-## Screen 3 — Editor
+Preserve native capture, bounded queue/writer, WAV finalization, recovery, device selection, and existing meter/clipping behavior.
 
-**Purpose:** Inspect a recording and make safe, precise edits.
+## Editor
 
-- Waveform occupies the main visual area.
-- Selection range has clear start/end handles or markers, selected-region shading, and precise start/end/duration readout.
-- Actions close to the selection: Preview selection, Trim to new WAV, and reset/full-range selection.
-- Show source filename and an explicit “original unchanged” message.
-- Export/save progress and errors should be visible without losing the selection.
-- On Windows, support a wider waveform and room for file details. On Android, prioritize touch targets and vertical scrolling.
+**Purpose:** Inspect and refine audio safely.
 
-The existing waveform analysis, selected-range preview, and non-destructive trim are the foundation. Do not redesign the DSP engine as part of this UI work.
+- Waveform is the dominant visual element.
+- Clear selection handles/shading and precise start/end/duration readouts.
+- Preview selection and export/trim remain separate actions.
+- Processing presets are presented before advanced controls.
+- Advanced parameters are collapsed by default.
+- Original and derived files are clearly distinguished.
+- Progress, cancellation, and errors do not erase the current file or selection.
+- Processing and trim always create derived output; never silently overwrite the source.
 
-## Screen 4 — Processing
+Preserve existing waveform analysis, cached peaks, frame-accurate trim, selected-range preview, processing, cancellation, and source-file integrity.
 
-**Purpose:** Apply voice cleanup without overwhelming the user.
+## Creator
 
-- Start with three clear presets: Natural, Voice clarity, and Rumble cut.
-- Put advanced controls (noise threshold, attenuation, gain, high-pass) inside an “Advanced controls” expandable section.
-- Show a short plain-language explanation of the selected preset and that results vary by recording.
-- Process to a new output file; never overwrite the original.
-- Progress, cancellation, and completion/error status must be easy to understand.
-- Provide Original / Processed A/B playback with a single obvious switch and stop action.
-- Android may keep processing entry points accessible from Edit/Library; Windows can have a dedicated Processing page.
+Creator is a collection of focused workspaces.
 
-Avoid claiming studio-grade AI noise cancellation. The current gate and DSP effects are local tools with known limits.
+### Scripts
+- Create and organize scripts within projects.
+- Divide scripts into stable, reorderable sections.
+- Support section notes and production cues.
+- Autosave with visible save state and safe recovery.
 
-## Screen 5 — Settings
+### Teleprompter
+- Dedicated distraction-reduced reading mode.
+- Adjustable font size, line spacing, text width, scroll speed, and start position.
+- Clear start, pause, resume, reset, and section navigation.
+- Manual scrolling coexists predictably with automatic scrolling.
+- Persist preferences and avoid rebuilding the whole screen on every scroll tick.
 
-**Purpose:** Keep infrequent configuration out of the main workflow.
+### Transcripts & Captions
+- Editable transcript segments associated with a source take.
+- Caption cues have explicit start/end times and editable text.
+- Show timing provenance (manual, imported, or generated/aligned).
+- Do not present untimed text as synchronized.
+- Validate SRT and WebVTT exports.
+- Transcription/forced alignment requires a separate quality and reliability gate.
 
-- Audio input and recording defaults where platform APIs support them.
-- Output/file location guidance and recording format details.
-- Processing defaults/preset behavior.
-- About, limitations, and troubleshooting.
-- Platform-specific permission/device guidance.
+### Production
+- Markers can reference a project, script section, take, or verified audio range.
+- Support retake notes, pronunciation checks, review flags, and approval states.
+- Suggestions never silently modify source recordings or approved narration.
 
-Do not duplicate the live input meter here; it belongs on Record.
+## Library
 
-## Later screens — only when the foundations are ready
-
-### Projects and scripts
-A project can eventually group scripts, takes, selected/approved takes, and final narration. Add this only alongside autosave, recovery, and a clear project-file format.
-
-### Script / teleprompter
-Script editor, version history, section markers, adjustable teleprompter, and recording linked to a script section. This is a later Creator Studio milestone, not a prerequisite for modernizing the current app.
-
-### Transcript and captions
-Transcript-assisted selection, reviewable silence/filler suggestions, editable captions, and SRT/VTT export should arrive only when transcription and timing are dependable. Never silently remove spoken content.
-
-### Session quality
-Comparisons of loudness, noise, and spectral balance across sessions should be presented as suggestions, with measurements and user approval.
+- Find recordings and generated versions using current platform storage permissions/discovery boundaries.
+- Distinguish source recordings, alternate takes, processed copies, trimmed exports, and final outputs.
+- Search should filter loaded results without unexpectedly rescanning storage.
+- Destructive actions require explicit confirmation and must not be confused with opening/exporting.
+- Project grouping arrives with the versioned project foundation; do not imply it exists before implementation.
 
 ## Visual direction
 
-- Modern, restrained creator-tool aesthetic: strong hierarchy, generous spacing, readable type, restrained accent color, and consistent iconography.
-- One primary action per screen; secondary actions should not compete with it.
-- Use cards only to group related tasks, not to wrap every control in a box.
-- Prefer waveform and clear status indicators over decorative graphics.
-- Consistent spacing, button sizes, field styling, loading/empty/error states, and accessible contrast.
-- Android should feel touch-first; Windows should feel like a desktop production tool, not a stretched phone UI.
-- Preserve native platform conventions where they improve usability. Avoid introducing a cross-platform UI framework.
+- Near-black/charcoal foundation with opaque layered surfaces.
+- Blue is the primary interactive accent for selected navigation, primary actions, and active editing tools.
+- Mint is reserved for live/healthy audio states; warm colors communicate warnings and errors.
+- Strong typographic hierarchy, consistent spacing, readable timecodes, subtle borders, and clear action hierarchy.
+- Avoid pervasive blur/glass, excessive card borders, and decorative visualizers.
+- Color is never the only signal; pair it with text, icons, and state.
+
+## Performance and accessibility
+
+- Keep screen instances alive across navigation where practical.
+- Update only the affected control for routine interactions.
+- Do not re-read/re-analyze WAV files during waveform selection drags.
+- Keep file I/O and processing off the UI thread.
+- Respect Android touch targets/font scaling and Windows keyboard/focus/accessibility conventions.
+- Design loading, empty, permission, error, success, and disabled states.
 
 ## Implementation sequence
 
-1. **UI foundation:** navigation shell, shared colors/type/spacing, reusable status and action components. No audio-engine changes.
-2. **Record screen:** move existing recording controls and live RMS/peak/clipping indicators into a focused layout.
-3. **Library:** establish a clear list of originals and derived outputs.
-4. **Editor:** move waveform, range selection, precise timing, preview, and trim into one coherent workflow.
-5. **Processing:** presets first, advanced controls collapsed by default, then simple A/B comparison.
-6. **Settings and polish:** empty/loading/error states, accessibility, and platform-specific layout refinement.
-7. **Later product phases:** projects/scripts, teleprompter, transcript/captions, and session intelligence.
+1. Design tokens and navigation foundation.
+2. Refine Record, Editor, and Library without changing audio behavior.
+3. Add Creator and versioned project persistence.
+4. Add scripts and teleprompter.
+5. Add transcripts, captions, and production markers.
+6. Add phrase replacement only after verified transcript-to-audio alignment and non-destructive assembly are available.
+7. Cross-platform polish and release validation.
 
-## Acceptance criteria for the redesign
+## Acceptance criteria
 
-- Existing recording, save, recovery, processing, playback, waveform, preview, and trim behavior remains intact.
+- Existing recording, save/recovery, playback, processing, waveform, preview, trim, cancellation, and no-overwrite behavior remains intact.
 - Live RMS/peak monitoring and clipping warnings remain visible during recording.
-- A first-time user can identify how to record, find a recording, preview a trim, and export a processed copy without being confronted by every advanced control.
-- The original recording is never overwritten by processing or trimming.
-- Android and Windows share the same concepts but are laid out appropriately for their screen sizes.
-- All three CI jobs pass, followed by physical-device/manual checks for actual usability and audio behavior.
+- Users can identify the primary action in each workspace without being confronted by every advanced control.
+- Original recordings are never overwritten by processing, trimming, or assembly.
+- Android and Windows share concepts but use appropriate layouts.
+- All configured CI jobs pass, followed by physical-device/desktop manual checks.
