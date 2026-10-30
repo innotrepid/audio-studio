@@ -60,3 +60,8 @@ Audio Studio is not only a noise-removal filter or a conventional multitrack edi
 - Unreviewed automatic rewriting of a creator's approved script.
 - Mandatory cloud processing or mandatory AI narration.
 - Unconsented voice cloning or identity impersonation.
+
+
+## Experience direction
+
+Audio Studio uses a Hybrid Studio experience: a calm, approachable Record and Creator journey alongside precise Editor and Processing workspaces. The primary interactive accent is blue, with mint reserved for live/healthy audio feedback. Android and Windows share product concepts and terminology while using native, platform-appropriate layouts.
