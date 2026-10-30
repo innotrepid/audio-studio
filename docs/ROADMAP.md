@@ -28,10 +28,10 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 
 ## Phase 2 — Creator and project foundation
 
-- Add the Creator destination and focused sub-navigation.
-- Define versioned project/script/take metadata with stable IDs.
-- Implement atomic persistence, autosave, recovery, and migration tests.
-- Associate takes with projects without moving or rewriting source audio.
+- [x] Define the cross-platform versioned project/script/take JSON contract, stable IDs, validation, and safe-write requirements in `docs/PROJECT-SCRIPT-DATA-CONTRACT.md`.
+- [ ] Add focused Creator sub-navigation and a functional Scripts workspace.
+- [ ] Implement atomic persistence, autosave, recovery, and migration tests on Android and Windows.
+- [ ] Associate takes with projects without moving or rewriting source audio.
 
 **Exit criteria:** project data survives restart; malformed imports fail safely; recovery and migration behavior are tested; standalone recordings remain accessible.
 
