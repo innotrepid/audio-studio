@@ -34,6 +34,7 @@ import java.nio.ByteOrder
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import org.json.JSONObject
 
 private interface NoiseGateProgressCallback {
     fun onProgress(processedFrames: Long, totalFrames: Long)
@@ -85,6 +86,8 @@ class MainActivity : Activity() {
     private lateinit var recordToggleButton: Button
     private lateinit var openLatestTakeButton: Button
     private var latestVerifiedTakeUri: Uri? = null
+    private var creatorProjectStore: CreatorProjectStore? = null
+    private var activeCreatorProject: CreatorProjectStore.Project? = null
     private lateinit var processButton: Button
     private val processingPresetButtons = linkedMapOf<String, Button>()
     private lateinit var waveformButton: Button
@@ -777,8 +780,7 @@ class MainActivity : Activity() {
                 marginStart = dp(3)
             })
         }
-        val creatorStore = CreatorProjectStore(this)
-        var creatorProject: CreatorProjectStore.Project? = null
+        val creatorStore = CreatorProjectStore(this).also { activeCreatorProjectStore = it }
         val creatorTitleInput = EditText(this).apply {
             hint = "Script title"
             textSize = 16f
@@ -808,7 +810,7 @@ class MainActivity : Activity() {
         }
         val creatorSaveButton = Button(this).apply { text = "Save script now" }
         fun saveCreatorScript() {
-            val current = creatorProject ?: return
+            val current = activeCreatorProject ?: return
             val title = creatorTitleInput.text?.toString()?.trim().orEmpty()
             if (title.isEmpty() || title.length > 200) {
                 creatorSaveStatus.text = "Enter a script title (1–200 characters)."
@@ -823,15 +825,15 @@ class MainActivity : Activity() {
                         if (index == 0) section.copy(text = creatorBodyInput.text?.toString().orEmpty()) else section
                     }
                 )
-                creatorProject = creatorStore.save(current.copy(scripts = listOf(updatedScript) + current.scripts.drop(1)))
+                activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(updatedScript) + current.scripts.drop(1)))
                 creatorSaveStatus.text = "Saved locally · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (error: Exception) {
                 creatorSaveStatus.text = "Save failed · your edits are still here: ${error.message}"
             }
         }
         try {
-            creatorProject = creatorStore.loadOrCreate()
-            val firstScript = creatorProject!!.scripts.first()
+            activeCreatorProject = creatorStore.loadOrCreate()
+            val firstScript = activeCreatorProject!!.scripts.first()
             creatorTitleInput.setText(firstScript.title)
             creatorBodyInput.setText(firstScript.sections.first().text)
             creatorSaveStatus.text = "Saved locally · edits autosave"
@@ -846,7 +848,7 @@ class MainActivity : Activity() {
         val creatorTextWatcher = object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                if (creatorProject == null) return
+                if (activeCreatorProject == null) return
                 creatorSaveStatus.text = "Unsaved changes · saving shortly…"
                 pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
                 val pending = Runnable { saveCreatorScript() }
@@ -1458,9 +1460,11 @@ class MainActivity : Activity() {
         }
 
         val takeDetails = recordingTakeDetails(stagedFile)
+        var takeAssociationNotice = ""
         statusText.text = try {
             val publicUri = publishRecording(stagedFile)
             latestVerifiedTakeUri = publicUri ?: Uri.fromFile(stagedFile)
+            takeAssociationNotice = associateVerifiedTake(publicUri, stagedFile)
             openLatestTakeButton.isEnabled = true
             if (publicUri != null) {
                 diagnosticsCapture.record("recording_export", "success", mapOf("staging_name" to stagedFile.name, "source_bytes" to stagedFile.length()))
@@ -1476,7 +1480,39 @@ class MainActivity : Activity() {
             diagnosticsCapture.record("recording_export", "failure", mapOf("staging_name" to stagedFile.name, "source_bytes" to stagedFile.length()), exception)
             interruptionNotice + "FINALIZED AND VERIFIED — export failed: ${exception.message ?: "unknown error"}. The verified WAV remains in app-private storage."
         }.let { message ->
-            if (takeDetails != null) message + "\n\n" + takeDetails else message
+            val details = if (takeDetails != null) message + "\n\n" + takeDetails else message
+            if (takeAssociationNotice.isNotBlank()) details + "\n\n" + takeAssociationNotice else details
+        }
+    }
+
+    private fun associateVerifiedTake(publicUri: Uri?, stagedFile: File): String {
+        val store = creatorProjectStore
+            ?: return "Project link not saved · open Creator once to initialize the local project."
+        val project = activeCreatorProject
+            ?: return "Project link not saved · no valid Creator project is loaded."
+        return try {
+            val metadata = nativeGetWavMetadata(stagedFile.absolutePath)
+            if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L ||
+                (metadata[2] != 1L && metadata[2] != 2L)) {
+                return "Take verified, but project link was skipped because audio metadata was unavailable."
+            }
+            val script = project.scripts.first()
+            val section = script.sections.first()
+            val take = JSONObject()
+                .put("takeId", UUID.randomUUID().toString())
+                .put("sourceUri", publicUri?.toString())
+                .put("sourcePath", if (publicUri == null) stagedFile.absolutePath else JSONObject.NULL)
+                .put("createdUtc", java.time.Instant.now().toString())
+                .put("durationMs", metadata[0] * 1000L / metadata[1])
+                .put("sampleRateHz", metadata[1])
+                .put("channels", metadata[2])
+                .put("scriptId", script.scriptId)
+                .put("sectionId", section.sectionId)
+                .put("status", "recorded")
+            activeCreatorProject = store.save(project.copy(takes = project.takes + take))
+            "Linked to project · ${script.title} / ${section.title}. Audio file unchanged."
+        } catch (error: Exception) {
+            "Take verified, but project link could not be saved: ${error.message ?: "unknown error"}. Audio file preserved."
         }
     }
 
