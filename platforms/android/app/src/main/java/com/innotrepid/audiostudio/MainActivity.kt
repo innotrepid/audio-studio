@@ -88,6 +88,7 @@ class MainActivity : Activity() {
     private var latestVerifiedTakeUri: Uri? = null
     private var creatorProjectStore: CreatorProjectStore? = null
     private var activeCreatorProject: CreatorProjectStore.Project? = null
+    private var creatorTakesSummaryText: TextView? = null
     private lateinit var processButton: Button
     private val processingPresetButtons = linkedMapOf<String, Button>()
     private lateinit var waveformButton: Button
@@ -808,6 +809,11 @@ class MainActivity : Activity() {
             textSize = 12f
             setTextColor(Color.rgb(174, 185, 204))
         }
+        val creatorTakesSummary = TextView(this).apply {
+            text = "Linked takes: 0"
+            textSize = 12f
+            setTextColor(Color.rgb(174, 185, 204))
+        }.also { creatorTakesSummaryText = it }
         val creatorSaveButton = Button(this).apply { text = "Save script now" }
         fun saveCreatorScript() {
             val current = activeCreatorProject ?: return
@@ -837,6 +843,7 @@ class MainActivity : Activity() {
             creatorTitleInput.setText(firstScript.title)
             creatorBodyInput.setText(firstScript.sections.first().text)
             creatorSaveStatus.text = "Saved locally · edits autosave"
+            creatorTakesSummary.text = "Linked takes: ${activeCreatorProject?.takes?.size ?: 0}"
         } catch (error: Exception) {
             creatorSaveStatus.text = "Project could not be loaded safely: ${error.message}"
             creatorTitleInput.isEnabled = false
@@ -883,6 +890,7 @@ class MainActivity : Activity() {
         ))
         creatorScriptsPanel.addView(creatorSaveButton, matchWidth())
         creatorScriptsPanel.addView(creatorSaveStatus, matchWidth())
+        creatorScriptsPanel.addView(creatorTakesSummary, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
             text = "NEXT IN CREATOR\nIntegrated teleprompter · countdown and synchronized scroll · transcripts & captions · production notes"
             textSize = 12f
@@ -1510,6 +1518,7 @@ class MainActivity : Activity() {
                 .put("sectionId", section.sectionId)
                 .put("status", "recorded")
             activeCreatorProject = store.save(project.copy(takes = project.takes + take))
+            creatorTakesSummaryText?.text = "Linked takes: ${activeCreatorProject?.takes?.size ?: 0}"
             "Linked to project · ${script.title} / ${section.title}. Audio file unchanged."
         } catch (error: Exception) {
             "Take verified, but project link could not be saved: ${error.message ?: "unknown error"}. Audio file preserved."
