@@ -19,7 +19,7 @@ The application has two complementary levels:
 - **Creator experience:** approachable and task-oriented. It helps a creator prepare a script, read it, record sections, review transcript/caption content, and track production.
 - **Audio engineering experience:** precise and powerful. It exposes waveform editing, trim, processing, playback comparison, and technical feedback without burdening the everyday creator workflow.
 
-The visual direction is a restrained, polished dark studio: near-black and charcoal foundations, opaque layered surfaces, violet as the primary interactive accent, and mint for live/healthy audio states. Warm colors are reserved for warnings and destructive actions. Avoid pervasive glass/blur, excessive borders, decorative visualizers, and card-wrapping every control.
+The visual direction is a restrained, polished dark studio: near-black and charcoal foundations, opaque layered surfaces, blue as the primary interactive accent, and mint for live/healthy audio states. Warm colors are reserved for warnings and destructive actions. Avoid pervasive glass/blur, excessive borders, decorative visualizers, and card-wrapping every control.
 
 ## 2. Information architecture
 
@@ -131,7 +131,7 @@ Creator is a set of focused workspaces, not one vertically endless screen.
 
 - **Base:** deep charcoal / near-black.
 - **Raised surfaces:** opaque charcoal layers with restrained borders.
-- **Primary accent:** violet for selected navigation, primary actions, and active editing tools.
+- **Primary accent:** blue for selected navigation, primary actions, and active editing tools.
 - **Live/healthy accent:** mint for recording state, healthy signal, and successful completion.
 - **Warning:** warm amber for clipping and recoverable issues.
 - **Error/destructive:** red, used sparingly and always paired with explanatory text.
