@@ -272,15 +272,19 @@
             </Border>
             <Border x:Name="CreatorPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="14" Margin="24">
-                    <TextBlock Text="CREATOR" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
-                    <TextBlock Text="Your spoken-content workspace" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                    <TextBlock Text="Scripts, teleprompter, transcripts &amp; captions, and production tools will be introduced here in later phases. This is an honest workspace entry point; no unfinished controls are presented as working features." TextWrapping="Wrap" Foreground="#AEB9CC" />
-                    <Border Background="#111722" CornerRadius="10" Padding="16">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="COMING IN CREATOR PHASES" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
-                            <TextBlock Text="Scripts  ·  Teleprompter  ·  Transcripts &amp; Captions  ·  Production" TextWrapping="Wrap" Foreground="#F4F6FB" />
-                        </StackPanel>
-                    </Border>
+                    <TextBlock Text="CREATOR / SCRIPTS" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
+                    <TextBlock Text="Write your next take" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Your script is saved locally as project metadata. Audio recordings remain separate and are never moved or overwritten by script editing." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                    <TextBlock Text="SCRIPT TITLE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
+                    <TextBox x:Name="CreatorScriptTitleBox" PlaceholderText="Give this script a title" TextChanged="CreatorScript_TextChanged" />
+                    <TextBlock Text="SCRIPT" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
+                    <TextBox x:Name="CreatorScriptBodyBox" PlaceholderText="Start writing your script…" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="280" VerticalScrollBarVisibility="Auto" TextChanged="CreatorScript_TextChanged" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button x:Name="CreatorSaveButton" Content="Save script now" Click="CreatorSave_Click" Style="{StaticResource PrimaryRecordButton}" />
+                        <TextBlock x:Name="CreatorSaveStatusText" Text="Loading local project…" VerticalAlignment="Center" Foreground="#AEB9CC" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock Text="NEXT IN CREATOR" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
+                    <TextBlock Text="Integrated teleprompter · countdown and synchronized scroll · transcripts &amp; captions · production notes" TextWrapping="Wrap" Foreground="#AEB9CC" />
                 </StackPanel>
             </Border>
             <Border x:Name="EditorPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
