@@ -1539,8 +1539,8 @@ class MainActivity : Activity() {
         if (started) {
             val startTeleprompter = teleprompterStartRequested
             teleprompterStartRequested = false
-            teleprompterStartButton?.isEnabled = !startTeleprompter
-            teleprompterStartButton?.text = if (startTeleprompter) "Studio take recording…" else "Start studio take"
+            teleprompterStartButton?.isEnabled = false
+            teleprompterStartButton?.text = if (startTeleprompter) "Studio take recording…" else "Recording active"
             teleprompterPauseButton?.isEnabled = startTeleprompter
             teleprompterCountdownText?.text = if (startTeleprompter) "Recording and script scroll are synchronized." else "Ready for your next take."
             recordingStartedAtMs = SystemClock.elapsedRealtime()
