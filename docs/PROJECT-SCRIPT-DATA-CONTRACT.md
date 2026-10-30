@@ -1,6 +1,6 @@
 # Project and Script Data Contract
 
-**Status:** Version 1 contract for Creator foundation implementation  
+**Status:** Version 1 contract with a limited first implementation on Android and Windows  
 **Platforms:** Android and Windows  
 **Persistence:** Local-first metadata; audio remains in its existing media locations
 
@@ -130,4 +130,4 @@ The implementation is not considered complete until both platforms demonstrate:
 - Missing source audio is reported without deleting project metadata.
 - A standalone recording remains accessible without a project association.
 
-This contract defines the data boundary; it does not claim that project persistence or script editing is already implemented.
+This contract defines the data boundary. A limited first implementation now provides one editable script/section per default project, debounced autosave, explicit save, local persistence, recovery support, and verified-take references on Android and Windows. Full multi-project/script/section management, comprehensive corruption/recovery simulation, and migration tests remain incomplete; do not treat the implementation as having passed the full test gates above.
