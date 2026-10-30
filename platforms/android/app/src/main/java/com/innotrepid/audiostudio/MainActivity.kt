@@ -780,7 +780,7 @@ class MainActivity : Activity() {
                 marginStart = dp(3)
             })
         }
-        val creatorStore = CreatorProjectStore(this).also { activeCreatorProjectStore = it }
+        val creatorStore = CreatorProjectStore(this).also { creatorProjectStore = it }
         val creatorTitleInput = EditText(this).apply {
             hint = "Script title"
             textSize = 16f
