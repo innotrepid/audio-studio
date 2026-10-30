@@ -312,7 +312,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
             format.channel_count, &denoiser_raw);
         if (status != NC_OK || denoiser_raw == nullptr) {
             return fail(error, std::string("Could not initialize RNNoise: ") +
-                nc_status_string(static_cast<int>(status)));
+                nc_status_string(status));
         }
         denoiser.reset(denoiser_raw);
     }
@@ -379,7 +379,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
             if (status != NC_OK) {
                 writer.abort();
                 return fail(error, std::string("RNNoise processing failed: ") +
-                    nc_status_string(static_cast<int>(status)));
+                    nc_status_string(status));
             }
         }
         if (!dsp_effects.process(block, error)) {
@@ -417,7 +417,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
             if (status != NC_OK) {
                 writer.abort();
                 return fail(error, std::string("RNNoise tail flush failed: ") +
-                    nc_status_string(static_cast<int>(status)));
+                    nc_status_string(status));
             }
             if (tail_frames == 0U) break;
             if (tail_frames > kFramesPerBlock ||
