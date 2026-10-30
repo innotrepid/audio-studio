@@ -254,7 +254,7 @@
                     <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="8">
                             <TextBlock Text="COMING IN CREATOR PHASES" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
-                            <TextBlock Text="Scripts  ·  Teleprompter  ·  Transcripts & Captions  ·  Production" TextWrapping="Wrap" Foreground="#F4F6FB" />
+                            <TextBlock Text="Scripts  ·  Teleprompter  ·  Transcripts &amp; Captions  ·  Production" TextWrapping="Wrap" Foreground="#F4F6FB" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
