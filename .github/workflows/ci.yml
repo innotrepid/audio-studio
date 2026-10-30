@@ -61,8 +61,11 @@ jobs:
         shell: pwsh
         run: |
           nuget install Microsoft.AI.DirectML -OutputDirectory packages -NonInteractive
-          $lib = Get-ChildItem packages -Filter DirectML.lib -Recurse | Where-Object { $_.FullName -match '[\\/]x64[\\/]' } | Select-Object -First 1
-          if (-not $lib) { throw "DirectML.lib for x64 was not found in the Microsoft.AI.DirectML NuGet package." }
+          $lib = Get-ChildItem packages -Filter DirectML.lib -Recurse | Select-Object -First 1
+          if (-not $lib) {
+            Get-ChildItem packages -Recurse | Select-Object -ExpandProperty FullName
+            throw "DirectML.lib was not found in the Microsoft.AI.DirectML package."
+          }
           "DIRECTML_LIBRARY=$($lib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Build RNNoise and DeepFilterNet3 C ABI
         working-directory: vendor/noise-cancellation-model
