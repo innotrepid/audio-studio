@@ -427,7 +427,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
             if (tail_frames == 0U) break;
             if (tail_frames > kFramesPerBlock ||
                 !writer.write_frames(tail.data(), tail_frames)) {
-                const std::string message = engine == ProcessingEngine::Rnnoise ? "Could not write RNNoise tail: " : "Could not write DeepFilterNet3 (BETA) tail: " + writer.last_error();
+                const std::string message = (engine == ProcessingEngine::Rnnoise ? "Could not write RNNoise tail: " : "Could not write DeepFilterNet3 (BETA) tail: ") + writer.last_error();
                 writer.abort();
                 return fail(error, message);
             }
