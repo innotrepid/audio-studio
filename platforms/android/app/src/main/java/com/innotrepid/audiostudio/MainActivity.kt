@@ -1718,6 +1718,8 @@ class MainActivity : Activity() {
         val gainDb = (dspGainSeekBar.progress - 24).toFloat()
         val highPassHz = if (highPassSeekBar.progress == 0) 0.0F else
             (20 + (highPassSeekBar.progress - 1) * 10).coerceAtMost(500).toFloat()
+        val processingEngine = if (processingEngineSpinner.selectedItemPosition == 0) 1 else 0
+        val denoiserStrength = denoiserStrengthSeekBar.progress / 100.0f
         processingStatus.text = "Preparing WAV for noise reduction…"
         Thread {
             val stagingDirectory = File(filesDir, "processing-staging")
@@ -1766,8 +1768,8 @@ class MainActivity : Activity() {
                     attenuationDb,
                     gainDb,
                     highPassHz,
-                    if (processingEngineSpinner.selectedItemPosition == 0) 1 else 0,
-                    denoiserStrengthSeekBar.progress / 100.0f,
+                    processingEngine,
+                    denoiserStrength,
                     callback
                 )
                 if (!nativeStatus.startsWith("Processed WAV:")) {
