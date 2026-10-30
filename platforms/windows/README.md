@@ -19,3 +19,8 @@ If initialization or main-window creation throws a managed exception, the app at
 `%LOCALAPPDATA%\AudioStudio\startup.log`
 
 Unhandled application, WinUI UI-thread, and unobserved task exceptions are also logged where possible. These diagnostics cannot capture every failure: for example, Windows may terminate the process before managed code starts or before the logger can run. If no dialog or log appears, check **Event Viewer → Windows Logs → Application** for an `AudioStudio.exe`, `.NET Runtime`, or `Application Error` entry.
+
+
+## UI and product direction
+
+The Windows application follows the Hybrid Studio direction: a persistent left navigation rail and desktop-first workspaces for Record, Editor, Creator, and Library. The Creator destination and its script/teleprompter/transcript workflows are staged product work; do not assume every planned Creator capability is already implemented. The primary interactive accent is blue, with mint reserved for live/healthy audio feedback.
