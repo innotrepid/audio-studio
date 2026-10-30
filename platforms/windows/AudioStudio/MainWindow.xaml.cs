@@ -296,7 +296,9 @@ public sealed partial class MainWindow : Window
             ?? "RNNoise (recommended)";
         ProcessingStatusText.Text = engine == "Classic noise gate"
             ? "Classic noise gate selected. Threshold and attenuation controls apply to this engine."
-            : "RNNoise selected. Neural speech denoising is enabled; threshold and attenuation controls are ignored.";
+            : engine == "DeepFilterNet3 (BETA)"
+                ? "DeepFilterNet3 (BETA) selected. Experimental model-based denoising; compare results with RNNoise."
+                : "RNNoise selected. Neural speech denoising is enabled; threshold and attenuation controls are ignored.";
     }
 
     private void ProcessingPresetComboBox_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs e)
