@@ -78,6 +78,7 @@ class MainActivity : Activity() {
     private var libraryRefreshAction: (() -> Unit)? = null
     private var libraryStatusView: TextView? = null
     private lateinit var statusText: TextView
+    private lateinit var recordingTimerText: TextView
     private lateinit var processingStatus: TextView
     private lateinit var inputMeterLabel: TextView
     private lateinit var inputMeter: ProgressBar
@@ -172,7 +173,8 @@ class MainActivity : Activity() {
             val elapsedSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAtMs) / 1000L).coerceAtLeast(0L)
             val minutes = elapsedSeconds / 60L
             val seconds = elapsedSeconds % 60L
-            statusText.text = "Recording · %02d:%02d".format(minutes, seconds)
+            recordingTimerText.text = "%02d:%02d".format(minutes, seconds)
+            statusText.text = "Recording in progress · audio is being captured"
             mainHandler.postDelayed(this, 1000L)
         }
     }
@@ -212,6 +214,17 @@ class MainActivity : Activity() {
             textSize = 15f
             setTextColor(Color.rgb(180, 220, 190))
             gravity = Gravity.CENTER
+        }
+
+        recordingTimerText = TextView(this).apply {
+            text = "00:00"
+            textSize = 40f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD))
+            letterSpacing = 0.04f
+            setPadding(0, dp(8), 0, dp(2))
+            contentDescription = "Recording elapsed time"
         }
 
         inputMeterLabel = TextView(this).apply {
@@ -546,6 +559,16 @@ class MainActivity : Activity() {
         recordSection.addView(title, matchWidth())
         recordSection.addView(subtitle, matchWidth())
         recordSection.addView(statusText, matchWidth())
+        recordSection.addView(TextView(this).apply {
+            text = "ELAPSED TIME"
+            textSize = 10f
+            letterSpacing = 0.14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(160, 190, 255))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(12), 0, 0)
+        }, matchWidth())
+        recordSection.addView(recordingTimerText, matchWidth())
         recordSection.addView(inputMeterLabel, matchWidth())
         recordSection.addView(inputMeter, matchWidth())
         recordSection.addView(recordToggleButton, matchWidth())
@@ -1201,7 +1224,8 @@ class MainActivity : Activity() {
         updateRecordToggleButton()
         if (started) {
             recordingStartedAtMs = SystemClock.elapsedRealtime()
-            statusText.text = "Recording · 00:00"
+            recordingTimerText.text = "00:00"
+            statusText.text = "Recording in progress · audio is being captured"
             mainHandler.removeCallbacks(recordingClock)
             mainHandler.removeCallbacks(recordingMeterClock)
             inputMeter.progress = 0
@@ -1229,6 +1253,8 @@ class MainActivity : Activity() {
     private fun stopRecording(interrupted: Boolean = false) {
         if (!recording) return
         recording = false
+        val elapsedSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAtMs) / 1000L).coerceAtLeast(0L)
+        recordingTimerText.text = "%02d:%02d".format(elapsedSeconds / 60L, elapsedSeconds % 60L)
         mainHandler.removeCallbacks(recordingClock)
         mainHandler.removeCallbacks(recordingMeterClock)
         inputMeter.progress = 0
