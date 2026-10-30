@@ -394,7 +394,7 @@ class MainActivity : Activity() {
             progress = gatePreferences.getInt("denoiser_strength", 85).coerceIn(0, max)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    denoiserStrengthLabel.text = "RNNoise strength: $progress%"
+                    denoiserStrengthLabel.text = "Neural denoiser strength: $progress%"
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {
@@ -402,7 +402,7 @@ class MainActivity : Activity() {
                 }
             })
         }
-        denoiserStrengthLabel.text = "RNNoise strength: ${denoiserStrengthSeekBar.progress}%"
+        denoiserStrengthLabel.text = "Neural denoiser strength: ${denoiserStrengthSeekBar.progress}%"
         processingEngineSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 gatePreferences.edit().putInt("processing_engine", when (position) { 0 -> 1; 1 -> 2; else -> 0 }).apply()
