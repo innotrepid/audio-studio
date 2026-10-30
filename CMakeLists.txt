@@ -33,6 +33,13 @@ set_target_properties(noise_cancellation_static PROPERTIES
     IMPORTED_LOCATION "${NOISE_CANCELLATION_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/noise-cancellation"
 )
+if(WIN32)
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES
+        "ws2_32;userenv;bcrypt;advapi32;ntdll")
+elseif(UNIX)
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES
+        "dl;pthread;m;rt;util")
+endif()
 
 add_subdirectory(engine)
 
