@@ -164,6 +164,7 @@ public sealed partial class MainWindow : Window
         };
         DenoiserStrengthSlider.KeyUp += (_, _) => SaveProcessingPreferences();
         LoadProcessingPreferences();
+        ShowWorkflowPanel(RecordPanel);
         TrimStartSlider.ValueChanged += (_, _) =>
         {
             if (!_applyingTrimTimecodes) CancelTrimRangePreviewForSelectionChange();
