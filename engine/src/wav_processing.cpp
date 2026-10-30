@@ -3,6 +3,7 @@
 #include "audio_studio/wav_writer.hpp"
 #include "audio_studio/audio_decoder.hpp"
 #include "audio_studio/dsp_effects.hpp"
+#include "noise_cancellation.h"
 
 #include <algorithm>
 #include <atomic>
@@ -13,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <exception>
 #include <string>
 #include <vector>
@@ -245,7 +247,10 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                                  std::string* error,
                                  const std::atomic<bool>* cancel_requested,
                                  std::function<void(std::uint64_t, std::uint64_t)> progress,
-                                 DspEffectsSettings dsp_settings) {
+                                 DspEffectsSettings dsp_settings,
+                                 ProcessingEngine engine,
+                                 float denoiser_strength,
+                                 const std::string& model_directory) {
     if (error != nullptr) error->clear();
     if (input_path.empty() || output_path.empty()) {
         return fail(error, "Input and output paths are required.");
@@ -253,7 +258,16 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     if (input_path == output_path) {
         return fail(error, "Output must be a separate file; the original is never overwritten.");
     }
-    if (!settings.is_valid()) return fail(error, "Noise-gate settings are invalid.");
+    if (engine != ProcessingEngine::NoiseGate && engine != ProcessingEngine::Rnnoise &&
+        engine != ProcessingEngine::DeepFilterNet3) {
+        return fail(error, "Unsupported audio processing engine.");
+    }
+    if (engine == ProcessingEngine::NoiseGate && !settings.is_valid()) {
+        return fail(error, "Noise-gate settings are invalid.");
+    }
+    if (!std::isfinite(denoiser_strength) || denoiser_strength < 0.0F || denoiser_strength > 1.0F) {
+        return fail(error, "Denoiser strength must be between 0 and 1.");
+    }
 
     const auto input_fs = std::filesystem::u8path(input_path);
     const auto output_fs = std::filesystem::u8path(output_path);
@@ -292,6 +306,21 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                           encoding, bits_per_sample, block_align, error)) return false;
 
     NoiseGate gate(settings);
+    NcMultiHandle* denoiser_raw = nullptr;
+    std::unique_ptr<NcMultiHandle, decltype(&nc_destroy_multi)> denoiser(nullptr, &nc_destroy_multi);
+    if (engine == ProcessingEngine::Rnnoise || engine == ProcessingEngine::DeepFilterNet3) {
+        const NcEngine native_engine = engine == ProcessingEngine::Rnnoise
+            ? NC_ENGINE_RNNOISE : NC_ENGINE_DEEPFILTERNET;
+        const char* model_path = model_directory.empty() ? nullptr : model_directory.c_str();
+        const auto status = nc_create_multi_with_rate(
+            native_engine, model_path, denoiser_strength, format.sample_rate_hz,
+            format.channel_count, &denoiser_raw);
+        if (status != NC_OK || denoiser_raw == nullptr) {
+            return fail(error, std::string(engine == ProcessingEngine::Rnnoise ? "Could not initialize RNNoise: " : "Could not initialize DeepFilterNet3 (BETA): ") +
+                nc_status_string(status));
+        }
+        denoiser.reset(denoiser_raw);
+    }
     DspEffects dsp_effects;
     if (!dsp_effects.configure(format, dsp_settings, error)) return false;
     WavWriter writer;
@@ -344,9 +373,19 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                 return fail(error, "WAV contains a non-finite or unsupported audio sample.");
             }
         }
-        if (!gate.process(block)) {
-            writer.abort();
-            return fail(error, "Noise gate rejected a decoded audio block.");
+        if (engine == ProcessingEngine::NoiseGate) {
+            if (!gate.process(block)) {
+                writer.abort();
+                return fail(error, "Noise gate rejected a decoded audio block.");
+            }
+        } else {
+            const auto status = nc_process_interleaved(
+                denoiser.get(), block.samples.data(), block.samples.data(), frames);
+            if (status != NC_OK) {
+                writer.abort();
+                return fail(error, std::string(engine == ProcessingEngine::Rnnoise ? "RNNoise processing failed: " : "DeepFilterNet3 (BETA) processing failed: ") +
+                    nc_status_string(status));
+            }
         }
         if (!dsp_effects.process(block, error)) {
             writer.abort();
@@ -369,6 +408,30 @@ bool process_wav_with_noise_gate(const std::string& input_path,
         writer.abort();
 
         return fail(error, "Processing cancelled by user.");
+    }
+    if (denoiser) {
+        std::vector<float> tail(kFramesPerBlock * channels);
+        while (true) {
+            if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
+                writer.abort();
+                return fail(error, "Processing cancelled by user.");
+            }
+            std::size_t tail_frames = 0U;
+            const auto status = nc_flush_interleaved(
+                denoiser.get(), tail.data(), kFramesPerBlock, &tail_frames);
+            if (status != NC_OK) {
+                writer.abort();
+                return fail(error, std::string(engine == ProcessingEngine::Rnnoise ? "RNNoise tail flush failed: " : "DeepFilterNet3 (BETA) tail flush failed: ") +
+                    nc_status_string(status));
+            }
+            if (tail_frames == 0U) break;
+            if (tail_frames > kFramesPerBlock ||
+                !writer.write_frames(tail.data(), tail_frames)) {
+                const std::string message = (engine == ProcessingEngine::Rnnoise ? "Could not write RNNoise tail: " : "Could not write DeepFilterNet3 (BETA) tail: ") + writer.last_error();
+                writer.abort();
+                return fail(error, message);
+            }
+        }
     }
     if (!writer.finalize()) {
         const std::string message = "Could not finalize processed WAV: " + writer.last_error();

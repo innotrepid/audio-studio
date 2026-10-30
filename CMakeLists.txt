@@ -22,6 +22,30 @@ FetchContent_Declare(dsp_engine_source
 )
 FetchContent_MakeAvailable(dsp_engine_source)
 
+# CI builds the pinned RNNoise + DeepFilterNet3 Rust C ABI before configuring CMake.
+if(WIN32)
+    set(NOISE_CANCELLATION_LIBRARY "${CMAKE_SOURCE_DIR}/target/release/noise_cancellation.lib")
+else()
+    set(NOISE_CANCELLATION_LIBRARY "${CMAKE_SOURCE_DIR}/target/release/libnoise_cancellation.a")
+endif()
+add_library(noise_cancellation_static STATIC IMPORTED GLOBAL)
+set_target_properties(noise_cancellation_static PROPERTIES
+    IMPORTED_LOCATION "${NOISE_CANCELLATION_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/noise-cancellation"
+)
+if(WIN32)
+    set(NOISE_CANCELLATION_SYSTEM_LIBS "ws2_32;userenv;bcrypt;advapi32;ntdll")
+    if(DEFINED DIRECTML_LIBRARY AND EXISTS "${DIRECTML_LIBRARY}")
+        list(APPEND NOISE_CANCELLATION_SYSTEM_LIBS "${DIRECTML_LIBRARY}")
+    else()
+        message(FATAL_ERROR "DeepFilterNet3 Windows build requires DirectML.lib; set DIRECTML_LIBRARY to the x64 library path.")
+    endif()
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES "${NOISE_CANCELLATION_SYSTEM_LIBS}")
+elseif(UNIX)
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES
+        "dl;pthread;m;rt;util")
+endif()
+
 add_subdirectory(engine)
 
 if(WIN32)
@@ -39,7 +63,7 @@ if(WIN32)
     )
     target_include_directories(audio_studio_native PRIVATE engine/include platforms/windows/native)
     target_compile_features(audio_studio_native PRIVATE cxx_std_17)
-    target_link_libraries(audio_studio_native PRIVATE dsp_engine_static ole32 uuid propsys)
+    target_link_libraries(audio_studio_native PRIVATE dsp_engine_static noise_cancellation_static ole32 uuid propsys ws2_32 userenv bcrypt advapi32 ntdll)
     if(MSVC)
         target_compile_options(audio_studio_native PRIVATE /W4 /WX)
     else()

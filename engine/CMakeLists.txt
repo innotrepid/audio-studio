@@ -9,9 +9,9 @@ add_library(audio_studio_core
     src/wav_processing.cpp
 )
 
-target_include_directories(audio_studio_core PUBLIC include)
+target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
-target_link_libraries(audio_studio_core PUBLIC dsp_engine_static)
+target_link_libraries(audio_studio_core PUBLIC dsp_engine_static noise_cancellation_static)
 
 if(MSVC)
     target_compile_options(audio_studio_core PRIVATE /W4 /WX)

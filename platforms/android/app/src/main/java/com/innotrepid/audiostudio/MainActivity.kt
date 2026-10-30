@@ -20,6 +20,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.SeekBar
 import android.widget.ScrollView
 import android.widget.TextView
@@ -40,6 +42,25 @@ private interface NoiseGateProgressCallback {
 class MainActivity : Activity() {
     private fun uniqueWavName(prefix: String): String = "$prefix-${UUID.randomUUID()}.wav"
 
+    private fun ensureDeepFilterModelDirectory(): String {
+        val modelDirectory = File(filesDir, "deepfilternet3-models")
+        val requiredModels = listOf("enc.onnx", "erb_dec.onnx", "df_dec.onnx", "config.ini")
+        if (!modelDirectory.exists() && !modelDirectory.mkdirs()) {
+            throw IOException("Could not create DeepFilterNet3 model directory.")
+        }
+        for (name in requiredModels) {
+            val target = File(modelDirectory, name)
+            if (target.isFile && target.length() > 0L) continue
+            assets.open(name).use { source ->
+                target.outputStream().use { destination -> source.copyTo(destination) }
+            }
+        }
+        if (requiredModels.any { !File(modelDirectory, it).isFile || File(modelDirectory, it).length() == 0L }) {
+            throw IOException("DeepFilterNet3 (BETA) model files are incomplete.")
+        }
+        return modelDirectory.absolutePath
+    }
+
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
@@ -49,7 +70,7 @@ class MainActivity : Activity() {
     private external fun nativeTrimWav(inputPath: String, outputPath: String, startFrame: Long, endFrame: Long): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
-    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
+    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, processingEngine: Int, denoiserStrength: Float, modelDirectory: String, callback: NoiseGateProgressCallback): String
     private external fun nativeCancelNoiseGateProcessing()
     private external fun nativePrepareNoiseGateProcessing()
 
@@ -99,6 +120,9 @@ class MainActivity : Activity() {
     private lateinit var highPassLabel: TextView
     private lateinit var dspGainSeekBar: SeekBar
     private lateinit var highPassSeekBar: SeekBar
+    private lateinit var processingEngineSpinner: Spinner
+    private lateinit var denoiserStrengthLabel: TextView
+    private lateinit var denoiserStrengthSeekBar: SeekBar
     @Volatile private var processing = false
     @Volatile private var cancelRequested = false
     // Prevent repeated picker launches and recording while a document is being selected.
@@ -352,6 +376,42 @@ class MainActivity : Activity() {
         }
 
         val gatePreferences = getSharedPreferences("noise_gate_preferences", MODE_PRIVATE)
+        processingEngineSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_item,
+                listOf("RNNoise (recommended)", "DeepFilterNet3 (BETA)", "Classic noise gate")
+            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            setSelection(when (gatePreferences.getInt("processing_engine", 1)) { 0 -> 2; 2 -> 1; else -> 0 })
+        }
+        denoiserStrengthLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(220, 225, 238))
+            gravity = Gravity.CENTER
+        }
+        denoiserStrengthSeekBar = SeekBar(this).apply {
+            max = 100
+            progress = gatePreferences.getInt("denoiser_strength", 85).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    denoiserStrengthLabel.text = "Neural denoiser strength: $progress%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.let { gatePreferences.edit().putInt("denoiser_strength", it.progress).apply() }
+                }
+            })
+        }
+        denoiserStrengthLabel.text = "Neural denoiser strength: ${denoiserStrengthSeekBar.progress}%"
+        processingEngineSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                gatePreferences.edit().putInt("processing_engine", when (position) { 0 -> 1; 1 -> 2; else -> 0 }).apply()
+                val usesNeuralEngine = position != 2
+                denoiserStrengthLabel.visibility = if (usesNeuralEngine) android.view.View.VISIBLE else android.view.View.GONE
+                denoiserStrengthSeekBar.visibility = if (usesNeuralEngine) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
         thresholdLabel = TextView(this).apply {
             textSize = 14f
             setTextColor(Color.rgb(220, 225, 238))
@@ -452,7 +512,7 @@ class MainActivity : Activity() {
         }
 
         val notice = TextView(this).apply {
-            text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a PCM16 WAV to create a separate noise-gated copy in Music/Audio Studio/Processed. This conservative gate reduces quieter noise between phrases; it is not AI noise cancellation or echo removal."
+            text = "Choose a WAV to create a separate processed copy. RNNoise is the recommended lightweight neural denoiser; DeepFilterNet3 (BETA) is an experimental alternative. Classic noise gate is also available. The original recording is never changed."
             textSize = 14f
             setTextColor(Color.rgb(190, 198, 214))
             gravity = Gravity.CENTER
@@ -523,6 +583,21 @@ class MainActivity : Activity() {
         editSection.addView(waveformStatus, matchWidth())
 
         val processingSection = makeSection("Clean up audio", "Start with one of three voice-focused presets. Fine-tune only if needed; processing always creates a separate copy.")
+        processingSection.addView(TextView(this).apply {
+            text = "NOISE REDUCTION ENGINE"
+            textSize = 11f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(178, 155, 255))
+            setPadding(0, dp(6), 0, dp(2))
+        }, matchWidth())
+        processingSection.addView(processingEngineSpinner, matchWidth())
+        processingSection.addView(denoiserStrengthLabel, matchWidth())
+        processingSection.addView(denoiserStrengthSeekBar, matchWidth())
+        processingSection.addView(TextView(this).apply {
+            text = "RNNoise is the recommended lightweight neural engine. DeepFilterNet3 (BETA) is experimental and may use more CPU. Classic noise gate retains the previous threshold-based processing."
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+        }, matchWidth())
         processingSection.addView(TextView(this).apply {
             text = "CHOOSE A STARTING POINT"
             textSize = 11f
@@ -1663,6 +1738,8 @@ class MainActivity : Activity() {
         val gainDb = (dspGainSeekBar.progress - 24).toFloat()
         val highPassHz = if (highPassSeekBar.progress == 0) 0.0F else
             (20 + (highPassSeekBar.progress - 1) * 10).coerceAtMost(500).toFloat()
+        val processingEngine = when (processingEngineSpinner.selectedItemPosition) { 0 -> 1; 1 -> 2; else -> 0 }
+        val denoiserStrength = denoiserStrengthSeekBar.progress / 100.0f
         processingStatus.text = "Preparing WAV for noise reduction…"
         Thread {
             val stagingDirectory = File(filesDir, "processing-staging")
@@ -1711,6 +1788,9 @@ class MainActivity : Activity() {
                     attenuationDb,
                     gainDb,
                     highPassHz,
+                    processingEngine,
+                    denoiserStrength,
+                    if (processingEngine == 2) ensureDeepFilterModelDirectory() else "",
                     callback
                 )
                 if (!nativeStatus.startsWith("Processed WAV:")) {

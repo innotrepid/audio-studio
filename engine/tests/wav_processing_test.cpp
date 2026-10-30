@@ -99,6 +99,95 @@ void test_processes_to_separate_file_and_preserves_source() {
 
 
 
+void test_rnnoise_engine_processes_wav_and_preserves_source() {
+    const std::string input = "audio_studio_rnnoise_source.wav";
+    const std::string output = "audio_studio_rnnoise_result.wav";
+    std::array<float, 9600U> samples{};
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const double t = static_cast<double>(i) / 48000.0;
+        samples[i] = static_cast<float>(0.18 * std::sin(2.0 * 3.141592653589793 * 220.0 * t) +
+                                        0.015 * std::sin(2.0 * 3.141592653589793 * 1837.0 * t));
+    }
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create RNNoise source WAV");
+        require(writer.write_frames(samples.data(), samples.size()), "write RNNoise source WAV");
+        require(writer.finalize(), "finalize RNNoise source WAV");
+    }
+    const auto original_bytes = load_bytes(input);
+    std::string error;
+    require(audio_studio::process_wav_with_noise_gate(
+                input, output, {}, &error, nullptr, {},
+                audio_studio::DspEffectsSettings{0.0F, 0.0F, true},
+                audio_studio::ProcessingEngine::Rnnoise, 0.85F),
+            "RNNoise should process a valid WAV");
+    require(error.empty(), "RNNoise success clears processing error");
+    require(load_bytes(input) == original_bytes, "RNNoise must preserve the source bytes");
+    audio_studio::AudioBuffer processed;
+    require(audio_studio::WavReader::read(output, processed), "RNNoise output should be a readable WAV");
+    require(processed.format.sample_rate_hz == 48000U && processed.format.channel_count == 1U,
+            "RNNoise output preserves the source audio format");
+    require(!processed.samples.empty(), "RNNoise output must contain audio");
+    for (const float sample : processed.samples) {
+        require(std::isfinite(sample), "RNNoise output samples must remain finite");
+    }
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
+
+void test_deepfilternet3_beta_processes_wav_and_preserves_source() {
+    const std::string input = "audio_studio_deepfilternet_source.wav";
+    const std::string output = "audio_studio_deepfilternet_result.wav";
+    const std::string models = std::filesystem::absolute("../../vendor/noise-cancellation-model/models").string();
+    std::array<float, 96000U> samples{};
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        const double t = static_cast<double>(i) / 48000.0;
+        samples[i] = static_cast<float>(0.18 * std::sin(2.0 * 3.141592653589793 * 220.0 * t) +
+                                        0.015 * std::sin(2.0 * 3.141592653589793 * 1837.0 * t));
+    }
+    {
+        audio_studio::WavWriter writer;
+        require(writer.open(input, {48000U, 1U}), "create DeepFilterNet3 source WAV");
+        require(writer.write_frames(samples.data(), samples.size()), "write DeepFilterNet3 source WAV");
+        require(writer.finalize(), "finalize DeepFilterNet3 source WAV");
+    }
+    const auto original_bytes = load_bytes(input);
+    std::string error;
+    const bool deepfilter_succeeded = audio_studio::process_wav_with_noise_gate(
+        input, output, {}, &error, nullptr, {},
+        audio_studio::DspEffectsSettings{0.0F, 0.0F, true},
+        audio_studio::ProcessingEngine::DeepFilterNet3, 0.85F, models);
+    const std::string deepfilter_failure_message =
+        std::string("DeepFilterNet3 (BETA) should process a valid WAV: ") + error;
+    require(deepfilter_succeeded, deepfilter_failure_message.c_str());
+    require(error.empty(), "DeepFilterNet3 success clears processing error");
+    require(load_bytes(input) == original_bytes, "DeepFilterNet3 must preserve source bytes");
+    audio_studio::AudioBuffer processed;
+    require(audio_studio::WavReader::read(output, processed), "DeepFilterNet3 output should be a readable WAV");
+    require(processed.format.sample_rate_hz == 48000U && processed.format.channel_count == 1U,
+            "DeepFilterNet3 output preserves the source audio format");
+    require(processed.samples.size() >= samples.size(),
+            "DeepFilterNet3 output must contain the complete two-second test signal");
+    double output_energy = 0.0;
+    double input_output_difference = 0.0;
+    for (const float sample : processed.samples) {
+        require(std::isfinite(sample), "DeepFilterNet3 output samples must remain finite");
+        output_energy += static_cast<double>(sample) * sample;
+    }
+    for (std::size_t i = 0; i < samples.size(); ++i) {
+        input_output_difference += std::abs(
+            static_cast<double>(processed.samples[i]) - samples[i]);
+    }
+    require(output_energy > 1.0,
+            "DeepFilterNet3 output must retain meaningful audio energy");
+    require(input_output_difference > 0.01,
+            "DeepFilterNet3 output must contain a nontrivial processed signal");
+    std::remove(input.c_str());
+    std::remove(output.c_str());
+}
+
+
 void test_truncated_source_does_not_publish_or_leave_partial_output() {
     const std::string input = "audio_studio_processing_truncated_source.wav";
     const std::string output = "audio_studio_processing_truncated_result.wav";
@@ -572,6 +661,8 @@ int main() {
     test_extensible_wav_rejects_oversized_extension_declaration();
     test_pcm24_wav_workflows();
     test_processes_to_separate_file_and_preserves_source();
+    test_rnnoise_engine_processes_wav_and_preserves_source();
+    test_deepfilternet3_beta_processes_wav_and_preserves_source();
     test_waveform_analysis_returns_bounded_min_max_envelope();
     test_trim_wav_writes_selected_frame_range_and_preserves_source();
     test_truncated_source_does_not_publish_or_leave_partial_output();

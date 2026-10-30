@@ -21,6 +21,20 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check out pinned noise cancellation engine
+        uses: actions/checkout@v4
+        with:
+          repository: R-6167/noise-cancellation-model
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
+          path: vendor/noise-cancellation-model
+          persist-credentials: false
+      - name: Build RNNoise and DeepFilterNet3 C ABI
+        working-directory: vendor/noise-cancellation-model
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Configure CMake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build shared core
@@ -34,8 +48,34 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check out pinned noise cancellation engine
+        uses: actions/checkout@v4
+        with:
+          repository: R-6167/noise-cancellation-model
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
+          path: vendor/noise-cancellation-model
+          persist-credentials: false
+      - name: Install DirectML x64 link library
+        shell: pwsh
+        run: |
+          nuget install Microsoft.AI.DirectML -OutputDirectory packages -NonInteractive
+          $libs = @(Get-ChildItem packages -Filter DirectML.lib -Recurse)
+          $lib = $libs | Where-Object { $_.FullName -match '[\\/]x64(-win)?[\\/]' } | Select-Object -First 1
+          if (-not $lib) {
+            $libs | Select-Object -ExpandProperty FullName
+            throw "An x64 DirectML.lib was not found in the Microsoft.AI.DirectML package."
+          }
+          "DIRECTML_LIBRARY=$($lib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Using x64 DirectML library: $($lib.FullName)"
+      - name: Build RNNoise and DeepFilterNet3 C ABI
+        working-directory: vendor/noise-cancellation-model
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDIRECTML_LIBRARY="$env:DIRECTML_LIBRARY"
       - name: Build shared core
         run: cmake --build build --config Release --parallel
       - name: Run core tests
@@ -79,6 +119,24 @@ jobs:
           packages: "platform-tools"
       - name: Install Android SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.2.12479018"
+      - name: Set up Rust and Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - name: Check out pinned noise cancellation engine
+        uses: actions/checkout@v4
+        with:
+          repository: R-6167/noise-cancellation-model
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
+          path: vendor/noise-cancellation-model
+          persist-credentials: false
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Build RNNoise and DeepFilterNet3 for supported Android ABIs
+        working-directory: vendor/noise-cancellation-model
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo ndk -t arm64-v8a -t x86_64 build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:

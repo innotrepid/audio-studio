@@ -16,7 +16,22 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250205002" />
+    <Content Include="..\..\..\vendor\noise-cancellation-model\models\enc.onnx" Link="models\enc.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\vendor\noise-cancellation-model\models\erb_dec.onnx" Link="models\erb_dec.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\vendor\noise-cancellation-model\models\df_dec.onnx" Link="models\df_dec.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\..\vendor\noise-cancellation-model\models\config.ini" Link="models\config.ini" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="CopyDeepFilterNetModels" AfterTargets="Build">
+    <PropertyGroup>
+      <DfnModelSource>$(MSBuildThisFileDirectory)..\..\..\vendor\noise-cancellation-model\models\</DfnModelSource>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(DfnModelSource)enc.onnx') Or !Exists('$(DfnModelSource)erb_dec.onnx') Or !Exists('$(DfnModelSource)df_dec.onnx')"
+           Text="DeepFilterNet3 model files were not found. Build from the repository CI checkout that pins noise-cancellation-model." />
+    <MakeDir Directories="$(OutDir)models" />
+    <Copy SourceFiles="$(DfnModelSource)enc.onnx;$(DfnModelSource)erb_dec.onnx;$(DfnModelSource)df_dec.onnx;$(DfnModelSource)config.ini"
+          DestinationFolder="$(OutDir)models" SkipUnchangedFiles="true" />
+  </Target>
 
   <Target Name="CopyAudioStudioNative" AfterTargets="Build">
     <PropertyGroup>

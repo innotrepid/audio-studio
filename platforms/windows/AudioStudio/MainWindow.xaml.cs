@@ -68,7 +68,8 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_start", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern int NativeProcessingStart([MarshalAs(UnmanagedType.LPWStr)] string inputPath,
         [MarshalAs(UnmanagedType.LPWStr)] string outputPath, float thresholdDbfs, float attenuationDb,
-        float gainDb, float highPassHz);
+        float gainDb, float highPassHz, int processingEngine, float denoiserStrength,
+        [MarshalAs(UnmanagedType.LPWStr)] string modelDirectory);
 
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_cancel", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeProcessingCancel();
@@ -156,6 +157,12 @@ public sealed partial class MainWindow : Window
             slider.PointerCaptureLost += (_, _) => SaveProcessingPreferences();
             slider.KeyUp += (_, _) => SaveProcessingPreferences();
         }
+        DenoiserStrengthSlider.ValueChanged += (_, _) =>
+        {
+            DenoiserStrengthText.Text = $"Neural denoiser strength: {DenoiserStrengthSlider.Value:0}%";
+            SaveProcessingPreferences();
+        };
+        DenoiserStrengthSlider.KeyUp += (_, _) => SaveProcessingPreferences();
         LoadProcessingPreferences();
         TrimStartSlider.ValueChanged += (_, _) =>
         {
@@ -195,6 +202,8 @@ public sealed partial class MainWindow : Window
         public double GainDb { get; set; } = 0;
         public double HighPassPosition { get; set; } = 0;
         public string SelectedPreset { get; set; } = "Natural";
+        public string SelectedEngine { get; set; } = "RNNoise (recommended)";
+        public double DenoiserStrength { get; set; } = 85;
     }
 
     private void LoadProcessingPreferences()
@@ -219,6 +228,14 @@ public sealed partial class MainWindow : Window
             var preset = KnownProcessingPresets.Contains(preferences.SelectedPreset, StringComparer.Ordinal)
                 ? preferences.SelectedPreset
                 : "Natural";
+            var engine = preferences.SelectedEngine is "Classic noise gate" or "DeepFilterNet3 (BETA)"
+                ? preferences.SelectedEngine
+                : "RNNoise (recommended)";
+            ProcessingEngineComboBox.SelectedItem = ProcessingEngineComboBox.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Content?.ToString(), engine, StringComparison.Ordinal));
+            DenoiserStrengthSlider.Value = Math.Clamp(preferences.DenoiserStrength, 0, 100);
+            DenoiserStrengthText.Text = $"Neural denoiser strength: {DenoiserStrengthSlider.Value:0}%";
 
             ProcessingPresetComboBox.SelectedItem = ProcessingPresetComboBox.Items
                 .OfType<ComboBoxItem>()
@@ -250,7 +267,10 @@ public sealed partial class MainWindow : Window
             AttenuationDb = Math.Clamp(GateAttenuationSlider.Value, -36, 0),
             GainDb = Math.Clamp(DspGainSlider.Value, -24, 12),
             HighPassPosition = Math.Clamp(HighPassSlider.Value, 0, 49),
-            SelectedPreset = preset
+            SelectedPreset = preset,
+            SelectedEngine = (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() is "Classic noise gate" or "DeepFilterNet3 (BETA)"
+                ? (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)!.Content!.ToString()! : "RNNoise (recommended)",
+            DenoiserStrength = Math.Clamp(DenoiserStrengthSlider.Value, 0, 100)
         };
 
         try
@@ -266,6 +286,19 @@ public sealed partial class MainWindow : Window
         {
             ProcessingStatusText.Text = $"Could not save processing preferences: {exception.Message}";
         }
+    }
+
+    private void ProcessingEngineComboBox_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs e)
+    {
+        if (_restoringProcessingPreferences) return;
+        SaveProcessingPreferences();
+        var engine = (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString()
+            ?? "RNNoise (recommended)";
+        ProcessingStatusText.Text = engine == "Classic noise gate"
+            ? "Classic noise gate selected. Threshold and attenuation controls apply to this engine."
+            : engine == "DeepFilterNet3 (BETA)"
+                ? "DeepFilterNet3 (BETA) selected. Experimental model-based denoising; compare results with RNNoise."
+                : "RNNoise selected. Neural speech denoising is enabled; threshold and attenuation controls are ignored.";
     }
 
     private void ProcessingPresetComboBox_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs e)
@@ -1265,7 +1298,15 @@ public sealed partial class MainWindow : Window
             var highPassHz = HighPassSlider.Value < 1 ? 0 : Math.Min(500, 20 + ((int)HighPassSlider.Value - 1) * 10);
             var started = NativeProcessingStart(input.Path, outputPath,
                 (float)GateThresholdSlider.Value, (float)GateAttenuationSlider.Value,
-                (float)DspGainSlider.Value, highPassHz);
+                (float)DspGainSlider.Value, highPassHz,
+                (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() switch
+                {
+                    "Classic noise gate" => 0,
+                    "DeepFilterNet3 (BETA)" => 2,
+                    _ => 1
+                },
+                (float)(DenoiserStrengthSlider.Value / 100.0),
+                System.IO.Path.Combine(AppContext.BaseDirectory, "models"));
             if (started == 0)
             {
                 ProcessingStatusText.Text = ReadProcessingStatus();
