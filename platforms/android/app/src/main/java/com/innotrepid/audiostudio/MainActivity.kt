@@ -692,8 +692,8 @@ class MainActivity : Activity() {
             }
         }
         val librarySection = makeSection(
-            "Your audio library",
-            "Find recordings, processed copies, and trimmed exports. Editing and processing never overwrite the selected source."
+            "Library",
+            "Browse your recent recordings, processed copies, and trimmed exports. Search by file name or folder, then open a WAV in Editor or create a separate processed copy."
         )
 
         val creatorSection = makeSection(
@@ -824,8 +824,8 @@ class MainActivity : Activity() {
                         gravity = Gravity.CENTER
                     }
                     actions.addView(Button(this).apply {
-                        text = "Edit"
-                        contentDescription = "Edit $name in the waveform editor"
+                        text = "Open in Editor"
+                        contentDescription = "Open $name in the waveform editor"
                         setOnClickListener {
                             librarySection.visibility = android.view.View.GONE
                             editSection.visibility = android.view.View.VISIBLE
@@ -835,7 +835,7 @@ class MainActivity : Activity() {
                         }
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     actions.addView(Button(this).apply {
-                        text = "Process copy"
+                        text = "Create processed copy"
                         contentDescription = "Create a processed copy of $name; keep the source unchanged"
                         setOnClickListener {
                             librarySection.visibility = android.view.View.GONE
@@ -858,14 +858,27 @@ class MainActivity : Activity() {
         }
 
         libraryRefreshAction = { refreshAudioLibrary() }
-        librarySection.addView(Button(this).apply {
-            text = "Refresh audio library"
+        librarySection.addView(TextView(this).apply {
+            text = "RECENT AUDIO"
+            textSize = 11f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(160, 190, 255))
+            letterSpacing = 0.12f
+            setPadding(0, dp(8), 0, dp(2))
+        }, matchWidth())
+        val libraryToolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        libraryToolbar.addView(Button(this).apply {
+            text = "Refresh"
             setOnClickListener { refreshAudioLibrary() }
-        }, matchWidth())
-        librarySection.addView(Button(this).apply {
-            text = "Export diagnostics report"
+        }, LinearLayout.LayoutParams(0, dp(48), 1f).apply { rightMargin = dp(8) })
+        libraryToolbar.addView(Button(this).apply {
+            text = "Export diagnostics"
             setOnClickListener { chooseDiagnosticsExport() }
-        }, matchWidth())
+        }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        librarySection.addView(libraryToolbar, matchWidth())
         librarySection.addView(librarySearch, matchWidth())
         librarySection.addView(libraryStatus, matchWidth())
         librarySection.addView(libraryItems, matchWidth())
