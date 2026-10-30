@@ -123,6 +123,8 @@
                     <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="10">
                             <TextBlock Text="RECORDING STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock Text="ELAPSED TIME" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="120" />
+                            <TextBlock x:Name="RecordingElapsedText" Text="00:00" FontSize="36" FontWeight="SemiBold" Foreground="White" />
                             <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#F4F6FB" FontSize="15" />
                             <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#AEB9CC" />
                             <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#4F7DFF" />
