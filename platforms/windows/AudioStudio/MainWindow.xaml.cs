@@ -68,7 +68,8 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_start", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
     private static extern int NativeProcessingStart([MarshalAs(UnmanagedType.LPWStr)] string inputPath,
         [MarshalAs(UnmanagedType.LPWStr)] string outputPath, float thresholdDbfs, float attenuationDb,
-        float gainDb, float highPassHz, int processingEngine, float denoiserStrength);
+        float gainDb, float highPassHz, int processingEngine, float denoiserStrength,
+        [MarshalAs(UnmanagedType.LPWStr)] string modelDirectory);
 
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_cancel", CallingConvention = CallingConvention.Cdecl)]
     private static extern void NativeProcessingCancel();
@@ -227,8 +228,8 @@ public sealed partial class MainWindow : Window
             var preset = KnownProcessingPresets.Contains(preferences.SelectedPreset, StringComparer.Ordinal)
                 ? preferences.SelectedPreset
                 : "Natural";
-            var engine = preferences.SelectedEngine == "Classic noise gate"
-                ? "Classic noise gate"
+            var engine = preferences.SelectedEngine is "Classic noise gate" or "DeepFilterNet3 (BETA)"
+                ? preferences.SelectedEngine
                 : "RNNoise (recommended)";
             ProcessingEngineComboBox.SelectedItem = ProcessingEngineComboBox.Items
                 .OfType<ComboBoxItem>()
@@ -267,9 +268,8 @@ public sealed partial class MainWindow : Window
             GainDb = Math.Clamp(DspGainSlider.Value, -24, 12),
             HighPassPosition = Math.Clamp(HighPassSlider.Value, 0, 49),
             SelectedPreset = preset,
-            SelectedEngine = ProcessingEngineComboBox.SelectedItem is ComboBoxItem engineItem &&
-                             engineItem.Content is string engineName && engineName == "Classic noise gate"
-                ? "Classic noise gate" : "RNNoise (recommended)",
+            SelectedEngine = (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() is "Classic noise gate" or "DeepFilterNet3 (BETA)"
+                ? (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)!.Content!.ToString()! : "RNNoise (recommended)",
             DenoiserStrength = Math.Clamp(DenoiserStrengthSlider.Value, 0, 100)
         };
 
@@ -1297,8 +1297,14 @@ public sealed partial class MainWindow : Window
             var started = NativeProcessingStart(input.Path, outputPath,
                 (float)GateThresholdSlider.Value, (float)GateAttenuationSlider.Value,
                 (float)DspGainSlider.Value, highPassHz,
-                (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() == "Classic noise gate" ? 0 : 1,
-                (float)(DenoiserStrengthSlider.Value / 100.0));
+                (ProcessingEngineComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() switch
+                {
+                    "Classic noise gate" => 0,
+                    "DeepFilterNet3 (BETA)" => 2,
+                    _ => 1
+                },
+                (float)(DenoiserStrengthSlider.Value / 100.0),
+                System.IO.Path.Combine(AppContext.BaseDirectory, "models"));
             if (started == 0)
             {
                 ProcessingStatusText.Text = ReadProcessingStatus();
