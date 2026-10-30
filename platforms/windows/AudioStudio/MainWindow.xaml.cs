@@ -1518,9 +1518,12 @@ public sealed partial class MainWindow : Window
                 RecordingElapsedText.Text = FormatRecordingElapsed();
             var peak = Math.Clamp((double)NativeRecordingPeak(), 0.0, 1.0);
             InputLevelBar.Value = peak;
-            InputLevelText.Text = $"Input level: {peak:P0}";
+            var peakDbfs = peak > 0.000001 ? 20.0 * Math.Log10(peak) : -120.0;
+            InputLevelText.Text = $"Input peak: {peakDbfs:0} dBFS ({peak:P0})";
             if (NativeRecordingClipping() != 0)
-                ClippingWarningText.Text = "CLIPPING DETECTED — lower your microphone/input gain.";
+                ClippingWarningText.Text = "CLIPPING DETECTED — lower your microphone/input gain and make another test take.";
+            else
+                ClippingWarningText.Text = "No clipping detected";
 
             // A disconnected microphone can stop capture without the user pressing Stop.
             // Reconcile the UI from the native state instead of leaving a stale meter
