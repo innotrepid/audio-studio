@@ -296,6 +296,7 @@
                                 <TextBlock Text="Load a PCM16 WAV to view its amplitude. This analysis does not alter the recording." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             </StackPanel>
                             <Button x:Name="LoadWaveformButton" Content="Load WAV waveform…" Click="LoadWaveform_Click" HorizontalAlignment="Left" />
+                            <Button x:Name="OpenLatestTakeButton" Content="Open latest verified take" Click="OpenLatestTake_Click" IsEnabled="False" HorizontalAlignment="Left" />
                             <Border Background="#0C0C14" CornerRadius="8" Padding="8" HorizontalAlignment="Center">
                                 <Canvas x:Name="WaveformCanvas" Width="720" Height="160" Background="#0C0C14" />
                             </Border>
