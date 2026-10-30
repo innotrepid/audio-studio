@@ -75,7 +75,7 @@ internal class CreatorProjectStore(context: Context) {
         var primaryError: Exception? = null
         if (file.exists() || File(file.path + ".bak").exists()) {
             try {
-                return decode(readPrimaryBytes())
+                return decode(String(readPrimaryBytes(), StandardCharsets.UTF_8))
             } catch (error: Exception) {
                 primaryError = error
             }
