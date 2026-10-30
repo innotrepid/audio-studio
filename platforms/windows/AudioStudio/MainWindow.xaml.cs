@@ -183,6 +183,19 @@ public sealed partial class MainWindow : Window
         };
         TeleprompterSpeedSlider.ValueChanged += (_, _) =>
             TeleprompterSpeedText.Text = $"Scroll speed · {TeleprompterSpeedSlider.Value:0} px/s";
+        TeleprompterFontSizeSlider.ValueChanged += (_, _) =>
+        {
+            var size = TeleprompterFontSizeSlider.Value;
+            TeleprompterScriptText.FontSize = size;
+            TeleprompterScriptText.LineHeight = size * TeleprompterLineSpacingSlider.Value;
+            TeleprompterFontSizeText.Text = $"Text size · {size:0} px";
+        };
+        TeleprompterLineSpacingSlider.ValueChanged += (_, _) =>
+        {
+            var spacing = TeleprompterLineSpacingSlider.Value;
+            TeleprompterScriptText.LineHeight = TeleprompterScriptText.FontSize * spacing;
+            TeleprompterLineSpacingText.Text = $"Line spacing · {spacing:0.0}×";
+        };
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
         _trimPreviewTimer.Tick += (_, _) =>
         {
