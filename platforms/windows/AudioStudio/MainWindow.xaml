@@ -252,12 +252,15 @@
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
                         <TextBlock Text="LIBRARY" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
-                        <TextBlock Text="Find your WAV files" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Choose a folder containing recordings, processed copies, or trimmed exports. Audio Studio only lists WAVs in that folder. Edit opens the waveform editor; Process copy creates a separate output and leaves the source unchanged." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                        <TextBlock Text="Your recordings" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                        <TextBlock Text="Browse recordings, processed copies, and trimmed exports. Choose a folder, search by file name, then open a WAV in Editor or create a separate processed copy. Your source files stay untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button x:Name="ChooseLibraryFolderButton" Content="Choose folder…" Click="ChooseLibraryFolder_Click" Style="{StaticResource PrimaryRecordButton}" />
-                        <Button x:Name="RefreshLibraryButton" Content="Refresh" Click="RefreshLibrary_Click" />
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="RECENT AUDIO" FontSize="11" FontWeight="Bold" Foreground="#A0BEFF" CharacterSpacing="120" />
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button x:Name="ChooseLibraryFolderButton" Content="Choose folder…" Click="ChooseLibraryFolder_Click" Style="{StaticResource PrimaryRecordButton}" />
+                            <Button x:Name="RefreshLibraryButton" Content="Refresh" Click="RefreshLibrary_Click" />
+                        </StackPanel>
                     </StackPanel>
                     <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search WAV names or folders…" TextChanged="LibrarySearchBox_TextChanged" AutomationProperties.Name="Search the loaded WAV library by file name or folder" />
                     <TextBlock x:Name="LibraryStatusText" Text="Choose a folder to list WAV files." TextWrapping="Wrap" Foreground="#AEB9CC" />
