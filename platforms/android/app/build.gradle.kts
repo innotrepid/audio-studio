@@ -14,6 +14,12 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        // DeepFilterNet3's ONNX Runtime binaries are available for 64-bit Android.
+        // RNNoise and the app share this ABI set so the native library is always present.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
         externalNativeBuild {
             cmake {
                 cppFlags += listOf("-std=c++17", "-Wall", "-Wextra")
