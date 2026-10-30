@@ -19,6 +19,7 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 ## Phase 1 — Existing workflow refinement
 
 - Refine Record hierarchy, input monitoring, recording state, clipping warnings, and post-save actions.
+- Add an integrated Studio Teleprompter to the Record workflow: select a Creator script, show it alongside recording controls, run a configurable pre-roll countdown, then scroll in sync with the active take. Include manual speed, pause/resume, typography controls, section navigation, and saved script-position recovery. Treat camera/video preview as a separate platform capability; voice-follow scrolling is a later advanced enhancement.
 - Refine Editor waveform scale, selection feedback, timecodes, preview, trim, processing presets, and A/B review.
 - Refine Library clarity and source/derived asset distinctions without unexpectedly broadening storage discovery.
 - Preserve incremental UI updates and loaded state across navigation.
