@@ -639,18 +639,6 @@ class MainActivity : Activity() {
         processingSection.addView(stopPlaybackButton, matchWidth())
         processingSection.addView(notice, matchWidth())
 
-        editSection.addView(Button(this).apply {
-            text = "Noise reduction & A/B comparison"
-            contentDescription = "Open contextual audio processing and comparison tools"
-            setOnClickListener {
-                editSection.visibility = android.view.View.GONE
-                processingSection.visibility = android.view.View.VISIBLE
-                recordSection.visibility = android.view.View.GONE
-                creatorSection.visibility = android.view.View.GONE
-                librarySection.visibility = android.view.View.GONE
-            }
-        }, matchWidth())
-
         // Browse WAVs exported by Audio Studio without reopening a document picker.
         val libraryStatus = TextView(this).apply {
             text = "Your Audio Studio WAV files will appear here."
@@ -713,6 +701,18 @@ class MainActivity : Activity() {
             text = "Scripts  ·  Teleprompter  ·  Transcripts & Captions  ·  Production"
             textSize = 13f
             setTextColor(Color.rgb(175, 198, 225))
+        }, matchWidth())
+
+        editSection.addView(Button(this).apply {
+            text = "Noise reduction & A/B comparison"
+            contentDescription = "Open contextual audio processing and comparison tools"
+            setOnClickListener {
+                editSection.visibility = android.view.View.GONE
+                processingSection.visibility = android.view.View.VISIBLE
+                recordSection.visibility = android.view.View.GONE
+                creatorSection.visibility = android.view.View.GONE
+                librarySection.visibility = android.view.View.GONE
+            }
         }, matchWidth())
         fun refreshAudioLibrary() {
             libraryItems.removeAllViews()
