@@ -124,7 +124,7 @@ jobs:
         working-directory: vendor/noise-cancellation-model
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 build --release --no-default-features --features rnnoise,c-api --lib
+        run: cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
