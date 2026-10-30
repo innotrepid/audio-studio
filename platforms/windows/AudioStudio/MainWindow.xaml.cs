@@ -169,6 +169,7 @@ public sealed partial class MainWindow : Window
         LoadProcessingPreferences();
         ShowWorkflowPanel(RecordPanel);
         OpenLatestTakeButton.IsEnabled = false;
+        OpenLatestTakeFromRecordButton.IsEnabled = false;
         TrimStartSlider.ValueChanged += (_, _) =>
         {
             if (!_applyingTrimTimecodes) CancelTrimRangePreviewForSelectionChange();
@@ -342,6 +343,7 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(_lastVerifiedRecordingPath) || !File.Exists(_lastVerifiedRecordingPath))
         {
             OpenLatestTakeButton.IsEnabled = false;
+            OpenLatestTakeFromRecordButton.IsEnabled = false;
             WaveformStatusText.Text = "The latest verified take is no longer available. Load a WAV file instead.";
             return;
         }
@@ -1177,6 +1179,7 @@ public sealed partial class MainWindow : Window
                 {
                     _lastVerifiedRecordingPath = takePath;
                     OpenLatestTakeButton.IsEnabled = true;
+                    OpenLatestTakeFromRecordButton.IsEnabled = true;
                     RecordingStatusText.Text = $"FINALIZED AND VERIFIED — {nativeStatus}" +
                         Environment.NewLine + Environment.NewLine + takeDetails +
                         Environment.NewLine + "This take is ready in Editor.";
