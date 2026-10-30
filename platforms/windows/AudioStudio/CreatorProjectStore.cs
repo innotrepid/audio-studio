@@ -64,11 +64,13 @@ internal sealed class CreatorProjectStore
     private const int MaxTitleLength = 200;
     private const int MaxSectionTextLength = 100_000;
 
-    internal CreatorProjectStore()
+    internal CreatorProjectStore(string? rootDirectory = null)
     {
-        var folder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AudioStudio", "Projects");
+        var folder = rootDirectory is null
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AudioStudio", "Projects")
+            : Path.GetFullPath(rootDirectory);
         Directory.CreateDirectory(folder);
         _path = Path.Combine(folder, "default-project.json");
     }
