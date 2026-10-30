@@ -551,9 +551,15 @@ class MainActivity : Activity() {
         recordSection.addView(recordToggleButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
 
-        val editSection = makeSection("Edit a recording", "Shape the exact range you need. The waveform is the main workspace; preview and export always leave the source untouched.")
+        val editSection = makeSection("Editor", "Shape the exact range you need. Inspect the waveform, set precise in and out points, preview the selection, then export a separate WAV. Your source recording is never overwritten.")
         editSection.addView(waveformButton, matchWidth())
         editSection.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(224)))
+        editSection.addView(TextView(this).apply {
+            text = "Drag the gold IN and red OUT handles on the waveform, or use the sliders and exact timecodes below."
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+            setPadding(0, dp(6), 0, dp(10))
+        }, matchWidth())
         editSection.addView(trimSelectionSummary, matchWidth())
         editSection.addView(trimStartLabel, matchWidth())
         editSection.addView(trimStartSeekBar, matchWidth())
@@ -578,8 +584,12 @@ class MainActivity : Activity() {
         })
         editSection.addView(trimTimecodeRow, matchWidth())
         editSection.addView(applyTrimTimecodesButton, matchWidth())
-        editSection.addView(previewSelectionButton, matchWidth())
+        trimWaveformButton.text = "Export selected range to new WAV"
+        trimWaveformButton.minHeight = dp(56)
+        trimWaveformButton.setTextColor(Color.WHITE)
+        trimWaveformButton.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 125, 255))
         editSection.addView(trimWaveformButton, matchWidth())
+        editSection.addView(previewSelectionButton, matchWidth())
         editSection.addView(waveformStatus, matchWidth())
 
         val processingSection = makeSection("Clean up audio", "Start with one of three voice-focused presets. Fine-tune only if needed; processing always creates a separate copy.")
