@@ -986,7 +986,7 @@ public sealed partial class MainWindow : Window
                     TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
                 });
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-                var editButton = new Button { Content = "Edit" };
+                var editButton = new Button { Content = "Open in Editor", Style = (Style)Application.Current.Resources["PrimaryRecordButton"] };
                 editButton.Click += async (_, _) =>
                 {
                     try
@@ -1000,7 +1000,7 @@ public sealed partial class MainWindow : Window
                         ProcessingStatusText.Text = $"Could not open {file.Name}: {exception.Message}";
                     }
                 };
-                var processButton = new Button { Content = "Process copy" };
+                var processButton = new Button { Content = "Create processed copy" };
                 processButton.Click += async (_, _) =>
                 {
                     try
