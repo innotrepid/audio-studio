@@ -45,9 +45,10 @@ public:
 
     int start(const wchar_t* input, const wchar_t* output,
               float threshold_dbfs, float attenuation_db, float gain_db, float high_pass_hz,
-              int processing_engine, float denoiser_strength) {
+              int processing_engine, float denoiser_strength, const wchar_t* model_directory) {
         const std::string input_utf8 = utf8_path(input);
         const std::string output_utf8 = utf8_path(output);
+        const std::string model_directory_utf8 = utf8_path(model_directory);
         if (input_utf8.empty() || output_utf8.empty()) {
             set_status(L"Choose valid input and output paths.");
             return 0;
@@ -68,7 +69,7 @@ public:
         active_.store(true);
         status_ = L"Preparing WAV processing…";
         worker_ = std::thread(&WindowsProcessor::run, this, input_utf8, output_utf8,
-                              threshold_dbfs, attenuation_db, gain_db, high_pass_hz, processing_engine, denoiser_strength);
+                              threshold_dbfs, attenuation_db, gain_db, high_pass_hz, processing_engine, denoiser_strength, model_directory_utf8);
         return 1;
     }
 
@@ -94,7 +95,7 @@ private:
 
     void run(const std::string& input, const std::string& output,
              float threshold_dbfs, float attenuation_db, float gain_db, float high_pass_hz,
-             int processing_engine, float denoiser_strength) {
+             int processing_engine, float denoiser_strength, const std::string& model_directory) {
         audio_studio::NoiseGateSettings settings;
         settings.threshold_dbfs = threshold_dbfs;
         settings.attenuation_db = attenuation_db;
@@ -105,7 +106,7 @@ private:
                 progress_.store(total == 0U ? 0.0F :
                     static_cast<float>(static_cast<double>(done) / static_cast<double>(total)));
             }, audio_studio::DspEffectsSettings{gain_db, high_pass_hz, true},
-            static_cast<audio_studio::ProcessingEngine>(processing_engine), denoiser_strength);
+            static_cast<audio_studio::ProcessingEngine>(processing_engine), denoiser_strength, model_directory);
         if (succeeded) {
             progress_.store(1.0F);
             set_status(L"Processed WAV saved. Original recording was preserved.");
@@ -157,9 +158,9 @@ extern "C" AUDIO_STUDIO_API int audio_studio_analyze_wav_waveform(
 extern "C" AUDIO_STUDIO_API int audio_studio_processing_start(
     const wchar_t* input_path, const wchar_t* output_path,
     float threshold_dbfs, float attenuation_db, float gain_db, float high_pass_hz,
-    int processing_engine, float denoiser_strength) {
+    int processing_engine, float denoiser_strength, const wchar_t* model_directory) {
     return processor().start(input_path, output_path, threshold_dbfs, attenuation_db,
-                             gain_db, high_pass_hz, processing_engine, denoiser_strength);
+                             gain_db, high_pass_hz, processing_engine, denoiser_strength, model_directory);
 }
 extern "C" AUDIO_STUDIO_API void audio_studio_processing_cancel(void) {
     processor().cancel();
