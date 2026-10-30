@@ -903,6 +903,23 @@ public sealed partial class MainWindow : Window
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
     private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
 
+    private void CreatorSubnav_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button || button.Tag is not string workspace)
+            return;
+
+        var isScripts = string.Equals(workspace, "Scripts", StringComparison.Ordinal);
+        CreatorScriptsWorkspace.Visibility = isScripts ? Visibility.Visible : Visibility.Collapsed;
+        CreatorSubworkspaceNotice.Visibility = isScripts ? Visibility.Collapsed : Visibility.Visible;
+        CreatorSubworkspaceNotice.Text = workspace switch
+        {
+            "Teleprompter" => "TELEPROMPTER\nThis workspace is planned for the integrated recording teleprompter, countdown, synchronized scrolling, and reading controls. Your scripts remain saved in Scripts.",
+            "Captions" => "TRANSCRIPTS & CAPTIONS\nThis workspace will hold editable transcript segments, caption timing, and SRT / WebVTT export. Unverified timing will not be presented as synchronized.",
+            "Production" => "PRODUCTION\nThis workspace is planned for production markers, retake notes, and take review linked to your project.",
+            _ => string.Empty
+        };
+    }
+
     private void InitializeCreatorWorkspace()
     {
         try
