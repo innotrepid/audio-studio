@@ -129,10 +129,6 @@
                         <TextBlock Text="Clean up your audio" FontSize="24" FontWeight="SemiBold" Foreground="White" />
                         <TextBlock Text="Reduce steady background noise and shape your voice. Processing creates a separate output; your original stays untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <ToggleButton x:Name="NavigateProcessingButton" Content="Noise reduction" Click="NavigateProcessing_Click" Style="{StaticResource WorkflowNavigationButton}" />
-                        <ToggleButton x:Name="NavigateCompareButton" Content="A/B comparison" Click="NavigateCompare_Click" Style="{StaticResource WorkflowNavigationButton}" />
-                    </StackPanel>
                     <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
                             <TextBlock Text="NOISE REDUCTION ENGINE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
@@ -266,9 +262,13 @@
             <Border x:Name="EditorPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="EDIT" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
+                        <TextBlock Text="EDITOR" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
                         <TextBlock Text="Shape your recording" FontSize="24" FontWeight="SemiBold" Foreground="White" />
                         <TextBlock Text="Choose the exact section to keep, then export it as a separate WAV. Your source recording is never overwritten." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ToggleButton x:Name="NavigateProcessingButton" Content="Noise reduction" Click="NavigateProcessing_Click" Style="{StaticResource WorkflowNavigationButton}" />
+                        <ToggleButton x:Name="NavigateCompareButton" Content="A/B comparison" Click="NavigateCompare_Click" Style="{StaticResource WorkflowNavigationButton}" />
                     </StackPanel>
                     <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="12">
