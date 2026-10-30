@@ -601,8 +601,6 @@ class MainActivity : Activity() {
                 processingSection.visibility = android.view.View.GONE
                 editSection.visibility = android.view.View.VISIBLE
                 recordSection.visibility = android.view.View.GONE
-                creatorSection.visibility = android.view.View.GONE
-                librarySection.visibility = android.view.View.GONE
             }
         }, matchWidth())
         processingSection.addView(TextView(this).apply {
