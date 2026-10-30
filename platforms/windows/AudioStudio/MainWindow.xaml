@@ -317,7 +317,7 @@
                             <StackPanel Spacing="4">
                                 <TextBlock Text="TRIM RANGE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
                                 <TextBlock Text="Set your in and out points" FontSize="17" FontWeight="SemiBold" Foreground="White" />
-                                <TextBlock Text="Drag the in/out markers directly on the waveform, or use the sliders and precise timecodes. Preview before exporting; the original stays untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                                <TextBlock Text="Drag the gold IN and red OUT handles on the waveform, fine-tune with the sliders, or enter exact timecodes. Preview your selection before exporting; the original stays untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             </StackPanel>
                             <StackPanel Spacing="6">
                                 <TextBlock x:Name="TrimStartText" Text="Trim start: 0%" Foreground="#F4F6FB" FontWeight="SemiBold" />
@@ -352,9 +352,9 @@
                                     <TextBlock x:Name="WaveformSelectionText" Text="Selected duration: full file" TextWrapping="Wrap" Foreground="#4F7DFF" FontSize="16" FontWeight="SemiBold" />
                                 </StackPanel>
                             </Border>
-                            <StackPanel Orientation="Horizontal" Spacing="10">
+                            <StackPanel Spacing="10">
+                                <Button x:Name="TrimWaveformButton" Content="Export selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" HorizontalAlignment="Stretch" />
                                 <Button x:Name="PreviewTrimRangeButton" Content="Preview selected range" Click="PreviewTrimRange_Click" IsEnabled="False" HorizontalAlignment="Left" />
-                                <Button x:Name="TrimWaveformButton" Content="Export selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" HorizontalAlignment="Left" />
                             </StackPanel>
                             <TextBlock Text="Export creates a new file and adds a suffix if a file with that name already exists." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
                         </StackPanel>
