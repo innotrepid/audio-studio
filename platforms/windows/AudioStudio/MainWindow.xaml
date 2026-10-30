@@ -132,6 +132,30 @@
                         </StackPanel>
                     </Border>
                     <Button x:Name="RecordToggleButton" Content="●  Start recording" Style="{StaticResource PrimaryRecordButton}" Click="RecordToggle_Click" HorizontalAlignment="Center" MinWidth="240" />
+                    <Border Background="#111722" CornerRadius="12" Padding="16">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="STUDIO TELEPROMPTER" FontSize="10" FontWeight="Bold" Foreground="#A0BEFF" CharacterSpacing="120" />
+                            <TextBlock Text="Read your saved script while Audio Studio records. The scroll starts only after recording successfully begins." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
+                            <ScrollViewer x:Name="TeleprompterScriptScroll" Height="300" Background="#0D1119" Padding="18" VerticalScrollBarVisibility="Auto">
+                                <TextBlock x:Name="TeleprompterScriptText" Text="Your saved Creator script will appear here." TextWrapping="Wrap" FontSize="28" LineHeight="42" Foreground="White" TextAlignment="Center" />
+                            </ScrollViewer>
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <TextBlock Text="COUNTDOWN" Foreground="#AEB9CC" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" />
+                                <ComboBox x:Name="TeleprompterCountdownComboBox" SelectedIndex="0" MinWidth="150">
+                                    <ComboBoxItem Content="3 seconds" />
+                                    <ComboBoxItem Content="5 seconds" />
+                                    <ComboBoxItem Content="10 seconds" />
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock x:Name="TeleprompterSpeedText" Text="Scroll speed · 42 px/s" Foreground="#AEB9CC" FontSize="12" />
+                            <Slider x:Name="TeleprompterSpeedSlider" Minimum="15" Maximum="120" Value="42" />
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <Button x:Name="StartStudioTakeButton" Content="Start studio take" Click="StartStudioTake_Click" Style="{StaticResource PrimaryRecordButton}" />
+                                <Button x:Name="PauseTeleprompterButton" Content="Pause scroll" Click="PauseTeleprompter_Click" IsEnabled="False" />
+                            </StackPanel>
+                            <TextBlock x:Name="TeleprompterStatusText" Text="Choose a countdown, then record while your script scrolls." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
+                        </StackPanel>
+                    </Border>
                     <Button x:Name="OpenLatestTakeFromRecordButton" Content="Open latest verified take in Editor" Click="OpenLatestTake_Click" IsEnabled="False" HorizontalAlignment="Left" />
                     <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="8">
