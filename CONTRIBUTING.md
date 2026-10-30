@@ -4,6 +4,8 @@ Audio Studio is being developed in deliberate, testable phases. Prefer small cha
 
 ## Before changing code
 
+For the current Audio Studio redesign work, use only the repository branch `Redesign,-Teleprompter,-captions-&-more`. Do not create a parallel repository or branch for this work. Keep changes small and reviewable; do not replace the native Android/Windows architecture or create a second audio engine.
+
 1. Read [PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md) and the relevant architecture document.
 2. Identify Android and Windows behavior separately where platform APIs differ.
 3. Preserve original recordings and avoid destructive transformations.
