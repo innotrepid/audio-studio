@@ -159,7 +159,7 @@ public sealed partial class MainWindow : Window
         }
         DenoiserStrengthSlider.ValueChanged += (_, _) =>
         {
-            DenoiserStrengthText.Text = $"RNNoise strength: {DenoiserStrengthSlider.Value:0}%";
+            DenoiserStrengthText.Text = $"Neural denoiser strength: {DenoiserStrengthSlider.Value:0}%";
             SaveProcessingPreferences();
         };
         DenoiserStrengthSlider.KeyUp += (_, _) => SaveProcessingPreferences();
