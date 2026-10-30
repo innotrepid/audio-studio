@@ -932,6 +932,7 @@ public sealed partial class MainWindow : Window
             _loadingCreatorEditor = true;
             CreatorScriptTitleBox.Text = script.Title;
             CreatorScriptBodyBox.Text = section.Text;
+            CreatorTakesSummaryText.Text = $"Linked takes: {_creatorProject.Takes.Count}";
             _loadingCreatorEditor = false;
             CreatorSaveStatusText.Text = result.RecoveredFromBackup
                 ? "Recovered the last valid local project copy."
@@ -1350,6 +1351,7 @@ public sealed partial class MainWindow : Window
                 Status = "recorded"
             });
             _creatorStore.Save(_creatorProject);
+            CreatorTakesSummaryText.Text = $"Linked takes: {_creatorProject.Takes.Count}";
             return $"Linked to project · {script.Title} / {section.Title}. Audio file unchanged.";
         }
         catch (Exception exception)
