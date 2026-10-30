@@ -57,16 +57,18 @@ jobs:
           ref: 9857e2f6001fd032806c7266787f69febf04aae7
           path: vendor/noise-cancellation-model
           persist-credentials: false
-      - name: Install DirectML link library
+      - name: Install DirectML x64 link library
         shell: pwsh
         run: |
           nuget install Microsoft.AI.DirectML -OutputDirectory packages -NonInteractive
-          $lib = Get-ChildItem packages -Filter DirectML.lib -Recurse | Select-Object -First 1
+          $libs = @(Get-ChildItem packages -Filter DirectML.lib -Recurse)
+          $lib = $libs | Where-Object { $_.FullName -match '[\\/]x64(-win)?[\\/]' } | Select-Object -First 1
           if (-not $lib) {
-            Get-ChildItem packages -Recurse | Select-Object -ExpandProperty FullName
-            throw "DirectML.lib was not found in the Microsoft.AI.DirectML package."
+            $libs | Select-Object -ExpandProperty FullName
+            throw "An x64 DirectML.lib was not found in the Microsoft.AI.DirectML package."
           }
           "DIRECTML_LIBRARY=$($lib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Using x64 DirectML library: $($lib.FullName)"
       - name: Build RNNoise and DeepFilterNet3 C ABI
         working-directory: vendor/noise-cancellation-model
         env:
