@@ -132,6 +132,7 @@
                         </StackPanel>
                     </Border>
                     <Button x:Name="RecordToggleButton" Content="●  Start recording" Style="{StaticResource PrimaryRecordButton}" Click="RecordToggle_Click" HorizontalAlignment="Center" MinWidth="240" />
+                    <Button x:Name="OpenLatestTakeFromRecordButton" Content="Open latest verified take in Editor" Click="OpenLatestTake_Click" IsEnabled="False" HorizontalAlignment="Left" />
                     <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="8">
                             <TextBlock Text="RECOVERY" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
