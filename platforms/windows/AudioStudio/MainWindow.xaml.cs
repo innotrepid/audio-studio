@@ -1005,6 +1005,11 @@ public sealed partial class MainWindow : Window
         }
         if (NativeRecordingActive() != 0 || _teleprompterStartPending)
             return;
+        if (NativeProcessingActive() != 0)
+        {
+            TeleprompterStatusText.Text = "Wait for audio processing to finish before starting a Studio take.";
+            return;
+        }
 
         var seconds = TeleprompterCountdownComboBox.SelectedIndex switch
         {
@@ -1071,6 +1076,9 @@ public sealed partial class MainWindow : Window
 
     private void ResetTeleprompterControls()
     {
+        _teleprompterCountdownTimer.Stop();
+        _teleprompterCountdownActive = false;
+        _teleprompterStartPending = false;
         StartStudioTakeButton.IsEnabled = true;
         StartStudioTakeButton.Content = "Start studio take";
         PauseTeleprompterButton.IsEnabled = false;
@@ -1383,6 +1391,12 @@ public sealed partial class MainWindow : Window
                 {
                     _teleprompterStartPending = false;
                     StartTeleprompterScroll();
+                }
+                else
+                {
+                    StartStudioTakeButton.IsEnabled = false;
+                    StartStudioTakeButton.Content = "Recording active";
+                    PauseTeleprompterButton.IsEnabled = false;
                 }
             }
             else if (_teleprompterStartPending)
