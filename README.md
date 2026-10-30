@@ -1,7 +1,7 @@
 # Audio Studio
 
 **Working title:** Audio Studio  
-**Status:** Native C++ foundation in progress  
+**Status:** Native Android and Windows application with an established shared C++ audio core; Creator Studio capabilities are planned in staged delivery  
 **Targets:** Android and Windows  
 **Product direction:** A local-first voice recording and narration production studio.
 
@@ -35,11 +35,11 @@ This shares the code where sharing is valuable without pretending Android and Wi
 
 ## Roadmap at a glance
 
-1. **Native foundation:** C++ core, Android/Windows shells, microphone capture, safe file writing, and recovery.
-2. **Recording controls:** input meters, monitoring where supported, device selection, take management, and baseline quality checks.
-3. **Intelligent editor:** waveform editing, takes, transcript-aware editing, silence/filler review, and narration assembly.
-4. **Creator studio:** scripts, teleprompter, timing, captions, production markers, templates, and batch export.
-5. **Optional AI and advanced intelligence:** provider adapters, enhancement, session consistency checks, quality recommendations, and production blueprints.
+1. **Record:** native capture, input monitoring, WAV finalization, and interrupted-recording recovery.
+2. **Editor:** waveform analysis, precise non-destructive trim, offline processing, and original/processed review.
+3. **Library:** discover recordings and derived WAV outputs using platform-appropriate file access.
+4. **Creator Studio (planned):** projects, scripts, teleprompter, transcript/caption editing, and production markers.
+5. **Advanced workflows (planned):** verified phrase replacement, non-destructive assembly, and optional AI integrations.
 
 See [the roadmap](docs/ROADMAP.md), [hardening backlog](docs/HARDENING_BACKLOG.md), [product requirements](docs/PRODUCT_REQUIREMENTS.md), and [architecture](docs/ARCHITECTURE.md).
 
@@ -54,15 +54,15 @@ tests/                  C++ unit tests and later platform/audio integration test
 .github/workflows/      Continuous integration
 ```
 
-Platform folders and audio dependencies will be added in deliberate, buildable steps. Avoid adding a dependency before checking its maintenance, licensing, platform support, and measurable benefit.
+The platform folders contain the native applications and shared engine. Avoid adding a dependency before checking its maintenance, licensing, platform support, and measurable benefit.
 
 ## Development status
 
-The repository contains a tested C++ core, an Android Kotlin/NDK shell linked to Oboe, and a Windows WinUI shell connected to a small C ABI bridge. CI builds the core on Linux and Windows and attempts to build the Android APK and Windows shell. These shells are not finished production suites; individual features must pass CI and platform validation before being described as complete.
+The repository contains an Android Kotlin/NDK application using Oboe and a Windows WinUI 3 application connected to the shared native C++ engine through a C ABI bridge. The shared engine includes WAV validation/decoding, waveform analysis, precise trim, and offline processing paths. Android and Windows include native recording workflows. CI validates the Android native shell/APK and Linux/Windows C++ core (and Windows shell where configured). These applications are still evolving; CI and real-device/manual validation are both required before describing a workflow as release-ready.
 
 ## Processing status
 
-The shared C++ core includes a validated PCM16 buffer reader, common PCM 8/16/24/32-bit, IEEE float32, and standard WAVE_FORMAT_EXTENSIBLE PCM/float input support for waveform analysis, trim, and streamed processing, a tested conservative noise gate, and a non-destructive WAV processing path. On Android, users can choose a PCM16 WAV and export a separate processed copy to Music/Audio Studio/Processed; the original is never overwritten. Processing streams audio in 4096-frame blocks rather than loading the entire file into memory, so there is no arbitrary 64 MiB file-size cap. Processing reports progress, supports cancellation between blocks, and removes incomplete output on cancellation or failure. Android also cleans up stale processing scratch files older than 24 hours. The gate attenuates quieter sections and is not advanced noise cancellation or echo removal. The Processing screen offers **RNNoise (recommended)**, **DeepFilterNet3 (BETA)**, and the classic noise gate. RNNoise is the lightweight default; DeepFilterNet3 is an experimental local ONNX model option and may use more CPU, so users can compare both engines on their own recordings. The selected engine and denoiser strength are configurable in the UI. Neural processing streams bounded blocks, flushes its delayed tail, honors cancellation, and writes a separate output without changing the original. DeepFilterNet3 is explicitly marked BETA because perceptual quality and device performance still require broader real-device validation. Audio quality still requires physical-device listening tests.
+The shared C++ core supports common mono/stereo PCM 8/16/24/32-bit and IEEE float32 WAV input, plus standard WAVE_FORMAT_EXTENSIBLE PCM/float wrappers for waveform analysis, trim, and supported processing paths. Waveform analysis uses bounded reads and produces a min/max envelope; trim uses frame-accurate selections and exports a new WAV. Processing uses bounded blocks, reports progress, supports cancellation, and writes a separate output without replacing the source. Android's processing workflow includes RNNoise, DeepFilterNet3 (BETA), and a classic noise-gate option. RNNoise is the recommended lightweight neural option; DeepFilterNet3 is experimental and may use more CPU. Neural enhancement is offline processing, not a live filter in the recording callback. The classic gate attenuates quieter sections and is not spectral noise cancellation or dereverberation. Quality and performance still require physical-device listening tests.
 
 ## Licensing
 
