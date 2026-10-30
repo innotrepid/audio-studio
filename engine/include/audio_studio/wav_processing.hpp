@@ -14,6 +14,7 @@ namespace audio_studio {
 enum class ProcessingEngine : std::uint8_t {
     NoiseGate = 0,
     Rnnoise = 1,
+    DeepFilterNet3 = 2,
 };
 
 struct WaveformPeak {
@@ -54,6 +55,7 @@ struct WaveformPeak {
     std::function<void(std::uint64_t, std::uint64_t)> progress = {},
     DspEffectsSettings dsp_settings = {},
     ProcessingEngine engine = ProcessingEngine::NoiseGate,
-    float denoiser_strength = 0.85F);
+    float denoiser_strength = 0.85F,
+    const std::string& model_directory = {});
 
 }  // namespace audio_studio
