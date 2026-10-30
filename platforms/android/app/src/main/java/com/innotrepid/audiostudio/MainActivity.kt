@@ -880,7 +880,7 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(16), dp(4), dp(240))
             contentDescription = "Teleprompter script"
         }.also { teleprompterScriptView = it }
-        teleprompterScroll.addView(teleprompterText, ScrollView.LayoutParams(
+        teleprompterScroll.addView(teleprompterText, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
         val teleprompterCountdown = Spinner(this).apply {
