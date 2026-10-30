@@ -593,6 +593,18 @@ class MainActivity : Activity() {
         editSection.addView(waveformStatus, matchWidth())
 
         val processingSection = makeSection("Clean up audio", "Start with one of three voice-focused presets. Fine-tune only if needed; processing always creates a separate copy.")
+        processingSection.addView(Button(this).apply {
+            text = "← Back to Editor"
+            contentDescription = "Return to the Editor workspace"
+            minHeight = dp(48)
+            setOnClickListener {
+                processingSection.visibility = android.view.View.GONE
+                editSection.visibility = android.view.View.VISIBLE
+                recordSection.visibility = android.view.View.GONE
+                creatorSection.visibility = android.view.View.GONE
+                librarySection.visibility = android.view.View.GONE
+            }
+        }, matchWidth())
         processingSection.addView(TextView(this).apply {
             text = "NOISE REDUCTION ENGINE"
             textSize = 11f
