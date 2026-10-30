@@ -8,13 +8,13 @@
     <Grid.Resources>
         <SolidColorBrush x:Key="StudioAccentBrush" Color="#4F7DFF" />
         <SolidColorBrush x:Key="StudioRecordBrush" Color="#20C997" />
-        <SolidColorBrush x:Key="StudioSecondaryBrush" Color="#FF7AC8" />
-        <SolidColorBrush x:Key="StudioCardBrush" Color="#1A1A26" />
-        <SolidColorBrush x:Key="StudioMutedBrush" Color="#B8B4CC" />
+        <SolidColorBrush x:Key="StudioSecondaryBrush" Color="#8EA8E8" />
+        <SolidColorBrush x:Key="StudioCardBrush" Color="#171D29" />
+        <SolidColorBrush x:Key="StudioMutedBrush" Color="#AEB9CC" />
         <Style TargetType="Button">
             <Setter Property="Background" Value="#222230" />
-            <Setter Property="Foreground" Value="#F3F0FF" />
-            <Setter Property="BorderBrush" Value="#3A3650" />
+            <Setter Property="Foreground" Value="#F4F6FB" />
+            <Setter Property="BorderBrush" Value="#35415B" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Padding" Value="14,9" />
@@ -25,8 +25,8 @@
         </Style>
         <Style x:Key="WorkflowNavigationButton" TargetType="ToggleButton">
             <Setter Property="Background" Value="#222230" />
-            <Setter Property="Foreground" Value="#B8B4CC" />
-            <Setter Property="BorderBrush" Value="#302D42" />
+            <Setter Property="Foreground" Value="#AEB9CC" />
+            <Setter Property="BorderBrush" Value="#35415B" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="16,11" />
@@ -49,11 +49,11 @@
                       Padding="24,20">
         <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Spacing="18" MaxWidth="820" Margin="12,8,12,32">
             <StackPanel Spacing="5" Margin="4,0,4,6">
-                <TextBlock Text="AUDIO STUDIO" FontSize="12" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="180" />
+                <TextBlock Text="AUDIO STUDIO" FontSize="12" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="180" />
                 <TextBlock Text="Your voice. Your studio." FontSize="30" FontWeight="SemiBold" Foreground="White" />
-                <TextBlock Text="Record clean audio, shape it, and keep every original safe." FontSize="15" Foreground="#B8B4CC" TextWrapping="Wrap" />
+                <TextBlock Text="Record clean audio, shape it, and keep every original safe." FontSize="15" Foreground="#AEB9CC" TextWrapping="Wrap" />
             </StackPanel>
-            <Border Background="#14141E" CornerRadius="12" Padding="8">
+            <Border Background="#111722" CornerRadius="12" Padding="8">
             <StackPanel x:Name="WorkflowNavigation" Orientation="Horizontal" HorizontalAlignment="Stretch" Spacing="8">
                 <ToggleButton x:Name="NavigateRecordButton" IsChecked="True" Click="NavigateRecord_Click" Style="{StaticResource WorkflowNavigationButton}">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -67,10 +67,10 @@
                         <TextBlock Text="Edit" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
-                <ToggleButton x:Name="NavigateProcessingButton" Click="NavigateProcessing_Click" Style="{StaticResource WorkflowNavigationButton}">
+                <ToggleButton x:Name="NavigateCreatorButton" Click="NavigateCreator_Click" Style="{StaticResource WorkflowNavigationButton}">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE9D9;" FontSize="16" />
-                        <TextBlock Text="Process" VerticalAlignment="Center" />
+                        <FontIcon Glyph="&#xE8D2;" FontSize="16" />
+                        <TextBlock Text="Creator" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
                 <ToggleButton x:Name="NavigateLibraryButton" Click="NavigateLibrary_Click" Style="{StaticResource WorkflowNavigationButton}">
@@ -79,192 +79,203 @@
                         <TextBlock Text="Library" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
-                <ToggleButton x:Name="NavigateCompareButton" Click="NavigateCompare_Click" Style="{StaticResource WorkflowNavigationButton}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE8A7;" FontSize="16" />
-                        <TextBlock Text="Compare" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
             </StackPanel>
             </Border>
-            <Border x:Name="RecordPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0">
+            <Border x:Name="RecordPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="RECORD" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
+                        <TextBlock Text="RECORD" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
                         <TextBlock Text="Capture a clean take" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Choose your microphone, check the level, and save a WAV recording." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock Text="Choose your microphone, check the level, and save a WAV recording." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <Border Background="#14141E" CornerRadius="10" Padding="14">
+                    <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="ENGINE STATUS" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
+                            <TextBlock Text="ENGINE STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
                             <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#77E0B5" />
                         </StackPanel>
                     </Border>
                     <StackPanel Spacing="8">
-                        <TextBlock Text="INPUT DEVICE" FontSize="11" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
+                        <TextBlock Text="INPUT DEVICE" FontSize="11" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <ComboBox x:Name="InputDeviceComboBox" MinWidth="260" PlaceholderText="Select microphone" />
                             <Button x:Name="RefreshInputDevicesButton" Content="Refresh" Click="RefreshInputDevices_Click" />
                         </StackPanel>
-                        <TextBlock x:Name="InputDeviceStatusText" Text="Loading input devices…" TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock x:Name="InputDeviceStatusText" Text="Loading input devices…" TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <Border Background="#14141E" CornerRadius="10" Padding="14">
+                    <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="RECORDING STATUS" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
-                            <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#F3F0FF" FontSize="15" />
-                            <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#B8B4CC" />
-                            <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#B29BFF" />
+                            <TextBlock Text="RECORDING STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#F4F6FB" FontSize="15" />
+                            <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#AEB9CC" />
+                            <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#4F7DFF" />
                             <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold" />
                         </StackPanel>
                     </Border>
                     <Button x:Name="RecordToggleButton" Content="●  Start recording" Style="{StaticResource PrimaryRecordButton}" Click="RecordToggle_Click" HorizontalAlignment="Center" MinWidth="240" />
-                    <Border Background="#14141E" CornerRadius="10" Padding="14">
+                    <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="RECOVERY" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
-                            <TextBlock Text="If an app or device interruption leaves a temporary recording, you can check a folder and recover valid audio without overwriting existing files." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                            <TextBlock Text="RECOVERY" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock Text="If an app or device interruption leaves a temporary recording, you can check a folder and recover valid audio without overwriting existing files." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             <Button x:Name="RecoverRecordingsButton" Content="Check for interrupted recordings…" Click="RecoverRecordings_Click" HorizontalAlignment="Left" />
-                            <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                            <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#AEB9CC" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </Border>
-            <Border x:Name="ProcessingPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+            <Border x:Name="ProcessingPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="PROCESS" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
+                        <TextBlock Text="PROCESS" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
                         <TextBlock Text="Clean up your audio" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Reduce steady background noise and shape your voice. Processing creates a separate output; your original stays untouched." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock Text="Reduce steady background noise and shape your voice. Processing creates a separate output; your original stays untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button x:Name="NavigateProcessingButton" Content="Noise reduction" Click="NavigateProcessing_Click" />
+                        <Button x:Name="NavigateCompareButton" Content="A/B comparison" Click="NavigateCompare_Click" />
+                    </StackPanel>
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="NOISE REDUCTION ENGINE" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="110" />
+                            <TextBlock Text="NOISE REDUCTION ENGINE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                             <ComboBox x:Name="ProcessingEngineComboBox" PlaceholderText="Choose noise reduction engine" SelectionChanged="ProcessingEngineComboBox_SelectionChanged">
                                 <ComboBoxItem Content="RNNoise (recommended)" />
                                 <ComboBoxItem Content="DeepFilterNet3 (BETA)" />
                                 <ComboBoxItem Content="Classic noise gate" />
                             </ComboBox>
-                            <TextBlock Text="RNNoise is the recommended lightweight neural engine. DeepFilterNet3 (BETA) is an experimental alternative and may use more CPU. Classic noise gate keeps the original threshold-based behavior." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
-                            <TextBlock x:Name="DenoiserStrengthText" Text="Neural denoiser strength: 85%" Foreground="#B8B4CC" />
+                            <TextBlock Text="RNNoise is the recommended lightweight neural engine. DeepFilterNet3 (BETA) is an experimental alternative and may use more CPU. Classic noise gate keeps the original threshold-based behavior." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
+                            <TextBlock x:Name="DenoiserStrengthText" Text="Neural denoiser strength: 85%" Foreground="#AEB9CC" />
                             <Slider x:Name="DenoiserStrengthSlider" Minimum="0" Maximum="100" Value="85" StepFrequency="5" />
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="1 · CHOOSE A PRESET" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="110" />
-                                <TextBlock Text="Start simple, then fine-tune if needed." Foreground="#F3F0FF" />
+                                <TextBlock Text="1 · CHOOSE A PRESET" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
+                                <TextBlock Text="Start simple, then fine-tune if needed." Foreground="#F4F6FB" />
                             </StackPanel>
                             <ComboBox x:Name="ProcessingPresetComboBox" PlaceholderText="Quick processing preset" SelectionChanged="ProcessingPresetComboBox_SelectionChanged">
                                 <ComboBoxItem Content="Natural" />
                                 <ComboBoxItem Content="Voice clarity" />
                                 <ComboBoxItem Content="Rumble cut" />
                             </ComboBox>
-                            <TextBlock Text="Natural keeps processing subtle. Voice clarity emphasizes speech. Rumble cut targets low-frequency noise." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                            <TextBlock Text="Natural keeps processing subtle. Voice clarity emphasizes speech. Rumble cut targets low-frequency noise." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="2 · OPTIONAL FINE-TUNING" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="110" />
+                                <TextBlock Text="2 · OPTIONAL FINE-TUNING" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                                 <TextBlock Text="Advanced controls" FontSize="17" FontWeight="SemiBold" Foreground="White" />
-                                <TextBlock Text="Adjust only if the preset needs more or less effect." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                                <TextBlock Text="Adjust only if the preset needs more or less effect." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             </StackPanel>
                             <Expander Header="Show advanced controls" IsExpanded="False">
                                 <StackPanel Spacing="8" Margin="0,8,0,0">
-                                    <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#B8B4CC" />
+                                    <TextBlock x:Name="GateThresholdText" Text="Noise threshold: -48 dBFS" Foreground="#AEB9CC" />
                                     <Slider x:Name="GateThresholdSlider" Minimum="-70" Maximum="-20" Value="-54" StepFrequency="1" />
-                                    <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#B8B4CC" />
+                                    <TextBlock x:Name="GateAttenuationText" Text="Noise attenuation: -18 dB" Foreground="#AEB9CC" />
                                     <Slider x:Name="GateAttenuationSlider" Minimum="-36" Maximum="0" Value="-12" StepFrequency="1" />
-                                    <TextBlock x:Name="DspGainText" Text="Output gain: 0 dB" Foreground="#B8B4CC" />
+                                    <TextBlock x:Name="DspGainText" Text="Output gain: 0 dB" Foreground="#AEB9CC" />
                                     <Slider x:Name="DspGainSlider" Minimum="-24" Maximum="12" Value="0" StepFrequency="1" />
-                                    <TextBlock x:Name="HighPassText" Text="High-pass filter: Off" Foreground="#B8B4CC" />
+                                    <TextBlock x:Name="HighPassText" Text="High-pass filter: Off" Foreground="#AEB9CC" />
                                     <Slider x:Name="HighPassSlider" Minimum="0" Maximum="49" Value="0" StepFrequency="1" />
                                 </StackPanel>
                             </Expander>
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="3 · PROCESS FILE" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="110" />
-                                <TextBlock Text="Choose a PCM16 WAV and output folder when prompted." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                                <TextBlock Text="3 · PROCESS FILE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
+                                <TextBlock Text="Choose a PCM16 WAV and output folder when prompted." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <Button x:Name="ProcessWavButton" Content="Process WAV…" Click="ProcessWav_Click" Style="{StaticResource PrimaryRecordButton}" />
                                 <Button x:Name="CancelProcessingButton" Content="Cancel" Click="CancelProcessing_Click" IsEnabled="False" />
                             </StackPanel>
-                            <ProgressBar x:Name="ProcessingProgressBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#B29BFF" />
-                            <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                            <ProgressBar x:Name="ProcessingProgressBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#4F7DFF" />
+                            <TextBlock x:Name="ProcessingStatusText" Text="Choose a PCM16 WAV to reduce low-level background noise." TextWrapping="Wrap" Foreground="#AEB9CC" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </Border>
-            <Border x:Name="ComparePanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+            <Border x:Name="ComparePanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="COMPARE" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
+                        <TextBlock Text="COMPARE" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
                         <TextBlock Text="Trust your ears" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Compare the same voice take before and after processing. Switch playback between the two files and listen for natural speech, noise reduction, and unwanted artifacts." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock Text="Compare the same voice take before and after processing. Switch playback between the two files and listen for natural speech, noise reduction, and unwanted artifacts." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="ORIGINAL RECORDING" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
-                            <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#F3F0FF" FontSize="15" />
+                            <TextBlock Text="ORIGINAL RECORDING" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock x:Name="OriginalPreviewFileText" Text="Original: no file selected" TextWrapping="Wrap" Foreground="#F4F6FB" FontSize="15" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button x:Name="ChooseOriginalPreviewButton" Content="Choose original WAV…" Click="ChooseOriginalPreview_Click" />
                                 <Button x:Name="PreviewOriginalButton" Content="Play original" Click="PreviewOriginal_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="PROCESSED COPY" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
-                            <TextBlock x:Name="ProcessedPreviewFileText" Text="Processed: no file selected" TextWrapping="Wrap" Foreground="#F3F0FF" FontSize="15" />
+                            <TextBlock Text="PROCESSED COPY" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock x:Name="ProcessedPreviewFileText" Text="Processed: no file selected" TextWrapping="Wrap" Foreground="#F4F6FB" FontSize="15" />
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button x:Name="ChooseProcessedPreviewButton" Content="Choose processed WAV…" Click="ChooseProcessedPreview_Click" />
                                 <Button x:Name="PreviewProcessedButton" Content="Play processed" Click="PreviewProcessed_Click" IsEnabled="False" Style="{StaticResource PrimaryRecordButton}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="PLAYBACK STATUS" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
-                            <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#F3F0FF" />
+                            <TextBlock Text="PLAYBACK STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock x:Name="PreviewStatusText" Text="Preview is stopped." TextWrapping="Wrap" Foreground="#F4F6FB" />
                             <Button x:Name="StopPreviewButton" Content="Stop preview" Click="StopPreview_Click" IsEnabled="False" HorizontalAlignment="Left" />
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="Tip: use files from the same recording. Keep playback volume similar when judging changes, and stop playback before starting another audio operation." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                    <TextBlock Text="Tip: use files from the same recording. Keep playback volume similar when judging changes, and stop playback before starting another audio operation." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
                 </StackPanel>
             </Border>
-            <Border x:Name="LibraryPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+            <Border x:Name="LibraryPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="LIBRARY" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
+                        <TextBlock Text="LIBRARY" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
                         <TextBlock Text="Find your WAV files" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Choose a folder containing recordings, processed copies, or trimmed exports. Audio Studio only lists WAVs in that folder. Edit opens the waveform editor; Process copy creates a separate output and leaves the source unchanged." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock Text="Choose a folder containing recordings, processed copies, or trimmed exports. Audio Studio only lists WAVs in that folder. Edit opens the waveform editor; Process copy creates a separate output and leaves the source unchanged." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="10">
                         <Button x:Name="ChooseLibraryFolderButton" Content="Choose folder…" Click="ChooseLibraryFolder_Click" Style="{StaticResource PrimaryRecordButton}" />
                         <Button x:Name="RefreshLibraryButton" Content="Refresh" Click="RefreshLibrary_Click" />
                     </StackPanel>
                     <TextBox x:Name="LibrarySearchBox" PlaceholderText="Search WAV names or folders…" TextChanged="LibrarySearchBox_TextChanged" AutomationProperties.Name="Search the loaded WAV library by file name or folder" />
-                    <TextBlock x:Name="LibraryStatusText" Text="Choose a folder to list WAV files." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                    <TextBlock x:Name="LibraryStatusText" Text="Choose a folder to list WAV files." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     <StackPanel x:Name="LibraryItemsPanel" Spacing="10" />
                 </StackPanel>
             </Border>
-            <Border x:Name="EditorPanel" Background="#1A1A26" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+            <Border x:Name="CreatorPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
+                <StackPanel Spacing="14" Margin="24">
+                    <TextBlock Text="CREATOR" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
+                    <TextBlock Text="Your spoken-content workspace" FontSize="24" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Scripts, teleprompter, transcripts & captions, and production tools will be introduced here in later phases. This is an honest workspace entry point; no unfinished controls are presented as working features." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="COMING IN CREATOR PHASES" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
+                            <TextBlock Text="Scripts  ·  Teleprompter  ·  Transcripts & Captions  ·  Production" TextWrapping="Wrap" Foreground="#F4F6FB" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+            <Border x:Name="EditorPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="EDIT" FontSize="11" FontWeight="Bold" Foreground="#B29BFF" CharacterSpacing="160" />
+                        <TextBlock Text="EDIT" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
                         <TextBlock Text="Shape your recording" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Choose the exact section to keep, then export it as a separate WAV. Your source recording is never overwritten." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                        <TextBlock Text="Choose the exact section to keep, then export it as a separate WAV. Your source recording is never overwritten." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="WAVEFORM" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
+                                <TextBlock Text="WAVEFORM" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
                                 <TextBlock Text="Inspect the audio envelope" FontSize="17" FontWeight="SemiBold" Foreground="White" />
-                                <TextBlock Text="Load a PCM16 WAV to view its amplitude. This analysis does not alter the recording." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                                <TextBlock Text="Load a PCM16 WAV to view its amplitude. This analysis does not alter the recording." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             </StackPanel>
                             <Button x:Name="LoadWaveformButton" Content="Load WAV waveform…" Click="LoadWaveform_Click" HorizontalAlignment="Left" />
                             <Border Background="#0C0C14" CornerRadius="8" Padding="8" HorizontalAlignment="Center">
@@ -273,44 +284,44 @@
                             <StackPanel Orientation="Horizontal" Spacing="16">
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                     <Border Width="10" Height="10" Background="#FFD166" CornerRadius="2" />
-                                    <TextBlock Text="Trim start" Foreground="#B8B4CC" FontSize="12" />
+                                    <TextBlock Text="Trim start" Foreground="#AEB9CC" FontSize="12" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                     <Border Width="10" Height="10" Background="#FF7777" CornerRadius="2" />
-                                    <TextBlock Text="Trim end" Foreground="#B8B4CC" FontSize="12" />
+                                    <TextBlock Text="Trim end" Foreground="#AEB9CC" FontSize="12" />
                                 </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="16">
+                    <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="TRIM RANGE" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
+                                <TextBlock Text="TRIM RANGE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
                                 <TextBlock Text="Set your in and out points" FontSize="17" FontWeight="SemiBold" Foreground="White" />
-                                <TextBlock Text="Drag the in/out markers directly on the waveform, or use the sliders and precise timecodes. Preview before exporting; the original stays untouched." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                                <TextBlock Text="Drag the in/out markers directly on the waveform, or use the sliders and precise timecodes. Preview before exporting; the original stays untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
                             </StackPanel>
                             <StackPanel Spacing="6">
-                                <TextBlock x:Name="TrimStartText" Text="Trim start: 0%" Foreground="#F3F0FF" FontWeight="SemiBold" />
+                                <TextBlock x:Name="TrimStartText" Text="Trim start: 0%" Foreground="#F4F6FB" FontWeight="SemiBold" />
                                 <Slider x:Name="TrimStartSlider" Minimum="0" Maximum="1000" Value="0" StepFrequency="1" />
                             </StackPanel>
                             <StackPanel Spacing="6">
-                                <TextBlock x:Name="TrimEndText" Text="Trim end: 100%" Foreground="#F3F0FF" FontWeight="SemiBold" />
+                                <TextBlock x:Name="TrimEndText" Text="Trim end: 100%" Foreground="#F4F6FB" FontWeight="SemiBold" />
                                 <Slider x:Name="TrimEndSlider" Minimum="0" Maximum="1000" Value="1000" StepFrequency="1" />
                             </StackPanel>
                             <StackPanel Spacing="8">
-                                <TextBlock Text="PRECISE TIME CODES" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="100" />
-                                <TextBlock Text="Enter minutes:seconds.milliseconds (for example, 02:14.350). Exact frame positions are retained for preview and export." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                                <TextBlock Text="PRECISE TIME CODES" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100" />
+                                <TextBlock Text="Enter minutes:seconds.milliseconds (for example, 02:14.350). Exact frame positions are retained for preview and export." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
                                 <Grid ColumnSpacing="10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Spacing="4">
-                                        <TextBlock Text="IN POINT" Foreground="#F3F0FF" FontSize="12" />
+                                        <TextBlock Text="IN POINT" Foreground="#F4F6FB" FontSize="12" />
                                         <TextBox x:Name="TrimStartTimeBox" Text="00:00.000" PlaceholderText="00:00.000" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Spacing="4">
-                                        <TextBlock Text="OUT POINT" Foreground="#F3F0FF" FontSize="12" />
+                                        <TextBlock Text="OUT POINT" Foreground="#F4F6FB" FontSize="12" />
                                         <TextBox x:Name="TrimEndTimeBox" Text="00:00.000" PlaceholderText="00:00.000" />
                                     </StackPanel>
                                 </Grid>
@@ -318,21 +329,21 @@
                             </StackPanel>
                             <Border Background="#0C0C14" CornerRadius="8" Padding="12">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="SELECTED AUDIO" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="100" />
-                                    <TextBlock x:Name="WaveformSelectionText" Text="Selected duration: full file" TextWrapping="Wrap" Foreground="#B29BFF" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock Text="SELECTED AUDIO" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100" />
+                                    <TextBlock x:Name="WaveformSelectionText" Text="Selected duration: full file" TextWrapping="Wrap" Foreground="#4F7DFF" FontSize="16" FontWeight="SemiBold" />
                                 </StackPanel>
                             </Border>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button x:Name="PreviewTrimRangeButton" Content="Preview selected range" Click="PreviewTrimRange_Click" IsEnabled="False" HorizontalAlignment="Left" />
                                 <Button x:Name="TrimWaveformButton" Content="Export selected range to new WAV…" Click="TrimWaveform_Click" IsEnabled="False" HorizontalAlignment="Left" />
                             </StackPanel>
-                            <TextBlock Text="Export creates a new file and adds a suffix if a file with that name already exists." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                            <TextBlock Text="Export creates a new file and adds a suffix if a file with that name already exists." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
                         </StackPanel>
                     </Border>
-                    <Border Background="#14141E" CornerRadius="10" Padding="14">
+                    <Border Background="#111722" CornerRadius="10" Padding="14">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="EDITOR STATUS" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="120" />
-                            <TextBlock x:Name="WaveformStatusText" Text="No waveform loaded. Choose a WAV to begin." TextWrapping="Wrap" Foreground="#B8B4CC" />
+                            <TextBlock Text="EDITOR STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
+                            <TextBlock x:Name="WaveformStatusText" Text="No waveform loaded. Choose a WAV to begin." TextWrapping="Wrap" Foreground="#AEB9CC" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
