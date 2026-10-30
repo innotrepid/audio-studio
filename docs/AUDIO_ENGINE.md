@@ -7,21 +7,16 @@ The engine must capture and save speech reliably before adding complex enhanceme
 ## Technology direction
 
 - **Shared logic:** C++ with CMake, designed for deterministic tests.
-- **Android audio I/O:** evaluate Google's Oboe through the Android NDK for low-latency native capture/playback; handle permissions and lifecycle in the Android layer.
-- **Windows audio I/O:** use Windows audio APIs, including WASAPI where appropriate, with device changes and endpoint failures handled explicitly.
+- **Android audio I/O:** the Android application integrates Oboe through the Android NDK for native capture/playback; permissions and lifecycle remain in Kotlin/platform code.
+- **Windows audio I/O:** the Windows application uses native Windows audio integration, with device changes and endpoint failures handled explicitly.
 - **DSP:** implement and test independent processing units; do not run heavy enhancement in a real-time callback unless its timing and worst-case cost have been measured.
 - **File writing:** use a bounded producer/consumer design so the capture callback does not wait on disk I/O.
 
-## First implementation milestone
+## Current implementation baseline
 
-The first milestone is intentionally small:
-1. Define explicit audio format and buffer types.
-2. Validate core invariants with unit tests.
-3. Build the shared C++ core on Linux and Windows in CI.
-4. Add platform-native shells and microphone capture separately, with integration tests.
-5. Record known test signals and voice samples, then verify duration, sample rate, channel count, clipping behavior, and file integrity.
+The repository has moved beyond the initial core-only milestone. It contains a shared C++ engine, an Android Kotlin/NDK application using Oboe, and a Windows WinUI application connected through a narrow native bridge. The platform applications include recording workflows; the shared engine includes WAV handling, waveform analysis, frame-based trim, and offline processing capabilities.
 
-The initial C++ core is not itself a recorder. Platform capture is only considered complete after it works on real devices.
+This does not mean every audio path is production-ready. CI validates the checks configured in the repository; capture reliability, routing, latency, and perceptual processing quality still require real-device/desktop validation and listening tests.
 
 ## Audio callback constraints
 
@@ -51,7 +46,7 @@ The shared core includes an optional, non-destructive `NoiseGate` processor. It 
 
 Important limits:
 - This is **not** AI noise cancellation, spectral denoising, or dereverberation. It will not reliably remove noise that overlaps speech, traffic, fans at speech level, or room echo.
-- The processor is a tested engine component, not enabled in the capture-to-WAV path and not exposed in the Android UI. Raw recordings remain unchanged.
+- The processor is an offline processing component, not part of the live capture callback. Where exposed by the platform processing workflow, it writes a separate derived output; raw recordings remain unchanged.
 - It operates on normalized float buffers and maintains state between consecutive blocks; callers should use a separate processed copy to preserve the original take.
 - Listen for pumping, clipped word beginnings/endings, and changes to quiet speech before using it in a production workflow.
 
