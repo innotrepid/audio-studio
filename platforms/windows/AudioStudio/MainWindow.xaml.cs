@@ -88,6 +88,12 @@ public sealed partial class MainWindow : Window
     private CreatorProjectStore? _creatorStore;
     private CreatorProjectStore.ProjectDocument? _creatorProject;
     private bool _loadingCreatorEditor;
+    private readonly DispatcherTimer _teleprompterCountdownTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _teleprompterScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private int _teleprompterCountdownRemaining;
+    private bool _teleprompterCountdownActive;
+    private bool _teleprompterStartPending;
+    private bool _teleprompterPaused;
     private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly Stopwatch _recordingStopwatch = new();
     private readonly DispatcherTimer _processingTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
@@ -138,6 +144,45 @@ public sealed partial class MainWindow : Window
             RecordToggleButton.IsEnabled = false;
         }
 
+        _teleprompterCountdownTimer.Tick += (_, _) =>
+        {
+            if (!_teleprompterCountdownActive)
+            {
+                _teleprompterCountdownTimer.Stop();
+                return;
+            }
+            if (_teleprompterCountdownRemaining <= 0)
+            {
+                _teleprompterCountdownTimer.Stop();
+                _teleprompterCountdownActive = false;
+                _teleprompterStartPending = true;
+                TeleprompterStatusText.Text = "Countdown complete · choose where to save this take.";
+                StartRecording_Click(StartStudioTakeButton, new RoutedEventArgs());
+                return;
+            }
+            TeleprompterStatusText.Text = $"Recording starts in {_teleprompterCountdownRemaining}";
+            _teleprompterCountdownRemaining--;
+        };
+        _teleprompterScrollTimer.Tick += (_, _) =>
+        {
+            if (NativeRecordingActive() == 0)
+            {
+                StopTeleprompterScroll();
+                return;
+            }
+            var nextOffset = Math.Min(
+                TeleprompterScriptScroll.ScrollableHeight,
+                TeleprompterScriptScroll.VerticalOffset + TeleprompterSpeedSlider.Value * 0.016);
+            TeleprompterScriptScroll.ChangeView(null, nextOffset, null, true);
+            if (nextOffset >= TeleprompterScriptScroll.ScrollableHeight - 1)
+            {
+                _teleprompterScrollTimer.Stop();
+                PauseTeleprompterButton.IsEnabled = false;
+                TeleprompterStatusText.Text = "End of script · recording continues.";
+            }
+        };
+        TeleprompterSpeedSlider.ValueChanged += (_, _) =>
+            TeleprompterSpeedText.Text = $"Scroll speed · {TeleprompterSpeedSlider.Value:0} px/s";
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
         _trimPreviewTimer.Tick += (_, _) =>
         {
@@ -197,6 +242,8 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _creatorSaveTimer.Stop();
+            _teleprompterCountdownTimer.Stop();
+            _teleprompterScrollTimer.Stop();
             _meterTimer.Stop();
             _processingTimer.Stop();
             _trimPreviewTimer.Stop();
@@ -932,6 +979,7 @@ public sealed partial class MainWindow : Window
             _loadingCreatorEditor = true;
             CreatorScriptTitleBox.Text = script.Title;
             CreatorScriptBodyBox.Text = section.Text;
+            TeleprompterScriptText.Text = section.Text;
             CreatorTakesSummaryText.Text = $"Linked takes: {_creatorProject.Takes.Count}";
             _loadingCreatorEditor = false;
             CreatorSaveStatusText.Text = result.RecoveredFromBackup
@@ -948,8 +996,90 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void StartStudioTake_Click(object sender, RoutedEventArgs e)
+    {
+        if (_teleprompterCountdownActive)
+        {
+            CancelTeleprompterCountdown();
+            return;
+        }
+        if (NativeRecordingActive() != 0 || _teleprompterStartPending)
+            return;
+
+        var seconds = TeleprompterCountdownComboBox.SelectedIndex switch
+        {
+            1 => 5,
+            2 => 10,
+            _ => 3
+        };
+        _teleprompterCountdownRemaining = seconds - 1;
+        _teleprompterCountdownActive = true;
+        TeleprompterScriptScroll.ChangeView(null, 0, null, true);
+        StartStudioTakeButton.Content = "Cancel countdown";
+        TeleprompterStatusText.Text = $"Recording starts in {seconds}";
+        _teleprompterCountdownTimer.Stop();
+        _teleprompterCountdownTimer.Start();
+    }
+
+    private void CancelTeleprompterCountdown()
+    {
+        _teleprompterCountdownTimer.Stop();
+        _teleprompterCountdownActive = false;
+        _teleprompterStartPending = false;
+        ResetTeleprompterControls();
+        TeleprompterStatusText.Text = "Countdown cancelled · your script is unchanged.";
+    }
+
+    private void PauseTeleprompter_Click(object sender, RoutedEventArgs e)
+    {
+        if (NativeRecordingActive() == 0)
+            return;
+        if (_teleprompterPaused)
+        {
+            _teleprompterPaused = false;
+            _teleprompterScrollTimer.Start();
+            PauseTeleprompterButton.Content = "Pause scroll";
+            TeleprompterStatusText.Text = "Script scrolling · recording continues.";
+        }
+        else
+        {
+            _teleprompterPaused = true;
+            _teleprompterScrollTimer.Stop();
+            PauseTeleprompterButton.Content = "Resume scroll";
+            TeleprompterStatusText.Text = "Script paused · recording continues.";
+        }
+    }
+
+    private void StartTeleprompterScroll()
+    {
+        _teleprompterPaused = false;
+        TeleprompterScriptScroll.ChangeView(null, 0, null, true);
+        StartStudioTakeButton.IsEnabled = false;
+        StartStudioTakeButton.Content = "Studio take recording…";
+        PauseTeleprompterButton.IsEnabled = true;
+        PauseTeleprompterButton.Content = "Pause scroll";
+        TeleprompterStatusText.Text = "Recording and script scroll are synchronized.";
+        _teleprompterScrollTimer.Start();
+    }
+
+    private void StopTeleprompterScroll()
+    {
+        _teleprompterScrollTimer.Stop();
+        _teleprompterPaused = false;
+        ResetTeleprompterControls();
+    }
+
+    private void ResetTeleprompterControls()
+    {
+        StartStudioTakeButton.IsEnabled = true;
+        StartStudioTakeButton.Content = "Start studio take";
+        PauseTeleprompterButton.IsEnabled = false;
+        PauseTeleprompterButton.Content = "Pause scroll";
+    }
+
     private void CreatorScript_TextChanged(object sender, TextChangedEventArgs e)
     {
+        TeleprompterScriptText.Text = CreatorScriptBodyBox.Text;
         if (_loadingCreatorEditor || _creatorProject is null || _creatorStore is null)
             return;
         CreatorSaveStatusText.Text = "Unsaved changes · saving shortly…";
@@ -1187,6 +1317,8 @@ public sealed partial class MainWindow : Window
 
     private void RecordToggle_Click(object sender, RoutedEventArgs e)
     {
+        if (_teleprompterCountdownActive)
+            CancelTeleprompterCountdown();
         if (NativeRecordingActive() != 0)
             StopRecording_Click(sender, e);
         else
@@ -1198,6 +1330,7 @@ public sealed partial class MainWindow : Window
         if (NativeProcessingActive() != 0)
         {
             RecordingStatusText.Text = "Wait for WAV processing to finish before recording.";
+            if (_teleprompterStartPending) ResetTeleprompterControls();
             return;
         }
         StopPreview();
@@ -1205,9 +1338,15 @@ public sealed partial class MainWindow : Window
             NativeCaptureDeviceSelect(selectedDevice.Id) == 0)
         {
             InputDeviceStatusText.Text = "Choose an available input device before recording.";
+            if (_teleprompterStartPending) ResetTeleprompterControls();
             return;
         }
         RecordToggleButton.IsEnabled = false;
+        if (_teleprompterStartPending)
+        {
+            StartStudioTakeButton.IsEnabled = false;
+            StartStudioTakeButton.Content = "Choose save location…";
+        }
         RecordingStatusText.Text = "Choose where to save the recording…";
         try
         {
@@ -1221,6 +1360,7 @@ public sealed partial class MainWindow : Window
             if (file is null)
             {
                 RecordingStatusText.Text = "Recording cancelled. No file was created.";
+                if (_teleprompterStartPending) ResetTeleprompterControls();
                 return;
             }
 
@@ -1239,11 +1379,21 @@ public sealed partial class MainWindow : Window
                 RefreshInputDevicesButton.IsEnabled = false;
                 ClippingWarningText.Text = "";
                 _meterTimer.Start();
+                if (_teleprompterStartPending)
+                {
+                    _teleprompterStartPending = false;
+                    StartTeleprompterScroll();
+                }
+            }
+            else if (_teleprompterStartPending)
+            {
+                ResetTeleprompterControls();
             }
         }
         catch (Exception exception)
         {
             RecordingStatusText.Text = $"Could not start recording: {exception.Message}";
+            if (_teleprompterStartPending) ResetTeleprompterControls();
         }
         finally
         {
@@ -1258,6 +1408,7 @@ public sealed partial class MainWindow : Window
 
     private async void StopRecording_Click(object sender, RoutedEventArgs e)
     {
+        StopTeleprompterScroll();
         RecordToggleButton.IsEnabled = false;
         _recordingStopwatch.Stop();
         RecordingElapsedText.Text = FormatRecordingElapsed();
