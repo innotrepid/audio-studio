@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -84,6 +85,7 @@ public sealed partial class MainWindow : Window
     private static extern IntPtr NativeProcessingStatus();
 
     private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private readonly Stopwatch _recordingStopwatch = new();
     private readonly DispatcherTimer _processingTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly DispatcherTimer _trimPreviewTimer = new() { Interval = TimeSpan.FromMilliseconds(40) };
     private readonly MediaPlayer _previewPlayer = new();
@@ -1128,6 +1130,8 @@ public sealed partial class MainWindow : Window
             {
                 _currentRecordingPath = file.Path;
                 _recordingUiActive = true;
+                _recordingStopwatch.Restart();
+                RecordingElapsedText.Text = "00:00";
                 RecordToggleButton.IsEnabled = true;
                 UpdateRecordToggleVisual(isRecording: true);
                 InputDeviceComboBox.IsEnabled = false;
@@ -1154,6 +1158,8 @@ public sealed partial class MainWindow : Window
     private async void StopRecording_Click(object sender, RoutedEventArgs e)
     {
         RecordToggleButton.IsEnabled = false;
+        _recordingStopwatch.Stop();
+        RecordingElapsedText.Text = FormatRecordingElapsed();
         RecordingStatusText.Text = "Finalizing WAV file…";
         try
         {
@@ -1498,10 +1504,18 @@ public sealed partial class MainWindow : Window
         PreviewStatusText.Text = "Preview is stopped.";
     }
 
+    private string FormatRecordingElapsed()
+    {
+        var elapsed = _recordingStopwatch.Elapsed;
+        return $"{(int)elapsed.TotalMinutes:00}:{elapsed.Seconds:00}";
+    }
+
     private void UpdateInputMeter()
     {
         try
         {
+            if (_recordingUiActive)
+                RecordingElapsedText.Text = FormatRecordingElapsed();
             var peak = Math.Clamp((double)NativeRecordingPeak(), 0.0, 1.0);
             InputLevelBar.Value = peak;
             InputLevelText.Text = $"Input level: {peak:P0}";
@@ -1515,6 +1529,8 @@ public sealed partial class MainWindow : Window
             {
                 _meterTimer.Stop();
                 _recordingUiActive = false;
+                _recordingStopwatch.Stop();
+                RecordingElapsedText.Text = FormatRecordingElapsed();
                 RecordToggleButton.IsEnabled = NativeProcessingActive() == 0;
                 UpdateRecordToggleVisual(isRecording: false);
                 InputDeviceComboBox.IsEnabled = true;
