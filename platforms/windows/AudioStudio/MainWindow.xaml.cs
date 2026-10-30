@@ -84,6 +84,10 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_processing_status", CallingConvention = CallingConvention.Cdecl)]
     private static extern IntPtr NativeProcessingStatus();
 
+    private readonly DispatcherTimer _creatorSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
+    private CreatorProjectStore? _creatorStore;
+    private CreatorProjectStore.ProjectDocument? _creatorProject;
+    private bool _loadingCreatorEditor;
     private readonly DispatcherTimer _meterTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly Stopwatch _recordingStopwatch = new();
     private readonly DispatcherTimer _processingTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
@@ -168,6 +172,12 @@ public sealed partial class MainWindow : Window
         DenoiserStrengthSlider.KeyUp += (_, _) => SaveProcessingPreferences();
         LoadProcessingPreferences();
         ShowWorkflowPanel(RecordPanel);
+        _creatorSaveTimer.Tick += (_, _) =>
+        {
+            _creatorSaveTimer.Stop();
+            SaveCreatorScript();
+        };
+        InitializeCreatorWorkspace();
         OpenLatestTakeButton.IsEnabled = false;
         OpenLatestTakeFromRecordButton.IsEnabled = false;
         TrimStartSlider.ValueChanged += (_, _) =>
@@ -186,6 +196,7 @@ public sealed partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            _creatorSaveTimer.Stop();
             _meterTimer.Stop();
             _processingTimer.Stop();
             _trimPreviewTimer.Stop();
@@ -891,6 +902,76 @@ public sealed partial class MainWindow : Window
     private void NavigateProcessing_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ProcessingPanel);
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
     private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
+
+    private void InitializeCreatorWorkspace()
+    {
+        try
+        {
+            _creatorStore = new CreatorProjectStore();
+            var result = _creatorStore.LoadOrCreate();
+            _creatorProject = result.Project;
+            var script = _creatorProject.Scripts[0];
+            var section = script.Sections[0];
+            _loadingCreatorEditor = true;
+            CreatorScriptTitleBox.Text = script.Title;
+            CreatorScriptBodyBox.Text = section.Text;
+            _loadingCreatorEditor = false;
+            CreatorSaveStatusText.Text = result.RecoveredFromBackup
+                ? "Recovered the last valid local project copy."
+                : "Saved locally · edits autosave";
+        }
+        catch (Exception error)
+        {
+            _loadingCreatorEditor = false;
+            CreatorScriptTitleBox.IsEnabled = false;
+            CreatorScriptBodyBox.IsEnabled = false;
+            CreatorSaveButton.IsEnabled = false;
+            CreatorSaveStatusText.Text = $"Project could not be loaded safely: {error.Message}";
+        }
+    }
+
+    private void CreatorScript_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_loadingCreatorEditor || _creatorProject is null || _creatorStore is null)
+            return;
+        CreatorSaveStatusText.Text = "Unsaved changes · saving shortly…";
+        _creatorSaveTimer.Stop();
+        _creatorSaveTimer.Start();
+    }
+
+    private void CreatorSave_Click(object sender, RoutedEventArgs e)
+    {
+        _creatorSaveTimer.Stop();
+        SaveCreatorScript();
+    }
+
+    private void SaveCreatorScript()
+    {
+        if (_creatorProject is null || _creatorStore is null)
+            return;
+
+        var title = CreatorScriptTitleBox.Text.Trim();
+        if (title.Length == 0 || title.Length > 200)
+        {
+            CreatorSaveStatusText.Text = "Enter a script title (1–200 characters).";
+            return;
+        }
+
+        try
+        {
+            var script = _creatorProject.Scripts[0];
+            var section = script.Sections[0];
+            script.Title = title;
+            script.UpdatedUtc = DateTime.UtcNow.ToString("O");
+            section.Text = CreatorScriptBodyBox.Text;
+            _creatorStore.Save(_creatorProject);
+            CreatorSaveStatusText.Text = $"Saved locally · {DateTime.Now:HH:mm:ss}";
+        }
+        catch (Exception error)
+        {
+            CreatorSaveStatusText.Text = $"Save failed · your edits are still here: {error.Message}";
+        }
+    }
 
     private void LibrarySearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyLibrarySearchFilter();
 
