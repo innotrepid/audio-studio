@@ -34,8 +34,13 @@ set_target_properties(noise_cancellation_static PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/noise-cancellation"
 )
 if(WIN32)
-    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES
-        "ws2_32;userenv;bcrypt;advapi32;ntdll")
+    set(NOISE_CANCELLATION_SYSTEM_LIBS "ws2_32;userenv;bcrypt;advapi32;ntdll")
+    if(DEFINED DIRECTML_LIBRARY AND EXISTS "${DIRECTML_LIBRARY}")
+        list(APPEND NOISE_CANCELLATION_SYSTEM_LIBS "${DIRECTML_LIBRARY}")
+    else()
+        message(FATAL_ERROR "DeepFilterNet3 Windows build requires DirectML.lib; set DIRECTML_LIBRARY to the x64 library path.")
+    endif()
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES "${NOISE_CANCELLATION_SYSTEM_LIBS}")
 elseif(UNIX)
     set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES
         "dl;pthread;m;rt;util")
