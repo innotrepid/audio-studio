@@ -897,6 +897,44 @@ class MainActivity : Activity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
+        val teleprompterFontSizeLabel = TextView(this).apply {
+            text = "Text size · 25 sp"
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+        }
+        val teleprompterFontSize = SeekBar(this).apply {
+            max = 20
+            progress = 5
+            contentDescription = "Teleprompter text size"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val size = 20 + progress
+                    teleprompterScriptView?.textSize = size.toFloat()
+                    teleprompterFontSizeLabel.text = "Text size · $size sp"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        val teleprompterLineSpacingLabel = TextView(this).apply {
+            text = "Line spacing · 1.5×"
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+        }
+        val teleprompterLineSpacing = SeekBar(this).apply {
+            max = 8
+            progress = 3
+            contentDescription = "Teleprompter line spacing"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val multiplier = 1.2f + progress * 0.1f
+                    teleprompterScriptView?.setLineSpacing(0f, multiplier)
+                    teleprompterLineSpacingLabel.text = "Line spacing · " + String.format("%.1f", multiplier) + "×"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
         val teleprompterControls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -935,6 +973,10 @@ class MainActivity : Activity() {
         recordSection.addView(teleprompterCountdown, matchWidth())
         recordSection.addView(teleprompterSpeedLabel, matchWidth())
         recordSection.addView(teleprompterSpeed, matchWidth())
+        recordSection.addView(teleprompterFontSizeLabel, matchWidth())
+        recordSection.addView(teleprompterFontSize, matchWidth())
+        recordSection.addView(teleprompterLineSpacingLabel, matchWidth())
+        recordSection.addView(teleprompterLineSpacing, matchWidth())
         recordSection.addView(teleprompterControls, matchWidth())
         recordSection.addView(teleprompterCountdownStatus, matchWidth())
         openLatestTakeButton = Button(this).apply {
