@@ -235,7 +235,7 @@ public sealed partial class MainWindow : Window
                 .OfType<ComboBoxItem>()
                 .FirstOrDefault(item => string.Equals(item.Content?.ToString(), engine, StringComparison.Ordinal));
             DenoiserStrengthSlider.Value = Math.Clamp(preferences.DenoiserStrength, 0, 100);
-            DenoiserStrengthText.Text = $"RNNoise strength: {DenoiserStrengthSlider.Value:0}%";
+            DenoiserStrengthText.Text = $"Neural denoiser strength: {DenoiserStrengthSlider.Value:0}%";
 
             ProcessingPresetComboBox.SelectedItem = ProcessingPresetComboBox.Items
                 .OfType<ComboBoxItem>()
