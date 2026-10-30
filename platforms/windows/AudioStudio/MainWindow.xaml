@@ -32,7 +32,7 @@
             <Setter Property="Padding" Value="16,11" />
             <Setter Property="MinHeight" Value="46" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style x:Key="PrimaryRecordButton" TargetType="Button">
@@ -44,7 +44,58 @@
             <Setter Property="MinHeight" Value="46" />
         </Style>
     </Grid.Resources>
-        <ScrollViewer VerticalScrollBarVisibility="Auto"
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="224" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="#111722" BorderBrush="#263247" BorderThickness="0,0,1,0" Padding="16,22">
+            <StackPanel Spacing="18">
+                <StackPanel Spacing="5" Margin="4,0,4,18">
+                    <TextBlock Text="AUDIO STUDIO" FontSize="12" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="150" />
+                    <TextBlock Text="Your voice studio" FontSize="20" FontWeight="SemiBold" Foreground="White" />
+                    <TextBlock Text="Record · edit · create" FontSize="12" Foreground="#AEB9CC" />
+                </StackPanel>
+                <TextBlock Text="WORKSPACE" FontSize="10" FontWeight="Bold" Foreground="#71809A" CharacterSpacing="130" Margin="4,0,0,0" />
+                <StackPanel x:Name="WorkflowNavigation" Orientation="Vertical" HorizontalAlignment="Stretch" Spacing="8">
+                    <ToggleButton x:Name="NavigateRecordButton" IsChecked="True" Click="NavigateRecord_Click" Style="{StaticResource WorkflowNavigationButton}">
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE720;" FontSize="16" />
+                            <TextBlock Text="Record" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton x:Name="NavigateEditorButton" Click="NavigateEditor_Click" Style="{StaticResource WorkflowNavigationButton}">
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE70F;" FontSize="16" />
+                            <TextBlock Text="Editor" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton x:Name="NavigateCreatorButton" Click="NavigateCreator_Click" Style="{StaticResource WorkflowNavigationButton}">
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8D2;" FontSize="16" />
+                            <TextBlock Text="Creator" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton x:Name="NavigateLibraryButton" Click="NavigateLibrary_Click" Style="{StaticResource WorkflowNavigationButton}">
+                        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE8B7;" FontSize="16" />
+                            <TextBlock Text="Library" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+                <Border Background="#1B2535" CornerRadius="10" Padding="12" Margin="0,14,0,0">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="AUDIO ENGINE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100" />
+                        <TextBlock Text="Native processing" FontSize="13" Foreground="#F4F6FB" />
+                        <TextBlock Text="Your original recordings stay safe." FontSize="11" Foreground="#AEB9CC" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <TextBlock Text="SETTINGS" FontSize="10" FontWeight="Bold" Foreground="#71809A" CharacterSpacing="130" Margin="4,10,0,0" />
+                <TextBlock Text="Settings workspace coming later" FontSize="12" Foreground="#AEB9CC" TextWrapping="Wrap" Margin="4,0,4,0" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Padding="24,20">
         <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Spacing="18" MaxWidth="820" Margin="12,8,12,32">
@@ -53,34 +104,6 @@
                 <TextBlock Text="Your voice. Your studio." FontSize="30" FontWeight="SemiBold" Foreground="White" />
                 <TextBlock Text="Record clean audio, shape it, and keep every original safe." FontSize="15" Foreground="#AEB9CC" TextWrapping="Wrap" />
             </StackPanel>
-            <Border Background="#111722" CornerRadius="12" Padding="8">
-            <StackPanel x:Name="WorkflowNavigation" Orientation="Horizontal" HorizontalAlignment="Stretch" Spacing="8">
-                <ToggleButton x:Name="NavigateRecordButton" IsChecked="True" Click="NavigateRecord_Click" Style="{StaticResource WorkflowNavigationButton}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE720;" FontSize="16" />
-                        <TextBlock Text="Record" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="NavigateEditorButton" Click="NavigateEditor_Click" Style="{StaticResource WorkflowNavigationButton}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE70F;" FontSize="16" />
-                        <TextBlock Text="Editor" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="NavigateCreatorButton" Click="NavigateCreator_Click" Style="{StaticResource WorkflowNavigationButton}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE8D2;" FontSize="16" />
-                        <TextBlock Text="Creator" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-                <ToggleButton x:Name="NavigateLibraryButton" Click="NavigateLibrary_Click" Style="{StaticResource WorkflowNavigationButton}">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <FontIcon Glyph="&#xE8B7;" FontSize="16" />
-                        <TextBlock Text="Library" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-            </StackPanel>
-            </Border>
             <Border x:Name="RecordPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
