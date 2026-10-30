@@ -31,11 +31,17 @@ Use a native, layered architecture rather than Flutter. Audio Studio targets And
 - Do not let screen navigation accidentally destroy a recording session.
 - Never claim noise reduction or dereverberation is production-ready without quality tests and listening evaluation.
 
-## Project data
+## Project data and persistence
 
-Keep metadata separate from media bytes. A project references original recordings and derived renders; processing/edit decisions should be stored as metadata where feasible. Version project and export schemas so future releases can migrate safely.
+Keep project metadata separate from media bytes. Projects should reference immutable source recordings and derived renders; processing/edit decisions should be stored as metadata where feasible. Version every persisted project schema and provide explicit migrations before shipping project-format changes.
+
+The Creator Studio implementation should begin with the smallest reliable local persistence design that supports atomic writes, autosave, recovery, and migrations. A versioned project document may be sufficient initially; evaluate SQLite only when query patterns, concurrent updates, or project scale justify it. Do not make a database choice a prerequisite for the visual foundation.
 
 Never overwrite the only copy of an original take. Long-running work should be recoverable after an application interruption or unexpected shutdown.
+
+## Current UI direction
+
+Use a Hybrid Studio experience: approachable Record and Creator workflows, paired with precise Editor and Processing workspaces. Android and Windows share product concepts, terminology, and visual tokens but use platform-appropriate navigation and layouts. The primary interactive accent is blue; mint is reserved for live/healthy audio states.
 
 ## Proposed repository layout
 
