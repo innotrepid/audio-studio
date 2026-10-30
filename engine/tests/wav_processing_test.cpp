@@ -140,7 +140,7 @@ void test_deepfilternet3_beta_processes_wav_and_preserves_source() {
     const std::string input = "audio_studio_deepfilternet_source.wav";
     const std::string output = "audio_studio_deepfilternet_result.wav";
     const std::string models = std::filesystem::absolute("../../vendor/noise-cancellation-model/models").string();
-    std::array<float, 19200U> samples{};
+    std::array<float, 96000U> samples{};
     for (std::size_t i = 0; i < samples.size(); ++i) {
         const double t = static_cast<double>(i) / 48000.0;
         samples[i] = static_cast<float>(0.18 * std::sin(2.0 * 3.141592653589793 * 220.0 * t) +
@@ -167,10 +167,20 @@ void test_deepfilternet3_beta_processes_wav_and_preserves_source() {
     require(audio_studio::WavReader::read(output, processed), "DeepFilterNet3 output should be a readable WAV");
     require(processed.format.sample_rate_hz == 48000U && processed.format.channel_count == 1U,
             "DeepFilterNet3 output preserves the source audio format");
-    require(!processed.samples.empty(), "DeepFilterNet3 output must contain audio");
-    for (const float sample : processed.samples) {
+    require(processed.samples.size() == samples.size(),
+            "DeepFilterNet3 output must contain the complete two-second test signal");
+    double output_energy = 0.0;
+    double input_output_difference = 0.0;
+    for (std::size_t i = 0; i < processed.samples.size(); ++i) {
+        const float sample = processed.samples[i];
         require(std::isfinite(sample), "DeepFilterNet3 output samples must remain finite");
+        output_energy += static_cast<double>(sample) * sample;
+        input_output_difference += std::abs(static_cast<double>(sample) - samples[i]);
     }
+    require(output_energy > 1.0,
+            "DeepFilterNet3 output must retain meaningful audio energy");
+    require(input_output_difference > 0.01,
+            "DeepFilterNet3 output must contain a nontrivial processed signal");
     std::remove(input.c_str());
     std::remove(output.c_str());
 }
