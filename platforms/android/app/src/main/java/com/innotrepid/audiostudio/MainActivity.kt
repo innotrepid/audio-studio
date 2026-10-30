@@ -738,20 +738,118 @@ class MainActivity : Activity() {
         )
 
         val creatorSection = makeSection(
-            "Creator workspace",
-            "A focused home for scripts, teleprompter, transcripts & captions, and production notes. These tools are being introduced in later phases; this screen is intentionally a clear starting point."
+            "Creator / Scripts",
+            "Write and refine the script for your next take. Script metadata is stored privately on this device; audio recordings remain separate and are never moved or overwritten here."
         )
-        creatorSection.addView(TextView(this).apply {
-            text = "Your spoken-content workflow will live here."
+        val creatorStore = CreatorProjectStore(this)
+        var creatorProject: CreatorProjectStore.Project? = null
+        val creatorTitleInput = EditText(this).apply {
+            hint = "Script title"
             textSize = 16f
             setTextColor(Color.WHITE)
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setPadding(0, dp(8), 0, dp(4))
-        }, matchWidth())
+            setHintTextColor(Color.rgb(150, 163, 184))
+            setSingleLine(true)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 125, 255))
+        }
+        val creatorBodyInput = EditText(this).apply {
+            hint = "Start writing your script…"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(150, 163, 184))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            minLines = 12
+            gravity = Gravity.TOP or Gravity.START
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 125, 255))
+        }
+        val creatorSaveStatus = TextView(this).apply {
+            text = "Loading local project…"
+            textSize = 12f
+            setTextColor(Color.rgb(174, 185, 204))
+        }
+        val creatorSaveButton = Button(this).apply { text = "Save script now" }
+        fun saveCreatorScript() {
+            val current = creatorProject ?: return
+            val title = creatorTitleInput.text?.toString()?.trim().orEmpty()
+            if (title.isEmpty() || title.length > 200) {
+                creatorSaveStatus.text = "Enter a script title (1–200 characters)."
+                return
+            }
+            try {
+                val script = current.scripts.first()
+                val updatedScript = script.copy(
+                    title = title,
+                    updatedUtc = java.time.Instant.now().toString(),
+                    sections = script.sections.mapIndexed { index, section ->
+                        if (index == 0) section.copy(text = creatorBodyInput.text?.toString().orEmpty()) else section
+                    }
+                )
+                creatorProject = creatorStore.save(current.copy(scripts = listOf(updatedScript) + current.scripts.drop(1)))
+                creatorSaveStatus.text = "Saved locally · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+            } catch (error: Exception) {
+                creatorSaveStatus.text = "Save failed · your edits are still here: ${error.message}"
+            }
+        }
+        try {
+            creatorProject = creatorStore.loadOrCreate()
+            val firstScript = creatorProject!!.scripts.first()
+            creatorTitleInput.setText(firstScript.title)
+            creatorBodyInput.setText(firstScript.sections.first().text)
+            creatorSaveStatus.text = "Saved locally · edits autosave"
+        } catch (error: Exception) {
+            creatorSaveStatus.text = "Project could not be loaded safely: ${error.message}"
+            creatorTitleInput.isEnabled = false
+            creatorBodyInput.isEnabled = false
+            creatorSaveButton.isEnabled = false
+        }
+        val creatorSaveHandler = Handler(Looper.getMainLooper())
+        var pendingCreatorSave: Runnable? = null
+        val creatorTextWatcher = object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                if (creatorProject == null) return
+                creatorSaveStatus.text = "Unsaved changes · saving shortly…"
+                pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
+                val pending = Runnable { saveCreatorScript() }
+                pendingCreatorSave = pending
+                creatorSaveHandler.postDelayed(pending, 650L)
+            }
+            override fun afterTextChanged(s: android.text.Editable?) = Unit
+        }
+        creatorTitleInput.addTextChangedListener(creatorTextWatcher)
+        creatorBodyInput.addTextChangedListener(creatorTextWatcher)
+        creatorSaveButton.setOnClickListener {
+            pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
+            saveCreatorScript()
+        }
         creatorSection.addView(TextView(this).apply {
-            text = "Scripts  ·  Teleprompter  ·  Transcripts & Captions  ·  Production"
-            textSize = 13f
-            setTextColor(Color.rgb(175, 198, 225))
+            text = "SCRIPT TITLE"
+            textSize = 10f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, dp(8), 0, dp(2))
+        }, matchWidth())
+        creatorSection.addView(creatorTitleInput, matchWidth())
+        creatorSection.addView(TextView(this).apply {
+            text = "SCRIPT"
+            textSize = 10f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, dp(10), 0, dp(2))
+        }, matchWidth())
+        creatorSection.addView(creatorBodyInput, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(280)
+        ))
+        creatorSection.addView(creatorSaveButton, matchWidth())
+        creatorSection.addView(creatorSaveStatus, matchWidth())
+        creatorSection.addView(TextView(this).apply {
+            text = "NEXT IN CREATOR\nIntegrated teleprompter · countdown and synchronized scroll · transcripts & captions · production notes"
+            textSize = 12f
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, dp(12), 0, dp(4))
         }, matchWidth())
 
         openLatestTakeButton.setOnClickListener {
