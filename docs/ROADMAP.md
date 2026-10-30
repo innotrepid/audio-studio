@@ -10,9 +10,9 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 - [x] Shared C++ core and Linux/Windows core CI established.
 - [x] Android and Windows application build workflows established in CI.
 - [x] Record, waveform, trim, library, and processing workflows implemented to varying levels of platform validation.
-- [ ] Establish shared blue-accent visual tokens, typography, spacing, surfaces, and component states.
-- [ ] Align navigation to Record, Editor, Creator, and Library while preserving current screen instances and state.
-- [ ] Reconcile documentation and testing guidance with current native architecture and shipped behavior.
+- [x] Establish shared blue-accent visual tokens, typography, spacing, surfaces, and component states.
+- [x] Align navigation to Record, Editor, Creator, and Library while preserving current screen instances and state.
+- [x] Reconcile documentation and testing guidance with current native architecture and shipped behavior.
 
 **Exit criteria:** current docs agree on architecture and capability status; design tokens are documented; visual foundation changes preserve existing audio behavior; configured CI jobs pass.
 
@@ -29,11 +29,11 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 ## Phase 2 — Creator and project foundation
 
 - [x] Define the cross-platform versioned project/script/take JSON contract, stable IDs, validation, and safe-write requirements in `docs/PROJECT-SCRIPT-DATA-CONTRACT.md`.
-- [ ] Add focused Creator sub-navigation and a functional Scripts workspace.
+- [x] Add focused Creator sub-navigation and a functional Scripts workspace.
 - [ ] Implement atomic persistence, autosave, recovery, and migration tests on Android and Windows.
 - [ ] Associate takes with projects without moving or rewriting source audio.
 
-**Exit criteria:** project data survives restart; malformed imports fail safely; recovery and migration behavior are tested; standalone recordings remain accessible.
+**Implementation note:** Creator now exposes Scripts, Teleprompter, Captions, and Production destinations on both platforms. Scripts is the functional workspace; the other destinations are navigation placeholders until their phases are implemented.\n\n**Exit criteria:** project data survives restart; malformed imports fail safely; recovery and migration behavior are tested; standalone recordings remain accessible.
 
 ## Phase 3 — Scripts and teleprompter
 
