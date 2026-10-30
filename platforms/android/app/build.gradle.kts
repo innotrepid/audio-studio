@@ -22,6 +22,13 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            // The model files are bundled from the pinned noise-cancellation-model checkout.
+            assets.srcDir("../../../vendor/noise-cancellation-model/models")
+        }
+    }
+
     buildFeatures {
         prefab = true
     }
