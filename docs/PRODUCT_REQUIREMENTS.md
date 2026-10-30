@@ -77,3 +77,21 @@
 ## Release gate
 
 A phase is complete only when its acceptance criteria, relevant tests, known limitations, and platform results are documented. A green build is necessary but does not prove audio quality.
+
+
+## Hybrid Studio experience requirements
+
+- The primary navigation exposes Record, Editor, Creator, and Library as the four main destinations.
+- Settings remains secondary; processing and A/B comparison are contextual Editor workflows.
+- Android uses a touch-first layout and Windows a desktop-first layout while retaining shared product concepts and terminology.
+- The primary interactive accent is blue. Mint is reserved for live/healthy audio states; warning and error colors have clear semantic meaning.
+- Visual-only changes preserve recording, recovery, playback, waveform, trim, processing, cancellation, and source-file safety behavior.
+
+## Creator project foundation requirements (planned)
+
+- Project, script, section, cue, take, transcript segment, caption cue, production marker, and replacement-request records use stable identifiers.
+- Persisted project data is versioned from its first release and supports migration and recovery.
+- Autosave and safe atomic persistence are required before complex Creator editing is considered complete.
+- Original audio remains immutable; edits and assembled results are separate derived assets.
+- Transcript text without verified timing must never be presented as audio-synchronized.
+- Phrase replacement requires a verified audio time/frame range; word indices alone are insufficient.
