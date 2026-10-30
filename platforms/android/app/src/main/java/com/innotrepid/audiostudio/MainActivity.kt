@@ -20,6 +20,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.Spinner
+import android.widget.ArrayAdapter
 import android.widget.SeekBar
 import android.widget.ScrollView
 import android.widget.TextView
@@ -49,7 +51,7 @@ class MainActivity : Activity() {
     private external fun nativeTrimWav(inputPath: String, outputPath: String, startFrame: Long, endFrame: Long): String
     private external fun nativeStopRecording(): String
     private external fun nativeRecordingMeter(): FloatArray
-    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, callback: NoiseGateProgressCallback): String
+    private external fun nativeProcessNoiseGate(inputPath: String, outputPath: String, thresholdDbfs: Float, attenuationDb: Float, gainDb: Float, highPassHz: Float, processingEngine: Int, denoiserStrength: Float, callback: NoiseGateProgressCallback): String
     private external fun nativeCancelNoiseGateProcessing()
     private external fun nativePrepareNoiseGateProcessing()
 
@@ -99,6 +101,9 @@ class MainActivity : Activity() {
     private lateinit var highPassLabel: TextView
     private lateinit var dspGainSeekBar: SeekBar
     private lateinit var highPassSeekBar: SeekBar
+    private lateinit var processingEngineSpinner: Spinner
+    private lateinit var denoiserStrengthLabel: TextView
+    private lateinit var denoiserStrengthSeekBar: SeekBar
     @Volatile private var processing = false
     @Volatile private var cancelRequested = false
     // Prevent repeated picker launches and recording while a document is being selected.
@@ -352,6 +357,41 @@ class MainActivity : Activity() {
         }
 
         val gatePreferences = getSharedPreferences("noise_gate_preferences", MODE_PRIVATE)
+        processingEngineSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_item,
+                listOf("RNNoise (recommended)", "Classic noise gate")
+            ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+            setSelection(if (gatePreferences.getInt("processing_engine", 1) == 0) 1 else 0)
+        }
+        denoiserStrengthLabel = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.rgb(220, 225, 238))
+            gravity = Gravity.CENTER
+        }
+        denoiserStrengthSeekBar = SeekBar(this).apply {
+            max = 100
+            progress = gatePreferences.getInt("denoiser_strength", 85).coerceIn(0, max)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    denoiserStrengthLabel.text = "RNNoise strength: $progress%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    seekBar?.let { gatePreferences.edit().putInt("denoiser_strength", it.progress).apply() }
+                }
+            })
+        }
+        denoiserStrengthLabel.text = "RNNoise strength: ${denoiserStrengthSeekBar.progress}%"
+        processingEngineSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                gatePreferences.edit().putInt("processing_engine", if (position == 0) 1 else 0).apply()
+                denoiserStrengthLabel.visibility = if (position == 0) android.view.View.VISIBLE else android.view.View.GONE
+                denoiserStrengthSeekBar.visibility = if (position == 0) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
         thresholdLabel = TextView(this).apply {
             textSize = 14f
             setTextColor(Color.rgb(220, 225, 238))
@@ -452,7 +492,7 @@ class MainActivity : Activity() {
         }
 
         val notice = TextView(this).apply {
-            text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a PCM16 WAV to create a separate noise-gated copy in Music/Audio Studio/Processed. This conservative gate reduces quieter noise between phrases; it is not AI noise cancellation or echo removal."
+            text = "Recordings are exported to Music/Audio Studio/Recordings. Choose a WAV to create a separate processed copy in Music/Audio Studio/Processed. RNNoise provides speech-aware neural noise reduction; Classic noise gate attenuates quieter sections. Neither changes the original recording."
             textSize = 14f
             setTextColor(Color.rgb(190, 198, 214))
             gravity = Gravity.CENTER
@@ -523,6 +563,21 @@ class MainActivity : Activity() {
         editSection.addView(waveformStatus, matchWidth())
 
         val processingSection = makeSection("Clean up audio", "Start with one of three voice-focused presets. Fine-tune only if needed; processing always creates a separate copy.")
+        processingSection.addView(TextView(this).apply {
+            text = "NOISE REDUCTION ENGINE"
+            textSize = 11f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(178, 155, 255))
+            setPadding(0, dp(6), 0, dp(2))
+        }, matchWidth())
+        processingSection.addView(processingEngineSpinner, matchWidth())
+        processingSection.addView(denoiserStrengthLabel, matchWidth())
+        processingSection.addView(denoiserStrengthSeekBar, matchWidth())
+        processingSection.addView(TextView(this).apply {
+            text = "RNNoise performs speech-aware neural denoising. Classic noise gate retains the previous threshold-based processing."
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+        }, matchWidth())
         processingSection.addView(TextView(this).apply {
             text = "CHOOSE A STARTING POINT"
             textSize = 11f
@@ -1711,6 +1766,8 @@ class MainActivity : Activity() {
                     attenuationDb,
                     gainDb,
                     highPassHz,
+                    if (processingEngineSpinner.selectedItemPosition == 0) 1 else 0,
+                    denoiserStrengthSeekBar.progress / 100.0f,
                     callback
                 )
                 if (!nativeStatus.startsWith("Processed WAV:")) {
