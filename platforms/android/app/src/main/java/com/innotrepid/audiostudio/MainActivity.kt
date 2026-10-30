@@ -89,6 +89,46 @@ class MainActivity : Activity() {
     private var creatorProjectStore: CreatorProjectStore? = null
     private var activeCreatorProject: CreatorProjectStore.Project? = null
     private var creatorTakesSummaryText: TextView? = null
+    private var teleprompterScrollView: ScrollView? = null
+    private var teleprompterScriptView: TextView? = null
+    private var teleprompterCountdownText: TextView? = null
+    private var teleprompterStartButton: Button? = null
+    private var teleprompterPauseButton: Button? = null
+    private var teleprompterStartRequested = false
+    private var teleprompterPaused = false
+    private var teleprompterCountdownRemaining = 3
+    private var teleprompterSpeedPxPerSecond = 42f
+    private var teleprompterLastFrameMs = 0L
+    private val teleprompterCountdownClock = object : Runnable {
+        override fun run() {
+            if (!teleprompterStartRequested) return
+            if (teleprompterCountdownRemaining <= 0) {
+                teleprompterCountdownText?.text = "Starting recording…"
+                startRecording()
+                return
+            }
+            teleprompterCountdownText?.text = "Recording starts in $teleprompterCountdownRemaining"
+            teleprompterCountdownRemaining--
+            mainHandler.postDelayed(this, 1000L)
+        }
+    }
+    private val teleprompterScrollClock = object : Runnable {
+        override fun run() {
+            val scroll = teleprompterScrollView
+            if (!recording || teleprompterPaused || scroll == null) return
+            val now = SystemClock.uptimeMillis()
+            val elapsed = (now - teleprompterLastFrameMs).coerceIn(1L, 50L)
+            teleprompterLastFrameMs = now
+            scroll.scrollBy(0, (teleprompterSpeedPxPerSecond * elapsed / 1000f).toInt().coerceAtLeast(1))
+            val content = scroll.getChildAt(0)
+            if (content != null && scroll.scrollY + scroll.height >= content.height) {
+                teleprompterCountdownText?.text = "End of script · recording continues"
+                teleprompterPauseButton?.isEnabled = false
+                return
+            }
+            mainHandler.postDelayed(this, 16L)
+        }
+    }
     private lateinit var processButton: Button
     private val processingPresetButtons = linkedMapOf<String, Button>()
     private lateinit var waveformButton: Button
@@ -578,6 +618,15 @@ class MainActivity : Activity() {
         recordSection.addView(inputMeterLabel, matchWidth())
         recordSection.addView(inputMeter, matchWidth())
         recordSection.addView(recordToggleButton, matchWidth())
+        recordSection.addView(teleprompterHeading, matchWidth())
+        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)
+        ))
+        recordSection.addView(teleprompterCountdown, matchWidth())
+        recordSection.addView(teleprompterSpeedLabel, matchWidth())
+        recordSection.addView(teleprompterSpeed, matchWidth())
+        recordSection.addView(teleprompterControls, matchWidth())
+        recordSection.addView(teleprompterCountdownStatus, matchWidth())
         openLatestTakeButton = Button(this).apply {
             text = "Open latest verified take in Editor"
             isEnabled = false
@@ -804,6 +853,90 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 125, 255))
         }
+        val teleprompterHeading = TextView(this).apply {
+            text = "STUDIO TELEPROMPTER"
+            textSize = 11f
+            letterSpacing = 0.12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(160, 190, 255))
+            setPadding(0, dp(18), 0, dp(6))
+        }
+        val teleprompterScroll = ScrollView(this).apply {
+            isFillViewport = true
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.rgb(13, 17, 25))
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), Color.rgb(54, 82, 137))
+            }
+        }.also { teleprompterScrollView = it }
+        val teleprompterText = TextView(this).apply {
+            text = "Your saved Creator script will appear here."
+            textSize = 25f
+            setTextColor(Color.WHITE)
+            setLineSpacing(dp(12).toFloat(), 1f)
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(4), dp(16), dp(4), dp(240))
+            contentDescription = "Teleprompter script"
+        }.also { teleprompterScriptView = it }
+        teleprompterScroll.addView(teleprompterText, ScrollView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        val teleprompterCountdown = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf("3 second countdown", "5 second countdown", "10 second countdown")
+            )
+            setSelection(0)
+        }
+        val teleprompterSpeedLabel = TextView(this).apply {
+            text = "Scroll speed · 42 px/s"
+            textSize = 12f
+            setTextColor(Color.rgb(190, 198, 214))
+        }
+        val teleprompterSpeed = SeekBar(this).apply {
+            max = 100
+            progress = 15
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    teleprompterSpeedPxPerSecond = 24f + progress * 1.2f
+                    teleprompterSpeedLabel.text = "Scroll speed · ${teleprompterSpeedPxPerSecond.toInt()} px/s"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        val teleprompterControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val teleprompterStart = Button(this).apply {
+            text = "Start studio take"
+            minHeight = dp(48)
+            setOnClickListener {
+                if (teleprompterStartRequested && !recording) cancelTeleprompterCountdown()
+                else startTeleprompterTake(teleprompterCountdown.selectedItemPosition)
+            }
+        }.also { teleprompterStartButton = it }
+        val teleprompterPause = Button(this).apply {
+            text = "Pause scroll"
+            isEnabled = false
+            minHeight = dp(48)
+            setOnClickListener { toggleTeleprompterPause() }
+        }.also { teleprompterPauseButton = it }
+        teleprompterControls.addView(teleprompterStart, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginEnd = dp(6)
+        })
+        teleprompterControls.addView(teleprompterPause, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dp(6)
+        })
+        val teleprompterCountdownStatus = TextView(this).apply {
+            text = "Choose a countdown, then record while your script scrolls."
+            textSize = 12f
+            setTextColor(Color.rgb(174, 185, 204))
+        }.also { teleprompterCountdownText = it }
+
         val creatorSaveStatus = TextView(this).apply {
             text = "Loading local project…"
             textSize = 12f
@@ -855,6 +988,7 @@ class MainActivity : Activity() {
         val creatorTextWatcher = object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                teleprompterScriptView?.text = s?.toString().orEmpty().ifBlank { "Your script is empty. Add text in Creator → Scripts." }
                 if (activeCreatorProject == null) return
                 creatorSaveStatus.text = "Unsaved changes · saving shortly…"
                 pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
@@ -866,6 +1000,7 @@ class MainActivity : Activity() {
         }
         creatorTitleInput.addTextChangedListener(creatorTextWatcher)
         creatorBodyInput.addTextChangedListener(creatorTextWatcher)
+        teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty()
         creatorSaveButton.setOnClickListener {
             pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
             saveCreatorScript()
@@ -1397,6 +1532,12 @@ class MainActivity : Activity() {
         processButton.isEnabled = !started
         updateRecordToggleButton()
         if (started) {
+            val startTeleprompter = teleprompterStartRequested
+            teleprompterStartRequested = false
+            teleprompterStartButton?.isEnabled = !startTeleprompter
+            teleprompterStartButton?.text = if (startTeleprompter) "Studio take recording…" else "Start studio take"
+            teleprompterPauseButton?.isEnabled = startTeleprompter
+            teleprompterCountdownText?.text = if (startTeleprompter) "Recording and script scroll are synchronized." else "Ready for your next take."
             recordingStartedAtMs = SystemClock.elapsedRealtime()
             recordingTimerText.text = "00:00"
             statusText.text = "Recording in progress · audio is being captured"
@@ -1407,11 +1548,96 @@ class MainActivity : Activity() {
             inputMeterLabel.setTextColor(Color.rgb(190, 220, 200))
             mainHandler.post(recordingClock)
             mainHandler.post(recordingMeterClock)
+            if (startTeleprompter) startTeleprompterScroll()
         } else {
+            teleprompterStartRequested = false
+            teleprompterStartButton?.isEnabled = true
+            teleprompterStartButton?.text = "Start studio take"
+            teleprompterPauseButton?.isEnabled = false
             mainHandler.removeCallbacks(recordingClock)
             processButton.isEnabled = !processing && !wavPickerActive && !startAfterPermission
             statusText.text = "Microphone did not start. Check permission and microphone availability, then try again."
         }
+    }
+
+    private fun startTeleprompterTake(countdownPosition: Int) {
+        if (recording || processing || wavPickerActive || startAfterPermission || teleprompterStartRequested) {
+            statusText.text = "Finish the current operation before starting a Studio take."
+            return
+        }
+        teleprompterStartRequested = true
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            beginTeleprompterCountdown(countdownPosition)
+            return
+        }
+        startAfterPermission = true
+        processButton.isEnabled = false
+        recordToggleButton.isEnabled = false
+        teleprompterStartButton?.isEnabled = false
+        try {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+            teleprompterCountdownRemaining = when (countdownPosition) { 1 -> 5; 2 -> 10; else -> 3 }
+        } catch (exception: Exception) {
+            startAfterPermission = false
+            teleprompterStartRequested = false
+            processButton.isEnabled = true
+            recordToggleButton.isEnabled = true
+            teleprompterStartButton?.isEnabled = true
+            teleprompterCountdownText?.text = "Could not request microphone permission."
+        }
+    }
+
+    private fun beginTeleprompterCountdown(countdownPosition: Int) {
+        teleprompterCountdownRemaining = when (countdownPosition) { 1 -> 5; 2 -> 10; else -> 3 }
+        teleprompterPaused = false
+        teleprompterScrollView?.scrollTo(0, 0)
+        teleprompterStartButton?.isEnabled = true
+        teleprompterStartButton?.text = "Cancel countdown"
+        teleprompterPauseButton?.isEnabled = false
+        mainHandler.removeCallbacks(teleprompterCountdownClock)
+        teleprompterCountdownClock.run()
+    }
+
+    private fun cancelTeleprompterCountdown() {
+        mainHandler.removeCallbacks(teleprompterCountdownClock)
+        teleprompterStartRequested = false
+        teleprompterStartButton?.text = "Start studio take"
+        teleprompterStartButton?.isEnabled = true
+        recordToggleButton.isEnabled = !recording && !processing && !wavPickerActive
+        teleprompterCountdownText?.text = "Countdown cancelled. Your script is unchanged."
+    }
+
+    private fun startTeleprompterScroll() {
+        teleprompterPaused = false
+        teleprompterLastFrameMs = SystemClock.uptimeMillis()
+        teleprompterPauseButton?.text = "Pause scroll"
+        teleprompterPauseButton?.isEnabled = true
+        mainHandler.removeCallbacks(teleprompterScrollClock)
+        mainHandler.post(teleprompterScrollClock)
+    }
+
+    private fun toggleTeleprompterPause() {
+        if (!recording) return
+        teleprompterPaused = !teleprompterPaused
+        if (teleprompterPaused) {
+            mainHandler.removeCallbacks(teleprompterScrollClock)
+            teleprompterPauseButton?.text = "Resume scroll"
+            teleprompterCountdownText?.text = "Script paused · recording continues."
+        } else {
+            teleprompterPauseButton?.text = "Pause scroll"
+            teleprompterCountdownText?.text = "Script scrolling · recording continues."
+            teleprompterLastFrameMs = SystemClock.uptimeMillis()
+            mainHandler.post(teleprompterScrollClock)
+        }
+    }
+
+    private fun stopTeleprompterScroll() {
+        mainHandler.removeCallbacks(teleprompterScrollClock)
+        teleprompterPaused = false
+        teleprompterPauseButton?.isEnabled = false
+        teleprompterPauseButton?.text = "Pause scroll"
+        teleprompterStartButton?.isEnabled = true
+        teleprompterStartButton?.text = "Start studio take"
     }
 
     private fun updateRecordToggleButton() {
@@ -1427,6 +1653,7 @@ class MainActivity : Activity() {
     private fun stopRecording(interrupted: Boolean = false) {
         if (!recording) return
         recording = false
+        stopTeleprompterScroll()
         val elapsedSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAtMs) / 1000L).coerceAtLeast(0L)
         recordingTimerText.text = "%02d:%02d".format(elapsedSeconds / 60L, elapsedSeconds % 60L)
         mainHandler.removeCallbacks(recordingClock)
@@ -2415,11 +2642,17 @@ class MainActivity : Activity() {
             grantResults[0] == PackageManager.PERMISSION_GRANTED
         ) {
             if (recording || processing || wavPickerActive) {
+                teleprompterStartRequested = false
                 statusText.text = "Permission granted, but another operation is active. Tap Start recording when it finishes."
+            } else if (teleprompterStartRequested) {
+                beginTeleprompterCountdown(0)
             } else {
                 startRecording()
             }
         } else if (shouldStart) {
+            teleprompterStartRequested = false
+            teleprompterStartButton?.isEnabled = true
+            teleprompterCountdownText?.text = "Microphone permission is required for a Studio take."
             statusText.text = "Microphone permission is required to record."
         }
     }
@@ -2450,6 +2683,8 @@ class MainActivity : Activity() {
         stopComparisonPlayback()
         mainHandler.removeCallbacks(recordingClock)
         mainHandler.removeCallbacks(recordingMeterClock)
+        mainHandler.removeCallbacks(teleprompterCountdownClock)
+        mainHandler.removeCallbacks(teleprompterScrollClock)
         super.onDestroy()
     }
 
