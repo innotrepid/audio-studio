@@ -1278,9 +1278,11 @@ public sealed partial class MainWindow : Window
                     _lastVerifiedRecordingPath = takePath;
                     OpenLatestTakeButton.IsEnabled = true;
                     OpenLatestTakeFromRecordButton.IsEnabled = true;
+                    var projectLinkStatus = AssociateVerifiedTake(takePath);
                     RecordingStatusText.Text = $"FINALIZED AND VERIFIED — {nativeStatus}" +
                         Environment.NewLine + Environment.NewLine + takeDetails +
-                        Environment.NewLine + "This take is ready in Editor.";
+                        Environment.NewLine + "This take is ready in Editor." +
+                        Environment.NewLine + projectLinkStatus;
                 }
                 else if (nativeReportedSaved)
                 {
@@ -1316,6 +1318,43 @@ public sealed partial class MainWindow : Window
             RefreshInputDevicesButton.IsEnabled = true;
             InputLevelBar.Value = 0;
             InputLevelText.Text = "Input level: 0%";
+        }
+    }
+
+    private string AssociateVerifiedTake(string takePath)
+    {
+        if (_creatorProject is null || _creatorStore is null)
+            return "Project link not saved · no valid Creator project is loaded. The verified WAV is preserved.";
+
+        try
+        {
+            var peaks = new float[4];
+            var result = NativeAnalyzeWavWaveform(takePath, 1U, peaks,
+                out var frames, out var sampleRate, out var channels);
+            if (result <= 0 || frames == 0 || sampleRate == 0 || (channels != 1 && channels != 2))
+                return "Project link skipped because verified audio metadata could not be read. The WAV is preserved.";
+
+            var script = _creatorProject.Scripts[0];
+            var section = script.Sections[0];
+            _creatorProject.Takes ??= new List<CreatorProjectStore.TakeDocument>();
+            _creatorProject.Takes.Add(new CreatorProjectStore.TakeDocument
+            {
+                TakeId = Guid.NewGuid().ToString(),
+                SourcePath = Path.GetFullPath(takePath),
+                CreatedUtc = DateTime.UtcNow.ToString("O"),
+                DurationMs = (long)Math.Round((double)frames * 1000.0 / sampleRate),
+                SampleRateHz = checked((int)sampleRate),
+                Channels = channels,
+                ScriptId = script.ScriptId,
+                SectionId = section.SectionId,
+                Status = "recorded"
+            });
+            _creatorStore.Save(_creatorProject);
+            return $"Linked to project · {script.Title} / {section.Title}. Audio file unchanged.";
+        }
+        catch (Exception exception)
+        {
+            return $"Take verified, but project link could not be saved: {exception.Message}. Audio file preserved.";
         }
     }
 
