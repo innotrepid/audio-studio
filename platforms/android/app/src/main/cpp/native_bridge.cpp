@@ -369,7 +369,7 @@ extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
     jfloat threshold_dbfs, jfloat attenuation_db, jfloat gain_db, jfloat high_pass_hz,
-    jint processing_engine, jfloat denoiser_strength, jobject progress_callback) {
+    jint processing_engine, jfloat denoiser_strength, jstring model_directory, jobject progress_callback) {
     if (input_path == nullptr || output_path == nullptr) {
         return env->NewStringUTF("ERROR: Input and output paths are required.");
     }
@@ -382,6 +382,14 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read output path.");
     const std::string output(output_chars);
     env->ReleaseStringUTFChars(output_path, output_chars);
+
+    std::string model_dir;
+    if (model_directory != nullptr) {
+        const char* model_chars = env->GetStringUTFChars(model_directory, nullptr);
+        if (model_chars == nullptr) return env->NewStringUTF("ERROR: Could not read model directory.");
+        model_dir.assign(model_chars);
+        env->ReleaseStringUTFChars(model_directory, model_chars);
+    }
 
     jclass callback_class = progress_callback == nullptr ? nullptr : env->GetObjectClass(progress_callback);
     jmethodID progress_method = callback_class == nullptr ? nullptr :
@@ -401,7 +409,7 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
     if (!audio_studio::process_wav_with_noise_gate(
             input, output, settings, &error, &g_cancel_noise_gate, progress,
             audio_studio::DspEffectsSettings{gain_db, high_pass_hz, true},
-            static_cast<audio_studio::ProcessingEngine>(processing_engine), denoiser_strength)) {
+            static_cast<audio_studio::ProcessingEngine>(processing_engine), denoiser_strength, model_dir)) {
         const std::string message = "ERROR: " + error;
         return env->NewStringUTF(message.c_str());
     }
