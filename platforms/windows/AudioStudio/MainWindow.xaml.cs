@@ -814,27 +814,31 @@ public sealed partial class MainWindow : Window
         ProcessingPanel.Visibility = selected == ProcessingPanel ? Visibility.Visible : Visibility.Collapsed;
         ComparePanel.Visibility = selected == ComparePanel ? Visibility.Visible : Visibility.Collapsed;
         LibraryPanel.Visibility = selected == LibraryPanel ? Visibility.Visible : Visibility.Collapsed;
+        CreatorPanel.Visibility = selected == CreatorPanel ? Visibility.Visible : Visibility.Collapsed;
 
-        // Update only the existing navigation controls; workflow panels and their state stay alive.
+        // Keep the four primary destinations stable; processing and A/B comparison
+        // remain contextual tools launched from Editor. Existing panel instances stay alive.
         NavigateRecordButton.IsChecked = selected == RecordPanel;
         NavigateEditorButton.IsChecked = selected == EditorPanel;
+        NavigateCreatorButton.IsChecked = selected == CreatorPanel;
+        NavigateLibraryButton.IsChecked = selected == LibraryPanel;
         NavigateProcessingButton.IsChecked = selected == ProcessingPanel;
         NavigateCompareButton.IsChecked = selected == ComparePanel;
-        NavigateLibraryButton.IsChecked = selected == LibraryPanel;
 
         SetNavigationAppearance(NavigateRecordButton, selected == RecordPanel);
         SetNavigationAppearance(NavigateEditorButton, selected == EditorPanel);
+        SetNavigationAppearance(NavigateCreatorButton, selected == CreatorPanel);
+        SetNavigationAppearance(NavigateLibraryButton, selected == LibraryPanel);
         SetNavigationAppearance(NavigateProcessingButton, selected == ProcessingPanel);
         SetNavigationAppearance(NavigateCompareButton, selected == ComparePanel);
-        SetNavigationAppearance(NavigateLibraryButton, selected == LibraryPanel);
     }
 
     private static void SetNavigationAppearance(ToggleButton button, bool isSelected)
     {
         button.Background = new SolidColorBrush(
             Windows.UI.Color.FromArgb(255,
-                isSelected ? (byte)178 : (byte)34,
-                isSelected ? (byte)155 : (byte)34,
+                isSelected ? (byte)79 : (byte)34,
+                isSelected ? (byte)125 : (byte)34,
                 isSelected ? (byte)255 : (byte)48));
         button.Foreground = new SolidColorBrush(
             Windows.UI.Color.FromArgb(255,
@@ -843,13 +847,14 @@ public sealed partial class MainWindow : Window
                 isSelected ? (byte)20 : (byte)255));
         button.BorderBrush = new SolidColorBrush(
             Windows.UI.Color.FromArgb(255,
-                isSelected ? (byte)178 : (byte)58,
-                isSelected ? (byte)155 : (byte)54,
+                isSelected ? (byte)79 : (byte)58,
+                isSelected ? (byte)125 : (byte)54,
                 isSelected ? (byte)255 : (byte)80));
     }
 
     private void NavigateRecord_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(RecordPanel);
     private void NavigateEditor_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(EditorPanel);
+    private void NavigateCreator_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(CreatorPanel);
     private void NavigateProcessing_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ProcessingPanel);
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
     private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
