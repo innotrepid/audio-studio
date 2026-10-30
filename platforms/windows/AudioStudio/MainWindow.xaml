@@ -144,7 +144,7 @@
                                 <ComboBoxItem Content="Classic noise gate" />
                             </ComboBox>
                             <TextBlock Text="RNNoise is the recommended lightweight neural engine. DeepFilterNet3 (BETA) is an experimental alternative and may use more CPU. Classic noise gate keeps the original threshold-based behavior." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
-                            <TextBlock x:Name="DenoiserStrengthText" Text="RNNoise strength: 85%" Foreground="#B8B4CC" />
+                            <TextBlock x:Name="DenoiserStrengthText" Text="Neural denoiser strength: 85%" Foreground="#B8B4CC" />
                             <Slider x:Name="DenoiserStrengthSlider" Minimum="0" Maximum="100" Value="85" StepFrequency="5" />
                         </StackPanel>
                     </Border>
