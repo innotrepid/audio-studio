@@ -64,7 +64,7 @@
                 <ToggleButton x:Name="NavigateEditorButton" Click="NavigateEditor_Click" Style="{StaticResource WorkflowNavigationButton}">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <FontIcon Glyph="&#xE70F;" FontSize="16" />
-                        <TextBlock Text="Edit" VerticalAlignment="Center" />
+                        <TextBlock Text="Editor" VerticalAlignment="Center" />
                     </StackPanel>
                 </ToggleButton>
                 <ToggleButton x:Name="NavigateCreatorButton" Click="NavigateCreator_Click" Style="{StaticResource WorkflowNavigationButton}">
