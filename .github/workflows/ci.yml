@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: R-6167/noise-cancellation-model
-          ref: 9857e2f6001fd032806c7266787f69febf04aae7
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
           path: vendor/noise-cancellation-model
           persist-credentials: false
       - name: Build RNNoise and DeepFilterNet3 C ABI
@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: R-6167/noise-cancellation-model
-          ref: 9857e2f6001fd032806c7266787f69febf04aae7
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
           path: vendor/noise-cancellation-model
           persist-credentials: false
       - name: Install DirectML x64 link library
@@ -127,7 +127,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: R-6167/noise-cancellation-model
-          ref: 9857e2f6001fd032806c7266787f69febf04aae7
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
           path: vendor/noise-cancellation-model
           persist-credentials: false
       - name: Install cargo-ndk
