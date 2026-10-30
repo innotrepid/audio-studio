@@ -230,10 +230,21 @@ internal sealed class CreatorProjectStore
         {
             if (string.IsNullOrWhiteSpace(take.TakeId) || !ids.Add(take.TakeId))
                 throw new InvalidDataException("Take IDs must be present and unique.");
+            if (string.IsNullOrWhiteSpace(take.SourceUri) && string.IsNullOrWhiteSpace(take.SourcePath))
+                throw new InvalidDataException("A take must reference its existing audio file.");
+            if (take.DurationMs is <= 0 || take.SampleRateHz is <= 0 ||
+                (take.Channels is not null && take.Channels is not (1 or 2)))
+                throw new InvalidDataException("A take must contain valid verified audio metadata.");
             if (take.ScriptId is not null && !project.Scripts.Any(script => script.ScriptId == take.ScriptId))
                 throw new InvalidDataException("A take references a missing script.");
-            if (take.SectionId is not null && !project.Scripts.SelectMany(script => script.Sections).Any(section => section.SectionId == take.SectionId))
-                throw new InvalidDataException("A take references a missing section.");
+            if (take.SectionId is not null)
+            {
+                if (take.ScriptId is null)
+                    throw new InvalidDataException("A section-linked take must also reference its script.");
+                var referencedScript = project.Scripts.First(script => script.ScriptId == take.ScriptId);
+                if (!referencedScript.Sections.Any(section => section.SectionId == take.SectionId))
+                    throw new InvalidDataException("A take section must exist inside its referenced script.");
+            }
         }
     }
 
