@@ -1,213 +1,97 @@
-# Audio Studio UI roadmap
+# Audio Studio UI Roadmap
 
 ## Product direction
 
-Audio Studio should feel like a focused voice-production tool, not a collection of debug controls. Keep the native audio engine and file-safety behavior stable while progressively improving navigation, hierarchy, and feedback on Android and Windows.
+Audio Studio uses a **Hybrid Studio** experience: approachable Record and Creator workflows alongside precise Editor and Processing workspaces. Keep the native audio engine and file-safety behavior stable while improving navigation, hierarchy, and feedback.
 
-## Screen map
+### Visual system
 
-### 1. Record — primary landing screen
-- Microphone/input selector and refresh action.
-- Clear input-level meter, peak/clipping warning, and recording state.
-- One dominant Start/Stop action whose enabled state reflects the native engine.
-- Recording destination and interrupted-recording recovery remain discoverable without competing with the main action.
+- Deep near-black/charcoal foundation with layered, opaque surfaces.
+- **Blue** is the primary interactive accent for selected navigation, primary actions, and active editing tools.
+- Mint is reserved for live recording and healthy signal states.
+- Warm warning/error colors are semantic and used sparingly.
+- Strong typographic hierarchy, generous but efficient spacing, confident waveform scale, subtle borders, and consistent corner radii.
+- Avoid pervasive blur/glass, excessive card borders, and decorative visualizers.
+- Use icons with concise labels; icon-only utility actions require accessible names/tooltips.
 
-### 2. Edit — waveform and trim
-- File selection and waveform preview.
-- Start/end selection with readable timestamps and selected duration.
-- Export trimmed audio to a new file; always communicate that the source is preserved.
-- Keep trim validation visible and prevent invalid ranges.
+## Navigation
 
-### 3. Process — noise reduction
-- Preset-first workflow: Natural, Voice clarity, Rumble cut.
-- Advanced DSP sliders collapsed by default.
-- Progress, cancellation, and failure states grouped near the primary Process action.
-- Explain that processing creates a separate output and does not overwrite the source.
+Four primary destinations:
+1. Record
+2. Editor
+3. Creator
+4. Library
 
-### 4. Compare — original vs processed
-- Two clearly labelled file slots.
-- Obvious Original / Processed playback actions and one Stop action.
-- Show which file is playing and recover gracefully if preview cannot start.
-- Future enhancement: matched-position A/B switching, only when playback state can be kept reliable.
+Settings remains secondary. Processing presets, advanced controls, and original/processed comparison belong within the Editor workflow.
 
-### 5. Library — real file discovery with safe actions
-- Android lists recent WAVs in Music/Audio Studio; Windows lists WAVs in a folder the user explicitly chooses.
-- Make the file category, location, and safe next action easy to understand.
-- Editing opens the waveform workspace; processing creates a separate copy and must never overwrite the source.
-- Keep empty, permission-denied, and scan-failure states actionable. Do not add destructive rename/delete controls until safeguards are designed and tested.
+### Android
 
-### 6. Settings — later phase, real functionality only
-- Add only when there are meaningful persisted preferences with clear defaults, persistence scope, and reset behavior.
-- Candidate preferences include a default output location and preferred processing preset; do not duplicate controls already available in their workflow.
-- Before adding a Settings screen, document and test each preference's persistence contract.
+- Touch-friendly four-item bottom navigation.
+- Vertical content layout and comfortable tap targets.
+- Creator uses focused sub-navigation rather than one long page.
+- Preserve screen instances and state across navigation.
 
-## Visual system
+### Windows
 
-- Dark studio surface with a restrained accent colour; use high contrast for status and warnings.
-- One consistent page header, card spacing, button hierarchy, control sizing, and status typography.
-- Primary actions should be visually dominant; secondary actions should be quieter.
-- Prefer concise, user-facing status text over raw engine terminology except in diagnostic details.
-- Preserve platform conventions: bottom navigation on Android, adaptive navigation/tabs on Windows.
-- Support narrow windows, larger text, keyboard navigation on Windows, and scrolling on small screens.
+- Persistent left navigation rail with icon and text labels.
+- Wider work area for waveform editing and comparison.
+- Keyboard navigation, visible focus, and adaptive layouts.
+
+## Workspace goals
+
+### Record
+
+- One dominant Start/Stop action.
+- Input selection, live RMS/peak meter, clipping warning, elapsed time, and recovery guidance.
+- Clear post-save actions.
+- Do not place advanced processing or trim controls on the Record screen.
+
+### Editor
+
+- Waveform-led editing with precise range/timecode feedback.
+- Preview selection and non-destructive export remain distinct.
+- Preset-first processing; advanced controls collapsed by default.
+- Clear original-versus-derived identity and A/B review.
+- Progress, cancellation, and error feedback without losing current selection.
+
+### Creator
+
+- Scripts: section-based editor, notes, cues, autosave.
+- Teleprompter: readable mode, adjustable pace/typography/spacing, manual and automatic scrolling.
+- Transcripts & Captions: editable segments, explicit timing provenance, SRT/WebVTT export.
+- Production: markers, retake notes, review and approval states.
+
+### Library
+
+- Clear source/derived file categories and safe next actions.
+- Search filters loaded entries; it must not trigger a storage rescan.
+- Preserve platform-specific discovery boundaries and actionable empty/error states.
 
 ## UI performance contract: update only what changed
 
-This is a product-level requirement for every screen and interaction. A tap or gesture must not trigger a full screen rebuild, full data reload, or expensive work unless the operation genuinely requires it.
-
-- **Keep screen instances alive.** On Android, build the view hierarchy once and update existing views; on Windows, switch existing workflow panels and preserve their controls/state. Do not recreate the activity/window or replace the full content tree to update a label, slider, selection, progress value, or playback state.
-- **Use the smallest update scope.** Update the affected text, enabled state, progress indicator, selected range, or custom view only. For waveform trim gestures, redraw the waveform view with cached peak data; never re-read or re-analyze the WAV while the user drags a selection.
-- **Separate data work from rendering.** File I/O, waveform analysis, and native processing must not run synchronously on the UI thread. Show operation state and progress without repeatedly reconstructing the page.
-- **Keep gesture handlers cheap.** Slider/drag handlers should only update in-memory selection and the relevant labels/visual overlay. Persist preferences only when appropriate, and debounce/throttle expensive work rather than doing it on every movement.
-- **Do not poll unrelated state.** Timers should update only the live meter, elapsed time, or active processing progress. Stop timers when the operation ends or the screen is destroyed.
-- **Preserve navigation state.** Switching Record/Edit/Process/Compare should not discard loaded waveform peaks, selected files, slider values, or processing configuration. Do not reinitialize audio resources merely because a panel becomes visible.
-- **No blanket refresh APIs.** Avoid calling setContentView again, rebuilding all child views, reloading the library, or forcing global invalidation/layout as a shortcut for local state changes.
-- **Prove it with interaction checks.** Verify that repeated taps, slider drags, navigation, and scrolling do not reset unrelated values, reload files, restart audio resources, or cause visible flicker. Check UI responsiveness while waveform analysis and processing run.
-
-### Current architecture observations
-- Android currently constructs its screen hierarchy in MainActivity.onCreate() and calls setContentView(appShell) once. WaveformView.setSelection() updates its selection state and invalidates only that custom view; it uses cached peaks for drawing.
-- Windows currently constructs the workflow panels in XAML once. ShowWorkflowPanel() toggles their visibility rather than rebuilding the window.
-- These are useful foundations, not proof that every path is optimal. Preserve them and add targeted profiling/tests before any architecture change.
+- Keep screen instances alive; do not recreate the activity/window or replace the full content tree for routine updates.
+- Update only the affected text, enabled state, progress, selection overlay, or custom view.
+- Waveform trim gestures use cached peak data; never re-read or re-analyze the WAV while dragging.
+- File I/O, waveform analysis, and native processing stay off the UI thread.
+- Gesture handlers remain cheap and update in-memory state/labels only.
+- Persist preferences at appropriate interaction boundaries, not on every slider movement.
+- Timers update only the active meter, elapsed time, or processing progress and stop when no longer needed.
+- Navigation preserves loaded files, waveform peaks, trim selection, and processing configuration.
+- Verify repeated taps, slider drags, navigation, and scrolling do not cause resets, reloads, resource restarts, or visible flicker.
 
 ## Delivery phases
 
-1. **Navigation foundation:** completed in PR #68; connect existing workflows without duplicating audio state.
-2. **Visual hierarchy and reusable styling:** improve spacing, headers, cards, button hierarchy, and status presentation without changing audio behavior.
-3. **Record screen polish:** make input meter, recording state, clipping, and recovery easier to read.
-4. **Edit screen polish:** improve waveform sizing, selection feedback, and trim confirmation.
-5. **Process and Compare polish:** make presets, advanced controls, progress/cancel, and A/B preview clearer.
-6. **Incremental-update hardening:** audit interaction handlers and add targeted checks so routine taps/gestures update only the affected controls.
-7. **Library and Settings:** design and implement only after requirements and persistence behavior are agreed.
+1. **Design foundation:** blue-accent tokens, typography, spacing, surfaces, control hierarchy, and component states.
+2. **Navigation:** align Android bottom navigation and Windows rail to Record, Editor, Creator, and Library.
+3. **Existing workflows:** refine Record, Editor, Processing/A-B, and Library without changing audio semantics.
+4. **Creator foundation:** introduce project persistence and focused Creator navigation.
+5. **Creator workflows:** scripts, teleprompter, transcripts/captions, and production markers.
+6. **Advanced workflow:** phrase replacement after verified audio alignment and non-destructive assembly exist.
+7. **Polish:** accessibility, responsive behavior, performance, and platform validation.
 
 ## Safety and validation gates
 
-- Do not alter native DSP or recording behavior as part of visual-only changes.
-- Never overwrite original recordings during trim or processing.
-- Keep cancellation and resource cleanup behavior intact.
-- Require all three CI jobs to pass: Android native shell/APK, Linux C++ core, and Windows C++ core.
-- After visual phases, run focused manual smoke tests on each available platform; CI alone cannot validate visual quality, interaction smoothness, or microphone behavior.
-
-
-## Visual direction update — Resonate-inspired, not glass-heavy
-
-Use the visual language of the Resonate `Resonate-True-Apk` branch as a reference, not as a UI to copy literally:
-
-- Deep near-black / charcoal foundation with layered, **opaque** surfaces; avoid applying blur or glass effects to every card.
-- Violet as the main interactive accent, pink/orange as rare secondary highlights, and mint reserved for live recording/healthy signal states.
-- Strong typographic hierarchy, generous but efficient spacing, confident waveform scale, and clearly differentiated primary versus secondary actions.
-- Keep the studio visually distinctive and finished: purposeful status treatments, subtle borders, consistent corner radii, and clear control grouping rather than generic Windows utility styling.
-- Edit and Process on Android should request sensor landscape when selected; Record and other workflows should release that request. The same activity and existing views must remain alive through orientation changes. If the system cannot honor the request, all controls must remain usable.
-- Preserve incremental updates: changing a trim handle should update the selection and summary only; slider drags should update their value labels; neither should reload the file or rebuild the screen.
-
-This visual direction supersedes the earlier mint-only visual treatment as the long-term target. Keep the visual redesign in small reviewable slices and do not change recording/DSP semantics just to style the interface.
-
-### Navigation affordances follow-up
-
-- Windows workflow navigation uses familiar glyph icons alongside concise labels, with a high-contrast selected state so the active workspace is obvious.
-- Navigation updates only the existing navigation controls and toggles the already-created workflow panels; it does not reconstruct the content tree or reset editor/processing state.
-- Icon glyphs are decorative cues, not replacements for accessible text labels.
-
-
-## UI research and implementation direction — 2026-10-29
-
-The dedicated UI brainstorm has resumed. Research references include Audacity's pared-back Modern workspace and persistent level-meter panel, Adobe Podcast's task-oriented record/enhance/review flow, and REAPER's efficient but highly customizable desktop controls. Audio Studio should borrow useful interaction patterns without copying any product's layout.
-
-### Our angle: a focused voice-production studio
-- **Record first:** open directly into recording; keep the record/stop action, elapsed time, live RMS/peak, clipping warning, and input selection easy to scan.
-- **Waveform-led editing:** give the waveform the most visual space; keep trim handles, exact timecodes, selection duration, preview, and non-destructive export together.
-- **Preset-first processing:** Natural, Voice Clarity, and Rumble Cut first; advanced parameters remain secondary/collapsed. Make original-versus-processed review obvious.
-- **Icon-led, not icon-only:** use familiar icons with short labels in primary navigation. Use accessible names/tooltips for icon-only utility actions; never make critical actions ambiguous.
-- **Dark, opaque studio surfaces:** near-black/charcoal foundation, violet interaction accent, mint for healthy/live signal, and warm warning colors only for warnings. Avoid pervasive blur/glass, excessive card borders, and decorative visualizers.
-- **Responsive by platform:** Android uses a touch-friendly bottom bar and vertical content; Windows uses a compact persistent left rail and a wider work area.
-- **Fast-feeling interactions:** keep view instances alive, preserve selection and processing settings across navigation, and update only the controls affected by an interaction.
-
-### Delivery slices
-1. **Navigation foundation:** icon-led Android bottom navigation with selected-workspace feedback and accessible labels; retain existing screen instances and behavior.
-2. **Shared visual hierarchy:** consistent screen headers, spacing, surface levels, typography, status chips, and primary/secondary action styles.
-3. **Record focus:** clearer recording state, meter/clipping presentation, and post-save actions.
-4. **Editor focus:** waveform scale, range controls, timecodes, preview, and safe-export confirmation.
-5. **Processing focus:** preset emphasis, collapsed advanced controls, clear progress/cancel, and A/B review.
-6. **Library and Settings:** keep Library grounded in its real file discovery behavior; add Settings only when each preference has a clear persistence contract.
-
-### Validation
-- Preserve recording, save/recovery, playback, waveform analysis, trim, processing, cancellation, and no-overwrite behavior.
 - No audio-engine or DSP semantic changes in visual-only slices.
-- All three CI jobs must pass. Manual checks should include repeated navigation, selected-state feedback, preserved trim/settings state, recording meter updates, small-screen layout, and keyboard/focus accessibility on Windows.
-- CI success is not proof of visual usability or actual audio quality; platform-specific manual checks remain separate.
-
-
-## Record screen UI slice — 2026-10-29
-
-### One-button recording interaction
-- Replace separate Start and Stop buttons with one primary toggle action on both Android and Windows.
-- Idle state: blue button labelled **Start recording**; active state: teal-green button labelled **Stop & save WAV**.
-- Disable the control only while a file picker, processing operation, or finalization makes a new action unsafe. During recording, keep the single button enabled so it can stop and save.
-- Keep elapsed time, live RMS/peak meter, clipping warning, microphone selection, and recovery flow intact.
-- Use accessible names alongside icon cues; color must not be the only recording-state signal.
-- Do not change native capture, WAV validation/publication, recovery, or DSP semantics.
-
-### Validation gates
-- CI must pass for Android, Linux native core, and Windows native core/shell.
-- Manual smoke checks: start, observe teal state and timer/meter, stop and save, verify blue idle state and WAV playback; repeat twice; cancel the save picker; check failure/recovery paths.
-- Windows runtime validation remains pending the user's Windows environment being ready.
-
-## Editor waveform focus — 2026-10-29
-
-- Give the Android waveform more vertical space and make selected duration the most visible piece of trim feedback.
-- Keep the in/out timecodes together in one compact row while retaining readable time formats and a full-width apply action.
-- Keep preview and export as distinct actions; exporting creates a new WAV and preserves the source.
-- Keep waveform peak analysis cached; dragging handles updates selection feedback only and must not re-read or re-analyze the file.
-- No native audio or trim semantics changed. Manual validation: load a WAV, drag both handles, apply exact timecodes, preview the selection, export a trim, and verify the source remains unchanged.
-
-## Processing preset focus — 2026-10-29
-
-- Put the three existing presets first in the Android Processing workflow and visually distinguish the selected preset.
-- Keep the process/export action immediately after preset selection; advanced noise-gate, gain, and high-pass controls remain collapsed by default.
-- Give the processed-copy playback action a teal-green accent so it is easy to find during A/B listening; original playback remains visually secondary.
-- Preserve saved preset parameter values, processing cancellation, integrity checks, and non-destructive output behavior. This is a presentation-only slice.
-- Manual validation: switch all three presets, confirm the active state follows the selection, process a WAV, cancel another processing attempt, compare original and processed playback, and confirm the source remains unchanged.
-
-
-## Library workspace clarity — 2026-10-29
-
-- Clarify that Edit opens the waveform editor and Process copy creates a separate output while preserving the source.
-- Android library rows identify likely categories from their Audio Studio subfolder (recording, processed copy, trimmed export, or general WAV export) alongside location and size.
-- Windows continues to scan only the explicitly selected folder; no whole-device scanning or destructive file actions are introduced.
-- No recording, playback, processing, trim, export, or WAV publication semantics changed.
-- Manual validation: check library empty/error/permission states, confirm category labels match folders, open a WAV in Edit, create a Process copy, and verify the source remains unchanged.
-
-
-## Library search and filtering — 2026-10-29
-
-- Add a lightweight in-memory search field on Android and Windows to filter the currently loaded WAV list by filename or folder path.
-- Search must not rescan storage, reopen files, or change source data; clearing the query restores the loaded list.
-- Preserve platform discovery boundaries: Android searches the recent Audio Studio WAV list; Windows searches only the user-selected folder and its current top-level results.
-- Keep the 100-file discovery cap explicit; this search filters loaded results and is not a whole-device search.
-- Manual validation: search by full and partial filename, search a folder/category term, confirm no-match guidance, clear search, refresh, switch Library away/back, and confirm Edit/Process copy still target the correct file.
-
-
-## Library search refresh consistency — 2026-10-29
-
-- Reapply the current search query after refreshing/reloading library entries so newly discovered WAVs are filtered immediately.
-- Preserve the query across a refresh and keep the status line accurate for all-results, matching-results, and no-match states.
-- Search remains in-memory and does not trigger extra scans; refresh is still the only action that reloads the file list.
-- Manual validation: enter a query, refresh, confirm matching rows remain filtered and status is correct; clear query, refresh again, and confirm all loaded rows return. Repeat on Android and Windows.
-
-
-## Library empty, loading, permission, and error states — 2026-10-29
-
-- Keep the Library status attached to the Library workspace; a denied Android audio-library permission must not write its guidance into the global recording status.
-- Give permission-denial guidance a concrete recovery path: allow audio access in system settings and refresh; preserve the document-picker fallback.
-- On Windows, folder-picker cancellation preserves the existing view. A refresh replaces the result set, and a failed/inaccessible folder scan must not leave stale WAV rows visible beneath an error message.
-- Preserve distinct loading, empty-folder, no-search-match, permission, and scan-failure messages. Search remains in-memory and must not trigger scanning.
-- Preserve discovery boundaries (Android Audio Studio WAVs; Windows explicitly selected top-level folder) and the 100-file cap. No audio, recording, processing, trim, export, or publication behavior changes.
-- Manual validation: empty folder, missing/inaccessible folder, picker cancellation, refresh success/failure, Android permission grant/denial, no-match query, clear query, and Edit/Process copy actions on refreshed results.
-
-
-## Cross-platform processing preference persistence — 2026-10-29
-
-- Fresh-install processing defaults match the Natural preset: threshold −54 dBFS, attenuation −12 dB, output gain 0 dB, and high-pass Off.
-- Android's existing app-private preference keys remain intact; only fallback values are aligned, so saved user settings are not migrated or overwritten.
-- Windows stores the same four processing values and selected preset in app-local settings, validates/clamps loaded values, and preserves valid custom values when an unknown preset label falls back to Natural.
-- Windows sliders use the same ranges as Android. Persist values at drag release/keyboard completion rather than on every slider movement; applying a preset explicitly saves its label and values.
-- The processing operation continues to read the selected slider values at start; no recording, WAV, or DSP algorithm behavior changes.
-- Follow-up gate: add focused automated coverage for preference defaults, clamping, restart restoration, unknown labels, reset isolation, and processing snapshots before exposing a dedicated Settings screen.
+- Preserve recording, save/recovery, playback, waveform, trim, processing, cancellation, and no-overwrite behavior.
+- All configured CI jobs must pass.
+- Manual checks are required for actual device behavior, visual usability, interaction smoothness, and microphone behavior.
