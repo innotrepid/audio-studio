@@ -96,6 +96,7 @@ public sealed partial class MainWindow : Window
     private StorageFile? _originalPreviewFile;
     private StorageFile? _processedPreviewFile;
     private string? _currentRecordingPath;
+    private string? _lastVerifiedRecordingPath;
     private string? _waveformFilePath;
     private ulong _waveformTotalFrames;
     private uint _waveformSampleRate;
@@ -165,6 +166,7 @@ public sealed partial class MainWindow : Window
         DenoiserStrengthSlider.KeyUp += (_, _) => SaveProcessingPreferences();
         LoadProcessingPreferences();
         ShowWorkflowPanel(RecordPanel);
+        OpenLatestTakeButton.IsEnabled = false;
         TrimStartSlider.ValueChanged += (_, _) =>
         {
             if (!_applyingTrimTimecodes) CancelTrimRangePreviewForSelectionChange();
@@ -331,6 +333,28 @@ public sealed partial class MainWindow : Window
         }
         SaveProcessingPreferences();
         ProcessingStatusText.Text = $"{preset} preset applied. Fine-tune the sliders and compare the output with the original.";
+    }
+
+    private async void OpenLatestTake_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastVerifiedRecordingPath) || !File.Exists(_lastVerifiedRecordingPath))
+        {
+            OpenLatestTakeButton.IsEnabled = false;
+            WaveformStatusText.Text = "The latest verified take is no longer available. Load a WAV file instead.";
+            return;
+        }
+
+        try
+        {
+            var file = await StorageFile.GetFileFromPathAsync(_lastVerifiedRecordingPath);
+            await LoadWaveformFileAsync(file);
+            ShowWorkflowPanel(EditorPanel);
+            WaveformStatusText.Text = $"Latest verified take loaded: {file.Name}";
+        }
+        catch (Exception exception)
+        {
+            WaveformStatusText.Text = $"Could not open the latest take: {exception.Message}";
+        }
     }
 
     private async void LoadWaveform_Click(object sender, RoutedEventArgs e)
@@ -1135,8 +1159,11 @@ public sealed partial class MainWindow : Window
                 var nativeReportedSaved = nativeStatus.StartsWith("Recording saved", StringComparison.OrdinalIgnoreCase);
                 if (stopResult != 0 && nativeReportedSaved && takeDetails is not null)
                 {
+                    _lastVerifiedRecordingPath = takePath;
+                    OpenLatestTakeButton.IsEnabled = true;
                     RecordingStatusText.Text = $"FINALIZED AND VERIFIED — {nativeStatus}" +
-                        Environment.NewLine + Environment.NewLine + takeDetails;
+                        Environment.NewLine + Environment.NewLine + takeDetails +
+                        Environment.NewLine + "This take is ready in Editor.";
                 }
                 else if (nativeReportedSaved)
                 {
