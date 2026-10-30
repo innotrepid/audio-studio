@@ -143,6 +143,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.11.1"
+      - name: Run Android Creator persistence tests
+        run: gradle -p platforms/android :app:testDebugUnitTest
       - name: Build Android debug APK
         run: gradle -p platforms/android :app:assembleDebug
       - name: Upload Android debug APK
