@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.charset.StandardCharsets
@@ -100,9 +101,19 @@ internal class CreatorProjectStore(context: Context) {
     }
 
     private fun readPrimaryBytes(): ByteArray {
-        val bytes = atomicFile.openRead().use { it.readBytes() }
-        if (bytes.size > maxDocumentBytes) throw IOException("Project file exceeds the 1 MB safety limit.")
-        return bytes
+        return atomicFile.openRead().use { input ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                total += count
+                if (total > maxDocumentBytes) throw IOException("Project file exceeds the 1 MB safety limit.")
+                output.write(buffer, 0, count)
+            }
+            output.toByteArray()
+        }
     }
 
     @Synchronized
@@ -171,6 +182,17 @@ internal class CreatorProjectStore(context: Context) {
         project.takes.forEach { take ->
             val id = take.optString("takeId")
             require(id.isNotBlank() && ids.add(id)) { "Take IDs must be present and unique." }
+            val scriptId = take.optString("scriptId").takeIf { it.isNotBlank() }
+            val sectionId = take.optString("sectionId").takeIf { it.isNotBlank() }
+            require(scriptId == null || project.scripts.any { it.scriptId == scriptId }) {
+                "A take references a missing script."
+            }
+            if (sectionId != null) {
+                val referencedScript = project.scripts.firstOrNull { it.scriptId == scriptId }
+                require(referencedScript?.sections?.any { it.sectionId == sectionId } == true) {
+                    "A take section must exist inside its referenced script."
+                }
+            }
         }
     }
 
