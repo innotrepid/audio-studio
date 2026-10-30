@@ -416,7 +416,7 @@ public sealed partial class MainWindow : Window
             WaveformCanvas.Children.Add(new Microsoft.UI.Xaml.Shapes.Path
             {
                 Data = waveformGeometry,
-                Stroke = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 178, 155, 255)),
+                Stroke = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 79, 125, 255)),
                 StrokeThickness = 1.5,
                 IsHitTestVisible = false
             });
@@ -953,7 +953,7 @@ public sealed partial class MainWindow : Window
                 {
                     Text = $"{Math.Max(1, file.Length / 1024)} KB · Modified {file.LastWriteTime:g}",
                     FontSize = 12,
-                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 184, 180, 204)),
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 174, 185, 204)),
                     TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
                 });
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
