@@ -30,7 +30,7 @@ jobs:
           ref: 9857e2f6001fd032806c7266787f69febf04aae7
           path: vendor/noise-cancellation-model
           persist-credentials: false
-      - name: Build RNNoise C ABI static library
+      - name: Build RNNoise and DeepFilterNet3 C ABI
         working-directory: vendor/noise-cancellation-model
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
@@ -57,13 +57,20 @@ jobs:
           ref: 9857e2f6001fd032806c7266787f69febf04aae7
           path: vendor/noise-cancellation-model
           persist-credentials: false
-      - name: Build RNNoise C ABI static library
+      - name: Install DirectML link library
+        shell: pwsh
+        run: |
+          nuget install Microsoft.AI.DirectML -OutputDirectory packages -NonInteractive
+          $lib = Get-ChildItem packages -Filter DirectML.lib -Recurse | Where-Object { $_.FullName -match '[\\/]x64[\\/]' } | Select-Object -First 1
+          if (-not $lib) { throw "DirectML.lib for x64 was not found in the Microsoft.AI.DirectML NuGet package." }
+          "DIRECTML_LIBRARY=$($lib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Build RNNoise and DeepFilterNet3 C ABI
         working-directory: vendor/noise-cancellation-model
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDIRECTML_LIBRARY="$env:DIRECTML_LIBRARY"
       - name: Build shared core
         run: cmake --build build --config Release --parallel
       - name: Run core tests
@@ -110,7 +117,7 @@ jobs:
       - name: Set up Rust and Android targets
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
       - name: Check out pinned noise cancellation engine
         uses: actions/checkout@v4
         with:
@@ -120,11 +127,11 @@ jobs:
           persist-credentials: false
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --locked
-      - name: Build RNNoise for Android ABIs
+      - name: Build RNNoise and DeepFilterNet3 for supported Android ABIs
         working-directory: vendor/noise-cancellation-model
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
+        run: cargo ndk -t arm64-v8a -t x86_64 build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
