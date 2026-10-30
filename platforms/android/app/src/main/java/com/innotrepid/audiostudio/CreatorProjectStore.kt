@@ -182,12 +182,22 @@ internal class CreatorProjectStore(context: Context) {
         project.takes.forEach { take ->
             val id = take.optString("takeId")
             require(id.isNotBlank() && ids.add(id)) { "Take IDs must be present and unique." }
-            val scriptId = take.optString("scriptId").takeIf { it.isNotBlank() }
-            val sectionId = take.optString("sectionId").takeIf { it.isNotBlank() }
+            val sourceUri = take.optString("sourceUri").takeIf { it.isNotBlank() && it != "null" }
+            val sourcePath = take.optString("sourcePath").takeIf { it.isNotBlank() && it != "null" }
+            require(sourceUri != null || sourcePath != null) { "A take must reference its existing audio file." }
+            val durationMs = take.optLong("durationMs", -1L)
+            val sampleRateHz = take.optLong("sampleRateHz", -1L)
+            val channels = take.optInt("channels", -1)
+            require(durationMs > 0L && sampleRateHz > 0L && channels in 1..2) {
+                "A take must contain valid verified audio metadata."
+            }
+            val scriptId = take.optString("scriptId").takeIf { it.isNotBlank() && it != "null" }
+            val sectionId = take.optString("sectionId").takeIf { it.isNotBlank() && it != "null" }
             require(scriptId == null || project.scripts.any { it.scriptId == scriptId }) {
                 "A take references a missing script."
             }
             if (sectionId != null) {
+                require(scriptId != null) { "A section-linked take must also reference its script." }
                 val referencedScript = project.scripts.firstOrNull { it.scriptId == scriptId }
                 require(referencedScript?.sections?.any { it.sectionId == sectionId } == true) {
                     "A take section must exist inside its referenced script."
