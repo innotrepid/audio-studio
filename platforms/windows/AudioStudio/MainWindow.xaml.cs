@@ -986,7 +986,13 @@ public sealed partial class MainWindow : Window
                     TextWrapping = Microsoft.UI.Xaml.TextWrapping.Wrap
                 });
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-                var editButton = new Button { Content = "Open in Editor", Style = (Style)Application.Current.Resources["PrimaryRecordButton"] };
+                var editButton = new Button
+                {
+                    Content = "Open in Editor",
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 79, 125, 255)),
+                    Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 12, 12, 20)),
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
+                };
                 editButton.Click += async (_, _) =>
                 {
                     try
