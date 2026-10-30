@@ -32,14 +32,13 @@ This is the durable parking lot for reliability issues that are worth revisiting
 - [x] Processing cleanup does not delete an unrelated destination file created concurrently.
 - [x] Progress callback exceptions become descriptive errors and clean writer-owned temporary output (PR #53; merged after all three CI jobs passed).
 
-## Product work takes priority next
+## Current product-work priority
 
-The next implementation milestone is **recording confidence and control**, not another generic hardening pass:
+The recording-confidence, waveform-navigation, trim, and processing milestones have progressed substantially since this backlog was first written. The current product priority is the Hybrid Studio redesign and Creator workflow foundation, not another broad reliability sweep.
 
-1. Audit existing Android/Windows recording UI against the requirements before duplicating controls.
-2. Add or complete live input level metering and clipping indication where capture data makes them reliable.
-3. [x] Add recording format / file details and a clear take state (finalized vs recoverable partial; PR #81 and PR #82).
-4. [x] Add non-destructive gain and high-pass processing as explicit, testable effects.
-5. Next, move toward waveform navigation and non-destructive trimming.
+1. Establish shared visual tokens and align Android/Windows navigation without changing audio behavior.
+2. Refine existing Record, Editor, and Library experiences while preserving their current behavior.
+3. Add Creator and project persistence only with versioning, autosave, recovery, and migration tests.
+4. Introduce scripts, teleprompter, transcripts/captions, and production markers in separately testable slices.
 
-For every feature, add only the safety checks needed by that feature; put unrelated concerns back in this backlog.
+Keep confirmed data-loss, corruption, security, and crash defects as immediate fixes. For every product feature, add the safety checks needed for that feature and return unrelated concerns to this backlog.
