@@ -217,13 +217,13 @@ class MainActivity : Activity() {
         inputMeterLabel = TextView(this).apply {
             text = "Input level appears while recording"
             textSize = 16f
-            setTextColor(Color.rgb(220, 210, 255))
+            setTextColor(Color.rgb(175, 198, 255))
             setTypeface(null, android.graphics.Typeface.BOLD)
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(Color.rgb(20, 20, 30))
                 cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), Color.rgb(70, 60, 100))
+                setStroke(dp(1), Color.rgb(54, 82, 137))
             }
             gravity = Gravity.CENTER
         }
@@ -563,7 +563,7 @@ class MainActivity : Activity() {
             text = "PRECISE IN / OUT POINTS"
             textSize = 11f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(178, 155, 255))
+            setTextColor(Color.rgb(79, 125, 255))
             setPadding(0, dp(12), 0, dp(2))
         }, matchWidth())
         val trimTimecodeRow = LinearLayout(this).apply {
@@ -587,7 +587,7 @@ class MainActivity : Activity() {
             text = "NOISE REDUCTION ENGINE"
             textSize = 11f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(178, 155, 255))
+            setTextColor(Color.rgb(79, 125, 255))
             setPadding(0, dp(6), 0, dp(2))
         }, matchWidth())
         processingSection.addView(processingEngineSpinner, matchWidth())
@@ -602,7 +602,7 @@ class MainActivity : Activity() {
             text = "CHOOSE A STARTING POINT"
             textSize = 11f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(178, 155, 255))
+            setTextColor(Color.rgb(79, 125, 255))
             setPadding(0, dp(6), 0, dp(2))
         }, matchWidth())
         processingSection.addView(presetRow, matchWidth())
@@ -638,6 +638,18 @@ class MainActivity : Activity() {
         processingSection.addView(playProcessedButton, matchWidth())
         processingSection.addView(stopPlaybackButton, matchWidth())
         processingSection.addView(notice, matchWidth())
+
+        editSection.addView(Button(this).apply {
+            text = "Noise reduction & A/B comparison"
+            contentDescription = "Open contextual audio processing and comparison tools"
+            setOnClickListener {
+                editSection.visibility = android.view.View.GONE
+                processingSection.visibility = android.view.View.VISIBLE
+                recordSection.visibility = android.view.View.GONE
+                creatorSection.visibility = android.view.View.GONE
+                librarySection.visibility = android.view.View.GONE
+            }
+        }, matchWidth())
 
         // Browse WAVs exported by Audio Studio without reopening a document picker.
         val libraryStatus = TextView(this).apply {
@@ -685,6 +697,23 @@ class MainActivity : Activity() {
             "Your audio library",
             "Find recordings, processed copies, and trimmed exports. Editing and processing never overwrite the selected source."
         )
+
+        val creatorSection = makeSection(
+            "Creator workspace",
+            "A focused home for scripts, teleprompter, transcripts & captions, and production notes. These tools are being introduced in later phases; this screen is intentionally a clear starting point."
+        )
+        creatorSection.addView(TextView(this).apply {
+            text = "Your spoken-content workflow will live here."
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(8), 0, dp(4))
+        }, matchWidth())
+        creatorSection.addView(TextView(this).apply {
+            text = "Scripts  ·  Teleprompter  ·  Transcripts & Captions  ·  Production"
+            textSize = 13f
+            setTextColor(Color.rgb(175, 198, 225))
+        }, matchWidth())
         fun refreshAudioLibrary() {
             libraryItems.removeAllViews()
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -765,7 +794,7 @@ class MainActivity : Activity() {
                         background = android.graphics.drawable.GradientDrawable().apply {
                             setColor(Color.rgb(20, 20, 30))
                             cornerRadius = dp(12).toFloat()
-                            setStroke(dp(1), Color.rgb(58, 54, 80))
+                            setStroke(dp(1), Color.rgb(48, 68, 108))
                         }
                     }
                     item.addView(TextView(this).apply {
@@ -838,8 +867,10 @@ class MainActivity : Activity() {
         editSection.visibility = android.view.View.GONE
         processingSection.visibility = android.view.View.GONE
         librarySection.visibility = android.view.View.GONE
+        creatorSection.visibility = android.view.View.GONE
         root.addView(recordSection, sectionLayoutParams())
         root.addView(editSection, sectionLayoutParams())
+        root.addView(creatorSection, sectionLayoutParams())
         root.addView(processingSection, sectionLayoutParams())
         root.addView(librarySection, sectionLayoutParams())
 
@@ -855,18 +886,18 @@ class MainActivity : Activity() {
                 val selected = target === selectedTarget
                 item.isSelected = selected
                 item.background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(if (selected) Color.rgb(55, 45, 83) else Color.TRANSPARENT)
+                    setColor(if (selected) Color.rgb(29, 55, 104) else Color.TRANSPARENT)
                     cornerRadius = dp(12).toFloat()
-                    if (selected) setStroke(dp(1), Color.rgb(178, 155, 255))
+                    if (selected) setStroke(dp(1), Color.rgb(79, 125, 255))
                 }
                 item.getChildAt(0).let { icon ->
                     if (icon is TextView) icon.setTextColor(
-                        if (selected) Color.rgb(205, 188, 255) else Color.rgb(160, 155, 180)
+                        if (selected) Color.rgb(160, 190, 255) else Color.rgb(142, 153, 178)
                     )
                 }
                 item.getChildAt(1).let { label ->
                     if (label is TextView) {
-                        label.setTextColor(if (selected) Color.WHITE else Color.rgb(190, 185, 208))
+                        label.setTextColor(if (selected) Color.WHITE else Color.rgb(174, 184, 205))
                         label.typeface = android.graphics.Typeface.create(
                             "sans-serif", if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
                         )
@@ -886,7 +917,8 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
                     editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
-                    processingSection.visibility = if (target === processingSection) android.view.View.VISIBLE else android.view.View.GONE
+                    processingSection.visibility = android.view.View.GONE
+                    creatorSection.visibility = if (target === creatorSection) android.view.View.VISIBLE else android.view.View.GONE
                     librarySection.visibility = if (target === librarySection) android.view.View.VISIBLE else android.view.View.GONE
                     applyNavSelection(target)
                     if (target === librarySection) refreshAudioLibrary()
@@ -899,7 +931,7 @@ class MainActivity : Activity() {
                 text = iconGlyph
                 textSize = 19f
                 gravity = Gravity.CENTER
-                setTextColor(Color.rgb(160, 155, 180))
+                setTextColor(Color.rgb(142, 153, 178))
                 importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(24)))
             item.addView(TextView(this).apply {
@@ -907,15 +939,15 @@ class MainActivity : Activity() {
                 textSize = 10f
                 gravity = Gravity.CENTER
                 maxLines = 1
-                setTextColor(Color.rgb(190, 185, 208))
+                setTextColor(Color.rgb(174, 184, 205))
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             navItems.add(item to target)
             return item
         }
         listOf(
             navButton("Record", "●", recordSection),
-            navButton("Edit", "⌁", editSection),
-            navButton("Process", "✧", processingSection),
+            navButton("Editor", "⌁", editSection),
+            navButton("Creator", "✎", creatorSection),
             navButton("Library", "▤", librarySection)
         ).forEach { navBar.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
         applyNavSelection(recordSection)
@@ -951,7 +983,7 @@ class MainActivity : Activity() {
                 view.background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(Color.rgb(34, 34, 48))
                     cornerRadius = dp(12).toFloat()
-                    setStroke(dp(1), Color.rgb(58, 54, 80))
+                    setStroke(dp(1), Color.rgb(48, 68, 108))
                 }
                 view.setTextColor(Color.rgb(243, 240, 255))
             } else if (view is ViewGroup) {
@@ -1006,11 +1038,11 @@ class MainActivity : Activity() {
         processingPresetButtons.forEach { (name, button) ->
             val selected = name == preset
             button.background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(if (selected) Color.rgb(55, 45, 83) else Color.rgb(34, 34, 48))
+                setColor(if (selected) Color.rgb(29, 55, 104) else Color.rgb(34, 34, 48))
                 cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), if (selected) Color.rgb(178, 155, 255) else Color.rgb(58, 54, 80))
+                setStroke(dp(1), if (selected) Color.rgb(79, 125, 255) else Color.rgb(48, 68, 108))
             }
-            button.setTextColor(if (selected) Color.WHITE else Color.rgb(190, 185, 208))
+            button.setTextColor(if (selected) Color.WHITE else Color.rgb(174, 184, 205))
             button.typeface = android.graphics.Typeface.create(
                 "sans-serif", if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
             )
