@@ -26,7 +26,8 @@ AUDIO_STUDIO_API int audio_studio_recording_clipping(void);
 AUDIO_STUDIO_API const wchar_t* audio_studio_recover_partial_wav(const wchar_t* partial_path, const wchar_t* output_path);
 AUDIO_STUDIO_API int audio_studio_processing_start(const wchar_t* input_path,
     const wchar_t* output_path, float threshold_dbfs, float attenuation_db,
-    float gain_db, float high_pass_hz, int processing_engine, float denoiser_strength);
+    float gain_db, float high_pass_hz, int processing_engine, float denoiser_strength,
+    const wchar_t* model_directory);
 AUDIO_STUDIO_API void audio_studio_processing_cancel(void);
 AUDIO_STUDIO_API int audio_studio_processing_active(void);
 AUDIO_STUDIO_API float audio_studio_processing_progress(void);
