@@ -290,6 +290,7 @@
                             <Button x:Name="CreatorSaveButton" Content="Save script now" Click="CreatorSave_Click" Style="{StaticResource PrimaryRecordButton}" />
                             <TextBlock x:Name="CreatorSaveStatusText" Text="Loading local project…" VerticalAlignment="Center" Foreground="#AEB9CC" TextWrapping="Wrap" />
                         </StackPanel>
+                        <TextBlock x:Name="CreatorTakesSummaryText" Text="Linked takes: 0" FontSize="12" Foreground="#AEB9CC" />
                         <TextBlock Text="NEXT IN CREATOR" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
                         <TextBlock Text="Integrated teleprompter · countdown and synchronized scroll · transcripts &amp; captions · production notes" TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
