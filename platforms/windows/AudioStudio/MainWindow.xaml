@@ -278,7 +278,7 @@
                     <TextBlock Text="SCRIPT TITLE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                     <TextBox x:Name="CreatorScriptTitleBox" PlaceholderText="Give this script a title" TextChanged="CreatorScript_TextChanged" />
                     <TextBlock Text="SCRIPT" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
-                    <TextBox x:Name="CreatorScriptBodyBox" PlaceholderText="Start writing your script…" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="280" VerticalScrollBarVisibility="Auto" TextChanged="CreatorScript_TextChanged" />
+                    <TextBox x:Name="CreatorScriptBodyBox" PlaceholderText="Start writing your script…" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="280" ScrollViewer.VerticalScrollBarVisibility="Auto" TextChanged="CreatorScript_TextChanged" />
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <Button x:Name="CreatorSaveButton" Content="Save script now" Click="CreatorSave_Click" Style="{StaticResource PrimaryRecordButton}" />
                         <TextBlock x:Name="CreatorSaveStatusText" Text="Loading local project…" VerticalAlignment="Center" Foreground="#AEB9CC" TextWrapping="Wrap" />
