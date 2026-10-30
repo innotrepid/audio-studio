@@ -68,6 +68,17 @@ A take record may contain:
 
 The project store must not move, rename, rewrite, or delete audio files. File references are metadata only. If a source is unavailable, preserve the project record and report the missing asset; do not silently discard it.
 
+## Verified recording association
+
+The current Creator foundation associates a take only after the native recorder has finalized the WAV and platform-specific WAV validation succeeds.
+
+- Android stores the durable MediaStore content URI when the recording is exported; if public export is unavailable, it stores the app-private file path.
+- Windows stores the verified WAV's full path.
+- Both platforms record a new take UUID, UTC creation time, duration in milliseconds, sample rate, channel count, script ID, section ID, and the `recorded` status.
+- The initial association targets the first script and its first section because the current Scripts workspace edits that section. A future multi-script/section selector must supply explicit stable IDs rather than relying on display order.
+- The project save is separate from WAV finalization. If metadata association fails, the UI reports that separately and preserves the already-verified recording.
+- Associating a take never copies, moves, renames, rewrites, or deletes its audio source.
+
 ## Validation
 
 Before accepting a loaded document:
