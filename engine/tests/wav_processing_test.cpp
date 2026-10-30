@@ -154,11 +154,13 @@ void test_deepfilternet3_beta_processes_wav_and_preserves_source() {
     }
     const auto original_bytes = load_bytes(input);
     std::string error;
-    require(audio_studio::process_wav_with_noise_gate(
-                input, output, {}, &error, nullptr, {},
-                audio_studio::DspEffectsSettings{0.0F, 0.0F, true},
-                audio_studio::ProcessingEngine::DeepFilterNet3, 0.85F, models),
-            std::string("DeepFilterNet3 (BETA) should process a valid WAV: ") + error);
+    const bool deepfilter_succeeded = audio_studio::process_wav_with_noise_gate(
+        input, output, {}, &error, nullptr, {},
+        audio_studio::DspEffectsSettings{0.0F, 0.0F, true},
+        audio_studio::ProcessingEngine::DeepFilterNet3, 0.85F, models);
+    const std::string deepfilter_failure_message =
+        std::string("DeepFilterNet3 (BETA) should process a valid WAV: ") + error;
+    require(deepfilter_succeeded, deepfilter_failure_message.c_str());
     require(error.empty(), "DeepFilterNet3 success clears processing error");
     require(load_bytes(input) == original_bytes, "DeepFilterNet3 must preserve source bytes");
     audio_studio::AudioBuffer processed;
