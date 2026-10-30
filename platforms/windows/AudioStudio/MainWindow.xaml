@@ -130,8 +130,8 @@
                         <TextBlock Text="Reduce steady background noise and shape your voice. Processing creates a separate output; your original stays untouched." TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Button x:Name="NavigateProcessingButton" Content="Noise reduction" Click="NavigateProcessing_Click" />
-                        <Button x:Name="NavigateCompareButton" Content="A/B comparison" Click="NavigateCompare_Click" />
+                        <ToggleButton x:Name="NavigateProcessingButton" Content="Noise reduction" Click="NavigateProcessing_Click" Style="{StaticResource WorkflowNavigationButton}" />
+                        <ToggleButton x:Name="NavigateCompareButton" Content="A/B comparison" Click="NavigateCompare_Click" Style="{StaticResource WorkflowNavigationButton}" />
                     </StackPanel>
                     <Border Background="#111722" CornerRadius="10" Padding="16">
                         <StackPanel Spacing="10">
