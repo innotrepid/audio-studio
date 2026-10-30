@@ -97,6 +97,7 @@ class MainActivity : Activity() {
     private var teleprompterStartRequested = false
     private var teleprompterPaused = false
     private var teleprompterCountdownRemaining = 3
+    private var teleprompterPendingCountdownSeconds = 3
     private var teleprompterSpeedPxPerSecond = 42f
     private var teleprompterLastFrameMs = 0L
     private val teleprompterCountdownClock = object : Runnable {
@@ -1566,8 +1567,9 @@ class MainActivity : Activity() {
             return
         }
         teleprompterStartRequested = true
+        teleprompterPendingCountdownSeconds = when (countdownPosition) { 1 -> 5; 2 -> 10; else -> 3 }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            beginTeleprompterCountdown(countdownPosition)
+            beginTeleprompterCountdown()
             return
         }
         startAfterPermission = true
@@ -1576,7 +1578,6 @@ class MainActivity : Activity() {
         teleprompterStartButton?.isEnabled = false
         try {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
-            teleprompterCountdownRemaining = when (countdownPosition) { 1 -> 5; 2 -> 10; else -> 3 }
         } catch (exception: Exception) {
             startAfterPermission = false
             teleprompterStartRequested = false
@@ -1587,9 +1588,10 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun beginTeleprompterCountdown(countdownPosition: Int) {
-        teleprompterCountdownRemaining = when (countdownPosition) { 1 -> 5; 2 -> 10; else -> 3 }
+    private fun beginTeleprompterCountdown() {
+        teleprompterCountdownRemaining = teleprompterPendingCountdownSeconds
         teleprompterPaused = false
+        recordToggleButton.isEnabled = false
         teleprompterScrollView?.scrollTo(0, 0)
         teleprompterStartButton?.isEnabled = true
         teleprompterStartButton?.text = "Cancel countdown"
@@ -2645,7 +2647,7 @@ class MainActivity : Activity() {
                 teleprompterStartRequested = false
                 statusText.text = "Permission granted, but another operation is active. Tap Start recording when it finishes."
             } else if (teleprompterStartRequested) {
-                beginTeleprompterCountdown(0)
+                beginTeleprompterCountdown()
             } else {
                 startRecording()
             }
@@ -2658,6 +2660,7 @@ class MainActivity : Activity() {
     }
 
     override fun onStop() {
+        if (teleprompterStartRequested && !recording) cancelTeleprompterCountdown()
         diagnosticsCapture.record("activity_lifecycle", "on_stop", mapOf("recording" to recording, "processing" to processing))
         // Comparison playback is a foreground-only preview; release it when the
         // Activity loses the foreground (including while the document picker opens).
