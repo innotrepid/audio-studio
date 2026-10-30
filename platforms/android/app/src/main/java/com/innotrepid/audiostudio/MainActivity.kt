@@ -228,7 +228,7 @@ class MainActivity : Activity() {
         }
 
         inputMeterLabel = TextView(this).apply {
-            text = "Input level appears while recording"
+            text = "Input monitor starts with recording · check levels before speaking"
             textSize = 16f
             setTextColor(Color.rgb(175, 198, 255))
             setTypeface(null, android.graphics.Typeface.BOLD)
