@@ -83,6 +83,8 @@ class MainActivity : Activity() {
     private lateinit var inputMeterLabel: TextView
     private lateinit var inputMeter: ProgressBar
     private lateinit var recordToggleButton: Button
+    private lateinit var openLatestTakeButton: Button
+    private var latestVerifiedTakeUri: Uri? = null
     private lateinit var processButton: Button
     private val processingPresetButtons = linkedMapOf<String, Button>()
     private lateinit var waveformButton: Button
@@ -572,6 +574,29 @@ class MainActivity : Activity() {
         recordSection.addView(inputMeterLabel, matchWidth())
         recordSection.addView(inputMeter, matchWidth())
         recordSection.addView(recordToggleButton, matchWidth())
+        openLatestTakeButton = Button(this).apply {
+            text = "Open latest verified take in Editor"
+            isEnabled = false
+            minHeight = dp(48)
+            setOnClickListener {
+                val savedUri = latestVerifiedTakeUri
+                if (savedUri == null) {
+                    statusText.text = "No verified take is available in this session yet."
+                } else {
+                    isEnabled = false
+                    waveformStatus.text = "Opening the latest verified take…"
+                    analyzeSelectedWaveform(savedUri) {
+                        editSection.visibility = android.view.View.VISIBLE
+                        recordSection.visibility = android.view.View.GONE
+                        processingSection.visibility = android.view.View.GONE
+                        creatorSection.visibility = android.view.View.GONE
+                        librarySection.visibility = android.view.View.GONE
+                        statusText.text = "Latest verified take loaded in Editor. Original recording unchanged."
+                    }
+                }
+            }
+        }
+        recordSection.addView(openLatestTakeButton, matchWidth())
         recordSection.addView(recoverButton, matchWidth())
 
         val editSection = makeSection("Editor", "Shape the exact range you need. Inspect the waveform, set precise in and out points, preview the selection, then export a separate WAV. Your source recording is never overwritten.")
@@ -1296,6 +1321,8 @@ class MainActivity : Activity() {
         val takeDetails = recordingTakeDetails(stagedFile)
         statusText.text = try {
             val publicUri = publishRecording(stagedFile)
+            latestVerifiedTakeUri = publicUri ?: Uri.fromFile(stagedFile)
+            openLatestTakeButton.isEnabled = true
             if (publicUri != null) {
                 diagnosticsCapture.record("recording_export", "success", mapOf("staging_name" to stagedFile.name, "source_bytes" to stagedFile.length()))
                 if (!stagedFile.delete()) {
@@ -1386,7 +1413,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun analyzeSelectedWaveform(uri: Uri) {
+    private fun analyzeSelectedWaveform(uri: Uri, onLoaded: (() -> Unit)? = null) {
         diagnosticsCapture.record("waveform_load", "started", mapOf("source_uri_authority" to (uri.authority ?: "unknown")))
         waveformStatus.text = "Analyzing WAV in bounded memory…"
         Thread {
@@ -1431,6 +1458,7 @@ class MainActivity : Activity() {
                         trimWaveformButton.isEnabled = true
                         previewSelectionButton.isEnabled = true
                         waveformStatus.text = "Waveform loaded · select a range below. Original file unchanged."
+                        onLoaded?.invoke()
                     }
                 }
             } catch (exception: Exception) {
