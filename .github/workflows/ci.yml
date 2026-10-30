@@ -37,11 +37,6 @@ jobs:
         run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Configure CMake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-      - name: Package DeepFilterNet3 models for Windows
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force build/Release/models | Out-Null
-          Copy-Item vendor/noise-cancellation-model/models/* build/Release/models/ -Force
       - name: Build shared core
         run: cmake --build build --config Release --parallel
       - name: Run core tests
@@ -66,7 +61,7 @@ jobs:
         working-directory: vendor/noise-cancellation-model
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
-        run: cargo build --release --no-default-features --features rnnoise,c-api --lib
+        run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Configure CMake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build shared core
