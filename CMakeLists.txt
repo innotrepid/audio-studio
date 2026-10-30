@@ -22,7 +22,7 @@ FetchContent_Declare(dsp_engine_source
 )
 FetchContent_MakeAvailable(dsp_engine_source)
 
-# The CI build compiles the pinned RNNoise-only Rust C ABI before configuring CMake.
+# CI builds the pinned RNNoise + DeepFilterNet3 Rust C ABI before configuring CMake.
 if(WIN32)
     set(NOISE_CANCELLATION_LIBRARY "${CMAKE_SOURCE_DIR}/target/release/noise_cancellation.lib")
 else()
