@@ -80,6 +80,8 @@ jobs:
         run: cmake --build build --config Release --parallel
       - name: Run core tests
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Run Windows Creator persistence tests
+        run: dotnet run --project platforms/windows/AudioStudio.Tests/AudioStudio.Tests.csproj --configuration Release
       - name: Set up Visual Studio MSBuild
         uses: microsoft/setup-msbuild@v2
       - name: Build WinUI application shell
