@@ -249,7 +249,8 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                                  std::function<void(std::uint64_t, std::uint64_t)> progress,
                                  DspEffectsSettings dsp_settings,
                                  ProcessingEngine engine,
-                                 float denoiser_strength) {
+                                 float denoiser_strength,
+                                 const std::string& model_directory) {
     if (error != nullptr) error->clear();
     if (input_path.empty() || output_path.empty()) {
         return fail(error, "Input and output paths are required.");
@@ -257,7 +258,8 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     if (input_path == output_path) {
         return fail(error, "Output must be a separate file; the original is never overwritten.");
     }
-    if (engine != ProcessingEngine::NoiseGate && engine != ProcessingEngine::Rnnoise) {
+    if (engine != ProcessingEngine::NoiseGate && engine != ProcessingEngine::Rnnoise &&
+        engine != ProcessingEngine::DeepFilterNet3) {
         return fail(error, "Unsupported audio processing engine.");
     }
     if (engine == ProcessingEngine::NoiseGate && !settings.is_valid()) {
@@ -306,12 +308,15 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     NoiseGate gate(settings);
     NcMultiHandle* denoiser_raw = nullptr;
     std::unique_ptr<NcMultiHandle, decltype(&nc_destroy_multi)> denoiser(nullptr, &nc_destroy_multi);
-    if (engine == ProcessingEngine::Rnnoise) {
+    if (engine == ProcessingEngine::Rnnoise || engine == ProcessingEngine::DeepFilterNet3) {
+        const NcEngine native_engine = engine == ProcessingEngine::Rnnoise
+            ? NC_ENGINE_RNNOISE : NC_ENGINE_DEEPFILTERNET;
+        const char* model_path = model_directory.empty() ? nullptr : model_directory.c_str();
         const auto status = nc_create_multi_with_rate(
-            NC_ENGINE_RNNOISE, nullptr, denoiser_strength, format.sample_rate_hz,
+            native_engine, model_path, denoiser_strength, format.sample_rate_hz,
             format.channel_count, &denoiser_raw);
         if (status != NC_OK || denoiser_raw == nullptr) {
-            return fail(error, std::string("Could not initialize RNNoise: ") +
+            return fail(error, std::string(engine == ProcessingEngine::Rnnoise ? "Could not initialize RNNoise: " : "Could not initialize DeepFilterNet3 (BETA): ") +
                 nc_status_string(status));
         }
         denoiser.reset(denoiser_raw);
@@ -378,7 +383,7 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                 denoiser.get(), block.samples.data(), block.samples.data(), frames);
             if (status != NC_OK) {
                 writer.abort();
-                return fail(error, std::string("RNNoise processing failed: ") +
+                return fail(error, std::string(engine == ProcessingEngine::Rnnoise ? "RNNoise processing failed: " : "DeepFilterNet3 (BETA) processing failed: ") +
                     nc_status_string(status));
             }
         }
@@ -416,13 +421,13 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                 denoiser.get(), tail.data(), kFramesPerBlock, &tail_frames);
             if (status != NC_OK) {
                 writer.abort();
-                return fail(error, std::string("RNNoise tail flush failed: ") +
+                return fail(error, std::string(engine == ProcessingEngine::Rnnoise ? "RNNoise tail flush failed: " : "DeepFilterNet3 (BETA) tail flush failed: ") +
                     nc_status_string(status));
             }
             if (tail_frames == 0U) break;
             if (tail_frames > kFramesPerBlock ||
                 !writer.write_frames(tail.data(), tail_frames)) {
-                const std::string message = "Could not write RNNoise tail: " + writer.last_error();
+                const std::string message = engine == ProcessingEngine::Rnnoise ? "Could not write RNNoise tail: " : "Could not write DeepFilterNet3 (BETA) tail: " + writer.last_error();
                 writer.abort();
                 return fail(error, message);
             }
