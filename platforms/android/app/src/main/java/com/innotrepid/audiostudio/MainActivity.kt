@@ -1325,8 +1325,8 @@ class MainActivity : Activity() {
             val remainder = seconds % 60L
             val channels = if (metadata[2] == 1L) "Mono" else "Stereo"
             val megabytes = file.length().toDouble() / (1024.0 * 1024.0)
-            "Take details: %02d:%02d · %d kHz · %s · %.2f MB".format(
-                minutes, remainder, metadata[1] / 1000L, channels, megabytes
+            "Saved take: %s · %02d:%02d · %d kHz · %s · %.2f MB".format(
+                file.name, minutes, remainder, metadata[1] / 1000L, channels, megabytes
             )
         } catch (_: Exception) {
             null // Details are optional; never turn a successfully saved take into a failure.
