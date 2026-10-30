@@ -69,3 +69,7 @@ The shared C++ core supports common mono/stereo PCM 8/16/24/32-bit and IEEE floa
 No project license has been selected yet. Third-party dependencies will be reviewed individually before adoption. In particular, we will not adopt a framework whose licensing obligations conflict with the intended distribution model.
 
 Until a license is added, do not assume that the project source is available for reuse, redistribution, or commercial use.
+
+## Experience direction
+
+The planned UI direction is **Hybrid Studio**: approachable Record and Creator workflows alongside precise Editor and Processing workspaces. The visual foundation uses near-black/charcoal surfaces, blue as the primary interactive accent, and mint for live/healthy audio feedback. Android and Windows share product concepts but retain native, platform-appropriate layouts. See [the redesign blueprint](docs/CREATOR_STUDIO_REDESIGN.md), [screen architecture](docs/SCREEN_ARCHITECTURE.md), and [UI roadmap](docs/UI-ROADMAP.md).
