@@ -100,6 +100,7 @@ class MainActivity : Activity() {
     private var teleprompterPendingCountdownSeconds = 3
     private var teleprompterSpeedPxPerSecond = 42f
     private var teleprompterLastFrameMs = 0L
+    private var teleprompterScrollRemainder = 0f
     private val teleprompterCountdownClock = object : Runnable {
         override fun run() {
             if (!teleprompterStartRequested) return
@@ -120,7 +121,10 @@ class MainActivity : Activity() {
             val now = SystemClock.uptimeMillis()
             val elapsed = (now - teleprompterLastFrameMs).coerceIn(1L, 50L)
             teleprompterLastFrameMs = now
-            scroll.scrollBy(0, (teleprompterSpeedPxPerSecond * elapsed / 1000f).toInt().coerceAtLeast(1))
+            val exactDistance = teleprompterSpeedPxPerSecond * elapsed / 1000f + teleprompterScrollRemainder
+            val wholePixels = exactDistance.toInt()
+            teleprompterScrollRemainder = exactDistance - wholePixels
+            if (wholePixels > 0) scroll.scrollBy(0, wholePixels)
             val content = scroll.getChildAt(0)
             if (content != null && scroll.scrollY + scroll.height >= content.height) {
                 teleprompterCountdownText?.text = "End of script · recording continues"
@@ -1612,6 +1616,7 @@ class MainActivity : Activity() {
     private fun startTeleprompterScroll() {
         teleprompterPaused = false
         teleprompterLastFrameMs = SystemClock.uptimeMillis()
+        teleprompterScrollRemainder = 0f
         teleprompterPauseButton?.text = "Pause scroll"
         teleprompterPauseButton?.isEnabled = true
         mainHandler.removeCallbacks(teleprompterScrollClock)
@@ -1629,6 +1634,7 @@ class MainActivity : Activity() {
             teleprompterPauseButton?.text = "Pause scroll"
             teleprompterCountdownText?.text = "Script scrolling · recording continues."
             teleprompterLastFrameMs = SystemClock.uptimeMillis()
+            teleprompterScrollRemainder = 0f
             mainHandler.post(teleprompterScrollClock)
         }
     }
