@@ -140,9 +140,10 @@
                             <TextBlock Text="NOISE REDUCTION ENGINE" FontSize="10" FontWeight="Bold" Foreground="#B8B4CC" CharacterSpacing="110" />
                             <ComboBox x:Name="ProcessingEngineComboBox" PlaceholderText="Choose noise reduction engine" SelectionChanged="ProcessingEngineComboBox_SelectionChanged">
                                 <ComboBoxItem Content="RNNoise (recommended)" />
+                                <ComboBoxItem Content="DeepFilterNet3 (BETA)" />
                                 <ComboBoxItem Content="Classic noise gate" />
                             </ComboBox>
-                            <TextBlock Text="RNNoise uses speech-aware neural noise suppression. Classic noise gate keeps the original threshold-based behavior." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
+                            <TextBlock Text="RNNoise is the recommended lightweight neural engine. DeepFilterNet3 (BETA) is an experimental alternative and may use more CPU. Classic noise gate keeps the original threshold-based behavior." TextWrapping="Wrap" Foreground="#B8B4CC" FontSize="12" />
                             <TextBlock x:Name="DenoiserStrengthText" Text="RNNoise strength: 85%" Foreground="#B8B4CC" />
                             <Slider x:Name="DenoiserStrengthSlider" Minimum="0" Maximum="100" Value="85" StepFrequency="5" />
                         </StackPanel>
