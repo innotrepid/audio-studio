@@ -2020,15 +2020,22 @@ class MainActivity : Activity() {
             }
             if (result == "RECOVERED") {
                 result = try {
-                    val publicUri = publishRecording(output)
-                    if (publicUri != null) {
-                        if (output.delete()) "Recovered and saved to Music/Audio Studio/Recordings."
-                        else "Recovered and exported; the private recovered copy could not be removed."
-                    } else {
-                        "Recovered WAV remains in app-private storage: ${output.absolutePath}"
+                    if (!isCompletePcmWav(output)) throw IOException("Recovered WAV failed PCM/WAV validation.")
+                    val metadata = nativeGetWavMetadata(output.absolutePath)
+                    if (metadata.size < 3 || metadata[0] <= 0L || metadata[1] <= 0L ||
+                        metadata[2] !in 1L..2L || output.length() <= WAV_HEADER_BYTES) {
+                        throw IOException("Recovered WAV metadata is invalid; private file retained.")
                     }
+                    val publicUri = publishRecording(output, "Recordings")
+                        ?: throw IOException("Public Music/Synvidra/Recordings publishing is unavailable.")
+                    val verifiedBytes = verifyExportedWav(publicUri, output.length())
+                    if (verifiedBytes != output.length() || !isCompletePcmWav(output)) {
+                        throw IOException("Published recovery copy failed read-back verification.")
+                    }
+                    if (output.delete()) "Recovered, verified, and saved to Music/Synvidra/Recordings."
+                    else "Recovered and publicly verified; private recovered copy could not be removed."
                 } catch (exception: Exception) {
-                    "Recovered WAV remains in app-private storage. Export failed: ${exception.message ?: "unknown error"}"
+                    "Recovered take was not fully published: ${exception.message ?: "verification failed"}. Private recovered file and original partial retained."
                 }
             }
             val finalResult = result
@@ -2641,23 +2648,11 @@ class MainActivity : Activity() {
             waveformStatus.text = "Choose a loaded waveform and a non-empty trim range."
             return
         }
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "audio/wav"
-            putExtra(Intent.EXTRA_TITLE, uniqueWavName("AudioStudio-trimmed"))
-        }
-        wavPickerActive = true
         trimWaveformButton.isEnabled = false
-        try {
-            startActivityForResult(intent, REQUEST_TRIM_OUTPUT)
-        } catch (exception: Exception) {
-            wavPickerActive = false
-            trimWaveformButton.isEnabled = waveformSourceFile != null
-            waveformStatus.text = "Could not choose trim destination: ${exception.message ?: "unknown error"}"
-        }
+        trimSelectedWaveform()
     }
 
-    private fun trimSelectedWaveform(destination: Uri) {
+    private fun trimSelectedWaveform() {
         val source = waveformSourceFile ?: run {
             waveformStatus.text = "Load a waveform before trimming."
             trimWaveformButton.isEnabled = false
@@ -2690,22 +2685,13 @@ class MainActivity : Activity() {
                     metadata[2] !in 1L..2L || stagedOutput.length() <= WAV_HEADER_BYTES) {
                     throw IOException("Trim output failed WAV verification and was not exported. Original recording preserved.")
                 }
-                var copiedBytes = 0L
-                contentResolver.openOutputStream(destination, "w")?.use { output ->
-                    FileInputStream(stagedOutput).use { input ->
-                        val buffer = ByteArray(64 * 1024)
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            output.write(buffer, 0, count)
-                            copiedBytes += count
-                        }
-                    }
-                } ?: throw IOException("Could not open the chosen output file.")
-                if (copiedBytes != stagedOutput.length() || copiedBytes <= WAV_HEADER_BYTES) {
-                    throw IOException("Trim export was incomplete ($copiedBytes of ${stagedOutput.length()} bytes written). The original recording is preserved.")
-                }
+                val destination = publishRecording(stagedOutput, "Processed")
+                    ?: throw IOException("Automatic export to Music/Synvidra/Processed is unavailable.")
                 val exportedBytes = verifyExportedWav(destination, stagedOutput.length())
+                if (exportedBytes != stagedOutput.length()) {
+                    contentResolver.delete(destination, null, null)
+                    throw IOException("Trim export read-back verification failed. Original recording preserved.")
+                }
                 diagnosticsCapture.record("trim_export", "success", mapOf(
                     "source_name" to source.name,
                     "output_bytes" to stagedOutput.length(),
