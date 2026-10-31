@@ -2810,17 +2810,6 @@ class MainActivity : Activity() {
             else diagnosticsCapture.record("diagnostics_export", "cancelled")
             return
         }
-        if (requestCode == REQUEST_TRIM_OUTPUT) {
-            wavPickerActive = false
-            diagnosticsCapture.record("trim_destination_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
-                mapOf("result_code" to resultCode, "uri_authority" to (data?.data?.authority ?: "")))
-            if (resultCode == RESULT_OK && data?.data != null) trimSelectedWaveform(data.data!!)
-            else {
-                waveformStatus.text = "Trim cancelled. No files were changed."
-                trimWaveformButton.isEnabled = waveformSourceFile != null
-            }
-            return
-        }
         if (requestCode == REQUEST_WAVEFORM) {
             wavPickerActive = false
             diagnosticsCapture.record("waveform_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
