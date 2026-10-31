@@ -795,6 +795,62 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(16), dp(12), dp(16))
             visibility = ViewGroup.GONE
         }
+        val creatorCaptionsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = ViewGroup.GONE }
+        val transcriptInput = EditText(this).apply {
+            hint = "Paste or edit the transcript here…"
+            textSize = 15f
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(150, 163, 184))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            minLines = 7
+            gravity = Gravity.TOP or Gravity.START
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 125, 255))
+        }
+        val captionWordLimit = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, (3..30).map { "$it words per caption" })
+            setSelection(5)
+        }
+        val captionStatus = TextView(this).apply { textSize = 12f; setTextColor(Color.rgb(190, 198, 214)) }
+        val captionList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var refreshingCaptionList = false
+        fun persistCaptions(next: List<CreatorProjectStore.Caption>) {
+            val current = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
+            val updated = creatorStore.save(current.copy(transcript = transcriptInput.text?.toString().orEmpty(), captions = next))
+            activeCreatorProject = updated
+            captionStatus.text = "Saved transcript and ${next.size} caption(s)."
+        }
+        fun refreshCaptionList() {
+            captionList.removeAllViews()
+            val captions = activeCreatorProject?.captions.orEmpty().sortedBy { it.startMs }
+            if (captions.isEmpty()) {
+                captionList.addView(TextView(this).apply { text = "No captions yet. Generate a draft or add one manually."; setTextColor(Color.rgb(174,185,204)); setPadding(0,dp(8),0,dp(8)) })
+            }
+            captions.forEachIndexed { index, caption ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10),dp(8),dp(10),dp(8)); background = android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(27,34,48)); cornerRadius=dp(8).toFloat() } }
+                row.addView(TextView(this).apply { text = "${index+1}. ${caption.startMs}–${caption.endMs} ms"; textSize=11f; setTextColor(Color.rgb(160,190,255)) })
+                row.addView(TextView(this).apply { text=caption.text; textSize=14f; setTextColor(Color.WHITE) })
+                row.addView(actionButton("Edit caption","Edit caption timing and text") {
+                    val fields=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(8),0,dp(8),0) }
+                    val start=EditText(this).apply { hint="Start time (ms)"; inputType=android.text.InputType.TYPE_CLASS_NUMBER; setText(caption.startMs.toString()) }
+                    val end=EditText(this).apply { hint="End time (ms)"; inputType=android.text.InputType.TYPE_CLASS_NUMBER; setText(caption.endMs.toString()) }
+                    val text=EditText(this).apply { hint="Caption text"; setText(caption.text); minLines=2 }
+                    fields.addView(start); fields.addView(end); fields.addView(text)
+                    AlertDialog.Builder(this).setTitle("Edit caption").setView(fields).setNegativeButton("Cancel",null).setPositiveButton("Save") { _,_ ->
+                        try {
+                            val replacement=caption.copy(startMs=start.text.toString().toLong(),endMs=end.text.toString().toLong(),text=text.text.toString().trim())
+                            val next=activeCreatorProject?.captions.orEmpty().map { if(it.captionId==caption.captionId) replacement else it }
+                            persistCaptions(next); refreshCaptionList()
+                        } catch(error:Exception) { captionStatus.text="Caption not saved: ${error.message}" }
+                    }.show()
+                })
+                row.addView(actionButton("Delete caption","Delete this caption") {
+                    try { persistCaptions(activeCreatorProject?.captions.orEmpty().filterNot { it.captionId==caption.captionId }); refreshCaptionList() }
+                    catch(error:Exception) { captionStatus.text="Caption delete failed: ${error.message}" }
+                })
+                captionList.addView(row,matchWidth())
+            }
+        }
         val creatorSubnav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -806,12 +862,17 @@ class MainActivity : Activity() {
                 minHeight = dp(44)
                 setOnClickListener {
                     val scriptsSelected = workspace == "Scripts"
+                    val captionsSelected = workspace == "Captions"
                     creatorScriptsPanel.visibility = if (scriptsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
-                    creatorSubworkspaceNotice.visibility = if (scriptsSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                    creatorCaptionsPanel.visibility = if (captionsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                    if (captionsSelected) {
+                        transcriptInput.setText(activeCreatorProject?.transcript.orEmpty())
+                        refreshCaptionList()
+                    }
                     creatorSubworkspaceNotice.text = when (workspace) {
-                        "Teleprompter" -> "TELEPROMPTER\nThis workspace is planned for the integrated recording teleprompter, countdown, synchronized scrolling, and reading controls. Your scripts remain saved in Scripts."
-                        "Captions" -> "TRANSCRIPTS & CAPTIONS\nThis workspace will hold editable transcript segments, caption timing, and SRT / WebVTT export. No unverified timing is presented as synchronized."
-                        "Production" -> "PRODUCTION\nThis workspace is planned for production markers, retake notes, and take review linked to your project."
+                        "Teleprompter" -> "TELEPROMPTER\nIntegrated recording teleprompter with countdown and synchronized scroll. Your scripts remain saved in Scripts."
+                        "Production" -> "PRODUCTION\nProduction markers, retake notes, and take review linked to your project."
                         else -> ""
                     }
                 }
@@ -1412,6 +1473,43 @@ class MainActivity : Activity() {
             }.setNegativeButton("Cancel", null).show()
         }, matchWidth())
         creatorScriptsPanel.addView(creatorExchangeActions, matchWidth())
+        creatorCaptionsPanel.addView(TextView(this).apply { text="TRANSCRIPT"; textSize=11f; setTypeface(null,android.graphics.Typeface.BOLD); setTextColor(Color.rgb(160,190,255)); setPadding(0,dp(12),0,dp(4)) },matchWidth())
+        creatorCaptionsPanel.addView(transcriptInput,matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Copy selected script to transcript","Copy selected script sections into the editable transcript") {
+            saveCreatorScript()
+            val script=currentCreatorScript() ?: return@exchangeButton
+            transcriptInput.setText(script.sections.sortedBy { it.order }.map { it.text }.filter { it.isNotBlank() }.joinToString("\n\n"))
+            captionStatus.text="Copied selected script. Review and edit the transcript before generating captions."
+        },matchWidth())
+        creatorCaptionsPanel.addView(TextView(this).apply { text="CAPTION DRAFT"; textSize=11f; setTypeface(null,android.graphics.Typeface.BOLD); setTextColor(Color.rgb(160,190,255)); setPadding(0,dp(12),0,dp(4)) },matchWidth())
+        creatorCaptionsPanel.addView(captionWordLimit,matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Generate estimated captions","Generate editable estimated captions from transcript word count") {
+            try {
+                val words=captionWordLimit.selectedItemPosition+3
+                val generated=creatorStore.generateDraftCaptions(transcriptInput.text?.toString().orEmpty(),words)
+                persistCaptions(generated)
+                captionStatus.text="Estimated at 150 words/minute; not synchronized to recorded audio. Edit times against the recording."
+                refreshCaptionList()
+            } catch(error:Exception) { captionStatus.text="Caption generation failed: ${error.message}" }
+        },matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Add caption","Add a manually timed caption") {
+            val fields=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(8),0,dp(8),0) }
+            val start=EditText(this).apply { hint="Start time (ms)"; inputType=android.text.InputType.TYPE_CLASS_NUMBER; setText("0") }
+            val end=EditText(this).apply { hint="End time (ms)"; inputType=android.text.InputType.TYPE_CLASS_NUMBER; setText("2000") }
+            val text=EditText(this).apply { hint="Caption text"; minLines=2 }
+            fields.addView(start); fields.addView(end); fields.addView(text)
+            AlertDialog.Builder(this).setTitle("Add caption").setView(fields).setNegativeButton("Cancel",null).setPositiveButton("Add") { _,_ ->
+                try {
+                    val item=CreatorProjectStore.Caption(UUID.randomUUID().toString(),start.text.toString().toLong(),end.text.toString().toLong(),text.text.toString().trim())
+                    persistCaptions(activeCreatorProject?.captions.orEmpty()+item); refreshCaptionList()
+                } catch(error:Exception) { captionStatus.text="Caption not added: ${error.message}" }
+            }.show()
+        },matchWidth())
+        creatorCaptionsPanel.addView(captionStatus,matchWidth())
+        creatorCaptionsPanel.addView(TextView(this).apply { text="CAPTIONS · edit times in milliseconds"; textSize=11f; setTextColor(Color.rgb(174,185,204)); setPadding(0,dp(12),0,dp(4)) },matchWidth())
+        creatorCaptionsPanel.addView(captionList,matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Export SRT","Export captions as SubRip subtitles") { creatorExchangePending="srt"; launchCreatorExport("application/x-subrip","captions.srt") },matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Export WebVTT","Export captions as WebVTT subtitles") { creatorExchangePending="vtt"; launchCreatorExport("text/vtt","captions.vtt") },matchWidth())
         creatorScriptsPanel.addView(creatorSaveStatus, matchWidth())
         creatorScriptsPanel.addView(creatorTakesSummary, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
@@ -1421,6 +1519,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(12), 0, dp(4))
         }, matchWidth())
         creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())
+        creatorWorkspaceContent.addView(creatorCaptionsPanel, matchWidth())
         creatorWorkspaceContent.addView(creatorSubworkspaceNotice, matchWidth())
         creatorSection.addView(creatorSubnav, matchWidth())
         creatorSection.addView(creatorWorkspaceContent, matchWidth())
