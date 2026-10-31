@@ -993,6 +993,151 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private void SaveCreatorTranscriptAndCaptions()
+    {
+        if (_creatorStore is null || _creatorProject is null)
+            throw new InvalidOperationException("No Creator project is loaded.");
+        _creatorProject.Transcript = CreatorTranscriptBox.Text ?? string.Empty;
+        _creatorStore.Save(_creatorProject);
+    }
+
+    private void RefreshCreatorCaptions()
+    {
+        CreatorCaptionListPanel.Children.Clear();
+        var captions = _creatorProject?.Captions.OrderBy(item => item.StartMs).ToList() ?? new List<CreatorProjectStore.CaptionDocument>();
+        if (captions.Count == 0)
+        {
+            CreatorCaptionListPanel.Children.Add(new TextBlock { Text = "No captions yet. Generate a draft or add one manually." });
+            return;
+        }
+        foreach (var caption in captions)
+        {
+            var row = new StackPanel { Spacing = 6, Padding = new Thickness(10) };
+            row.Children.Add(new TextBlock { Text = caption.StartMs + "–" + caption.EndMs + " ms", FontSize = 11 });
+            row.Children.Add(new TextBlock { Text = caption.Text, TextWrapping = TextWrapping.Wrap });
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            var edit = new Button { Content = "Edit" };
+            edit.Click += async (_, _) => await EditCreatorCaptionAsync(caption);
+            var delete = new Button { Content = "Delete" };
+            delete.Click += (_, _) =>
+            {
+                try
+                {
+                    _creatorProject!.Captions.RemoveAll(item => item.CaptionId == caption.CaptionId);
+                    SaveCreatorTranscriptAndCaptions();
+                    RefreshCreatorCaptions();
+                    CreatorCaptionStatusText.Text = "Caption deleted.";
+                }
+                catch (Exception error) { CreatorCaptionStatusText.Text = "Delete failed: " + error.Message; }
+            };
+            actions.Children.Add(edit);
+            actions.Children.Add(delete);
+            row.Children.Add(actions);
+            CreatorCaptionListPanel.Children.Add(row);
+        }
+    }
+
+    private async Task EditCreatorCaptionAsync(CreatorProjectStore.CaptionDocument? existing)
+    {
+        var fields = new StackPanel { Spacing = 8, Width = 360 };
+        var start = new TextBox { Header = "Start time (milliseconds)", Text = existing?.StartMs.ToString() ?? "0" };
+        var end = new TextBox { Header = "End time (milliseconds)", Text = existing?.EndMs.ToString() ?? "2000" };
+        var text = new TextBox { Header = "Caption text", Text = existing?.Text ?? string.Empty, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 80 };
+        fields.Children.Add(start);
+        fields.Children.Add(end);
+        fields.Children.Add(text);
+        var dialog = new ContentDialog
+        {
+            Title = existing is null ? "Add caption" : "Edit caption",
+            Content = fields,
+            PrimaryButtonText = existing is null ? "Add" : "Save",
+            CloseButtonText = "Cancel",
+            XamlRoot = Content.XamlRoot
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        try
+        {
+            var item = new CreatorProjectStore.CaptionDocument
+            {
+                CaptionId = existing?.CaptionId ?? Guid.NewGuid().ToString(),
+                StartMs = long.Parse(start.Text),
+                EndMs = long.Parse(end.Text),
+                Text = text.Text.Trim()
+            };
+            if (_creatorProject is null) throw new InvalidOperationException("No Creator project is loaded.");
+            if (existing is null) _creatorProject.Captions.Add(item);
+            else
+            {
+                var index = _creatorProject.Captions.FindIndex(caption => caption.CaptionId == existing.CaptionId);
+                if (index < 0) throw new InvalidOperationException("The caption no longer exists.");
+                _creatorProject.Captions[index] = item;
+            }
+            SaveCreatorTranscriptAndCaptions();
+            RefreshCreatorCaptions();
+            CreatorCaptionStatusText.Text = "Caption saved. Check timing against the recording.";
+        }
+        catch (Exception error) { CreatorCaptionStatusText.Text = "Caption was not saved: " + error.Message; }
+    }
+
+    private void CreatorTranscriptSave_Click(object sender, RoutedEventArgs e)
+    {
+        try { SaveCreatorTranscriptAndCaptions(); CreatorCaptionStatusText.Text = "Transcript saved locally."; }
+        catch (Exception error) { CreatorCaptionStatusText.Text = "Transcript save failed: " + error.Message; }
+    }
+
+    private void CreatorTranscriptCopyScript_Click(object sender, RoutedEventArgs e)
+    {
+        SaveCreatorScript();
+        var script = SelectedCreatorScript;
+        if (script is null) { CreatorCaptionStatusText.Text = "Select a script first."; return; }
+        CreatorTranscriptBox.Text = string.Join(Environment.NewLine + Environment.NewLine,
+            script.Sections.OrderBy(section => section.Order).Select(section => section.Text).Where(value => !string.IsNullOrWhiteSpace(value)));
+        CreatorCaptionStatusText.Text = "Selected script copied. Review the transcript, then save or generate captions.";
+    }
+
+    private void CreatorCaptionGenerate_Click(object sender, RoutedEventArgs e)
+    {
+        if (_creatorProject is null || _creatorStore is null) { CreatorCaptionStatusText.Text = "No Creator project is loaded."; return; }
+        if (!int.TryParse(CreatorCaptionWordLimitBox.Text, out var wordLimit) || wordLimit < 3 || wordLimit > 30)
+        {
+            CreatorCaptionStatusText.Text = "Words per caption must be a whole number from 3 to 30.";
+            return;
+        }
+        try
+        {
+            _creatorProject.Transcript = CreatorTranscriptBox.Text ?? string.Empty;
+            _creatorProject.Captions = CreatorProjectStore.GenerateDraftCaptions(_creatorProject.Transcript, wordLimit);
+            _creatorStore.Save(_creatorProject);
+            RefreshCreatorCaptions();
+            CreatorCaptionStatusText.Text = "Estimated at 150 words/minute; not synchronized to recorded audio. Edit times against the recording.";
+        }
+        catch (Exception error) { CreatorCaptionStatusText.Text = "Caption generation failed: " + error.Message; }
+    }
+
+    private async void CreatorCaptionAdd_Click(object sender, RoutedEventArgs e) => await EditCreatorCaptionAsync(null);
+    private async void CreatorCaptionExportSrt_Click(object sender, RoutedEventArgs e) => await ExportCreatorCaptionsAsync(false);
+    private async void CreatorCaptionExportVtt_Click(object sender, RoutedEventArgs e) => await ExportCreatorCaptionsAsync(true);
+
+    private async Task ExportCreatorCaptionsAsync(bool webVtt)
+    {
+        if (_creatorProject is null || _creatorStore is null) { CreatorCaptionStatusText.Text = "No Creator project is loaded."; return; }
+        try
+        {
+            SaveCreatorTranscriptAndCaptions();
+            var picker = new FileSavePicker();
+            var extension = webVtt ? ".vtt" : ".srt";
+            picker.FileTypeChoices.Add(webVtt ? "WebVTT subtitles" : "SubRip subtitles", new List<string> { extension });
+            picker.SuggestedFileName = webVtt ? "captions.vtt" : "captions.srt";
+            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+            var file = await picker.PickSaveFileAsync();
+            if (file is null) { CreatorCaptionStatusText.Text = "Caption export cancelled."; return; }
+            var output = webVtt ? CreatorProjectStore.ExportWebVtt(_creatorProject.Captions) : CreatorProjectStore.ExportSrt(_creatorProject.Captions);
+            await FileIO.WriteTextAsync(file, output);
+            CreatorCaptionStatusText.Text = "Exported " + file.Name + ".";
+        }
+        catch (Exception error) { CreatorCaptionStatusText.Text = "Caption export failed: " + error.Message; }
+    }
+
     private async void CreatorImportProject_Click(object sender, RoutedEventArgs e)
     {
         if (_creatorStore is null) { CreatorSaveStatusText.Text = "Creator storage is unavailable."; return; }
