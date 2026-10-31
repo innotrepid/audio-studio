@@ -866,9 +866,12 @@ class MainActivity : Activity() {
                 setOnClickListener {
                     val scriptsSelected = workspace == "Scripts"
                     val captionsSelected = workspace == "Captions"
+                    val productionSelected = workspace == "Production"
                     creatorScriptsPanel.visibility = if (scriptsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorCaptionsPanel.visibility = if (captionsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
-                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                    creatorProductionPanel.visibility = if (productionSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                    if (productionSelected) refreshProductionMarkers()
                     if (captionsSelected) {
                         transcriptInput.setText(activeCreatorProject?.transcript.orEmpty())
                         refreshCaptionList()
@@ -1530,8 +1533,68 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, dp(12), 0, dp(4))
         }, matchWidth())
+        val creatorProductionPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = ViewGroup.GONE }
+        val productionSectionSpinner = Spinner(this)
+        val productionTypeSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                listOf("Retake", "Pause", "Emphasis", "Music", "SFX", "Chapter", "Caption break", "Intro", "Outro"))
+        }
+        val productionNoteInput = EditText(this).apply {
+            hint = "Production note / retake direction…"
+            setTextColor(Color.WHITE); setHintTextColor(Color.rgb(150, 163, 184))
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 3; gravity = Gravity.TOP
+        }
+        val productionStatus = TextView(this).apply { textSize = 12f; setTextColor(Color.rgb(190, 198, 214)) }
+        val productionMarkerList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun refreshProductionMarkers() {
+            val project = activeCreatorProject
+            val script = currentCreatorScript(project)
+            productionSectionSpinner.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item,
+                script?.sections?.sortedBy { it.order }?.map { it.title }.orEmpty())
+            productionMarkerList.removeAllViews()
+            val markers = project?.productionMarkers.orEmpty().sortedBy { it.createdUtc }
+            if (markers.isEmpty()) productionMarkerList.addView(TextView(this).apply { text = "No production markers yet."; setTextColor(Color.rgb(174, 185, 204)) })
+            markers.forEach { item ->
+                val sectionTitle = project?.scripts?.flatMap { it.sections }?.firstOrNull { it.sectionId == item.sectionId }?.title ?: "Orphaned section"
+                val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(8)) }
+                row.addView(TextView(this).apply { text = "\${item.type} · $sectionTitle"; setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(Color.WHITE) })
+                row.addView(TextView(this).apply { text = item.note; setTextColor(Color.rgb(190, 198, 214)) })
+                row.addView(exchangeButton("Remove marker", "Remove this production note") {
+                    try {
+                        val current = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
+                        val updated = current.copy(productionMarkers = current.productionMarkers.filterNot { it.markerId == item.markerId })
+                        activeCreatorProject = (creatorProjectStore ?: throw IOException("Creator storage unavailable.")).save(updated)
+                        refreshProductionMarkers()
+                        productionStatus.text = "Marker removed."
+                    } catch(error:Exception) { productionStatus.text = "Could not remove marker: \${error.message}" }
+                },matchWidth())
+                productionMarkerList.addView(row)
+            }
+        }
+        creatorProductionPanel.addView(TextView(this).apply { text="PRODUCTION MARKERS"; textSize=11f; setTypeface(null,android.graphics.Typeface.BOLD); setTextColor(Color.rgb(160,190,255)); setPadding(0,dp(12),0,dp(4)) },matchWidth())
+        creatorProductionPanel.addView(TextView(this).apply { text="Markers are linked to script sections and saved in the project. They are notes, not edits to source audio."; textSize=12f; setTextColor(Color.rgb(174,185,204)) },matchWidth())
+        creatorProductionPanel.addView(productionSectionSpinner,matchWidth())
+        creatorProductionPanel.addView(productionTypeSpinner,matchWidth())
+        creatorProductionPanel.addView(productionNoteInput,matchWidth())
+        creatorProductionPanel.addView(exchangeButton("Add marker to selected section","Save a production marker linked to the selected script section") {
+            try {
+                val project=activeCreatorProject ?: throw IOException("No Creator project is loaded.")
+                val script=currentCreatorScript(project) ?: throw IOException("Select a script first.")
+                val section=script.sections.sortedBy { it.order }.getOrNull(productionSectionSpinner.selectedItemPosition) ?: throw IOException("Select a section.")
+                val productionMarker=CreatorProjectStore.ProductionMarker(UUID.randomUUID().toString(),section.sectionId,
+                    productionTypeSpinner.selectedItem?.toString() ?: "Retake",productionNoteInput.text?.toString()?.trim().orEmpty(),Instant.now().toString())
+                activeCreatorProject=(creatorProjectStore ?: throw IOException("Creator storage unavailable.")).save(project.copy(productionMarkers=project.productionMarkers+productionMarker))
+                productionNoteInput.setText("")
+                refreshProductionMarkers()
+                productionStatus.text="\${productionMarker.type} marker saved to “\${section.title}”."
+            } catch(error:Exception) { productionStatus.text="Marker was not saved: \${error.message}" }
+        },matchWidth())
+        creatorProductionPanel.addView(productionStatus,matchWidth())
+        creatorProductionPanel.addView(productionMarkerList,matchWidth())
         creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())
         creatorWorkspaceContent.addView(creatorCaptionsPanel, matchWidth())
+        creatorWorkspaceContent.addView(creatorProductionPanel, matchWidth())
         creatorWorkspaceContent.addView(creatorSubworkspaceNotice, matchWidth())
         creatorSection.addView(creatorSubnav, matchWidth())
         creatorSection.addView(creatorWorkspaceContent, matchWidth())
