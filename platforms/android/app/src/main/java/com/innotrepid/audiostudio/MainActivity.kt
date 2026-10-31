@@ -824,6 +824,26 @@ class MainActivity : Activity() {
         var selectedCreatorSectionId: String? = null
         var updatingCreatorSection = false
         val creatorSectionSpinner = Spinner(this)
+        val creatorSectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun refreshCreatorSections(selectId: String? = selectedCreatorSectionId) {
+            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
+            val ordered = script.sections.sortedBy { it.order }
+            selectedCreatorSectionId = ordered.firstOrNull { it.sectionId == selectId }?.sectionId ?: ordered.first().sectionId
+            updatingCreatorSection = true
+            creatorSectionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, ordered.map { it.title })
+            creatorSectionSpinner.setSelection(ordered.indexOfFirst { it.sectionId == selectedCreatorSectionId }.coerceAtLeast(0))
+            creatorBodyInput.setText(ordered.first { it.sectionId == selectedCreatorSectionId }.text)
+            updatingCreatorSection = false
+            teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { "This section is empty. Add text in Creator → Scripts." }
+        }
+        fun mutateCreatorSections(transform: (List<CreatorProjectStore.Section>) -> List<CreatorProjectStore.Section>, selectId: String? = null) {
+            saveCreatorScript()
+            val current = activeCreatorProject ?: return
+            val script = current.scripts.first()
+            val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
+            activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString())) + current.scripts.drop(1)))
+            refreshCreatorSections(selectId ?: selectedCreatorSectionId)
+        }
         val creatorTitleInput = EditText(this).apply {
             hint = "Script title"
             textSize = 16f
@@ -1093,6 +1113,53 @@ class MainActivity : Activity() {
             setPadding(0, dp(10), 0, dp(2))
         }, matchWidth())
         creatorScriptsPanel.addView(creatorSectionSpinner, matchWidth())
+        fun actionButton(label: String, desc: String, action: () -> Unit) = Button(this).apply { text=label; contentDescription=desc; minHeight=dp(40); setOnClickListener { action() } }
+        creatorSectionActions.addView(actionButton("+ Section","Add script section") {
+            val input=EditText(this).apply { setText("New section"); selectAll() }
+            AlertDialog.Builder(this).setTitle("Add section").setView(input).setPositiveButton("Add") { _,_ ->
+                val name=input.text.toString().trim().ifBlank { "Section" }.take(100)
+                val id=UUID.randomUUID().toString()
+                val section=CreatorProjectStore.Section(id,name,"",activeCreatorProject?.scripts?.first()?.sections?.size ?: 0)
+                mutateCreatorSections({ it+section },id)
+            }.setNegativeButton("Cancel",null).show()
+        }, LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+        creatorSectionActions.addView(actionButton("+ Cue","Add cue section") {
+            val input=EditText(this).apply { setText("Cue"); selectAll() }
+            AlertDialog.Builder(this).setTitle("Add cue section").setView(input).setPositiveButton("Add") { _,_ ->
+                val name=input.text.toString().trim().ifBlank { "Cue" }.take(100)
+                val id=UUID.randomUUID().toString()
+                val section=CreatorProjectStore.Section(id,name,"",activeCreatorProject?.scripts?.first()?.sections?.size ?: 0,cues=listOf("[PAUSE]"))
+                mutateCreatorSections({ it+section },id)
+            }.setNegativeButton("Cancel",null).show()
+        }, LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+        creatorScriptsPanel.addView(creatorSectionActions,matchWidth())
+        val creatorSectionManage=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+        creatorSectionManage.addView(actionButton("Rename","Rename selected section") {
+            val s=activeCreatorProject?.scripts?.firstOrNull()?.sections?.firstOrNull { it.sectionId==selectedCreatorSectionId } ?: return@actionButton
+            val input=EditText(this).apply { setText(s.title); selectAll() }
+            AlertDialog.Builder(this).setTitle("Rename section").setView(input).setPositiveButton("Save") { _,_ ->
+                val name=input.text.toString().trim()
+                if(name.isNotEmpty()) mutateCreatorSections({ list -> list.map { if(it.sectionId==s.sectionId) it.copy(title=name.take(100)) else it } },s.sectionId)
+            }.setNegativeButton("Cancel",null).show()
+        },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+        creatorSectionManage.addView(actionButton("↑","Move section up") {
+            val list=activeCreatorProject?.scripts?.firstOrNull()?.sections?.sortedBy { it.order } ?: return@actionButton
+            val i=list.indexOfFirst { it.sectionId==selectedCreatorSectionId }; if(i>0) mutateCreatorSections({ it.toMutableList().apply { add(i-1,removeAt(i)) } })
+        },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+        creatorSectionManage.addView(actionButton("↓","Move section down") {
+            val list=activeCreatorProject?.scripts?.firstOrNull()?.sections?.sortedBy { it.order } ?: return@actionButton
+            val i=list.indexOfFirst { it.sectionId==selectedCreatorSectionId }; if(i>=0 && i<list.lastIndex) mutateCreatorSections({ it.toMutableList().apply { add(i+1,removeAt(i)) } })
+        },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+        creatorSectionManage.addView(actionButton("Delete","Delete selected section") {
+            val list=activeCreatorProject?.scripts?.firstOrNull()?.sections?.sortedBy { it.order } ?: return@actionButton
+            if(list.size<=1) { creatorSaveStatus.text="A script must keep at least one section."; return@actionButton }
+            val s=list.firstOrNull { it.sectionId==selectedCreatorSectionId } ?: return@actionButton
+            AlertDialog.Builder(this).setTitle("Delete section?").setMessage("Delete the selected section?").setPositiveButton("Delete") { _,_ ->
+                val next=list.filterNot { it.sectionId==s.sectionId }
+                mutateCreatorSections({ next },next[minOf(list.indexOf(s),next.lastIndex)].sectionId)
+            }.setNegativeButton("Cancel",null).show()
+        },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
+        creatorScriptsPanel.addView(creatorSectionManage,matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
             text = "SCRIPT"
             textSize = 10f
