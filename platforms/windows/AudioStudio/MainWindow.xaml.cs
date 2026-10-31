@@ -976,13 +976,19 @@ public sealed partial class MainWindow : Window
             return;
 
         var isScripts = string.Equals(workspace, "Scripts", StringComparison.Ordinal);
+        var isCaptions = string.Equals(workspace, "Captions", StringComparison.Ordinal);
         CreatorScriptsWorkspace.Visibility = isScripts ? Visibility.Visible : Visibility.Collapsed;
-        CreatorSubworkspaceNotice.Visibility = isScripts ? Visibility.Collapsed : Visibility.Visible;
+        CreatorCaptionsWorkspace.Visibility = isCaptions ? Visibility.Visible : Visibility.Collapsed;
+        CreatorSubworkspaceNotice.Visibility = isScripts || isCaptions ? Visibility.Collapsed : Visibility.Visible;
+        if (isCaptions)
+        {
+            CreatorTranscriptBox.Text = _creatorProject?.Transcript ?? string.Empty;
+            RefreshCreatorCaptions();
+        }
         CreatorSubworkspaceNotice.Text = workspace switch
         {
-            "Teleprompter" => "TELEPROMPTER\nThis workspace is planned for the integrated recording teleprompter, countdown, synchronized scrolling, and reading controls. Your scripts remain saved in Scripts.",
-            "Captions" => "TRANSCRIPTS & CAPTIONS\nThis workspace will hold editable transcript segments, caption timing, and SRT / WebVTT export. Unverified timing will not be presented as synchronized.",
-            "Production" => "PRODUCTION\nThis workspace is planned for production markers, retake notes, and take review linked to your project.",
+            "Teleprompter" => "TELEPROMPTER\nIntegrated recording teleprompter with countdown, synchronized scroll, and reading controls. Your scripts remain saved in Scripts.",
+            "Production" => "PRODUCTION\nProduction markers, retake notes, and take review linked to your project.",
             _ => string.Empty
         };
     }
