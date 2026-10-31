@@ -1248,6 +1248,27 @@ class MainActivity : Activity() {
             creatorExchangePending = "production"
             launchCreatorExport("text/plain", "${activeCreatorProject?.scripts?.firstOrNull()?.title ?: "production-copy"}.txt")
         }, matchWidth())
+        creatorScriptsPanel.addView(exchangeButton("Create from template", "Create a script from a starter outline") {
+            val templates = arrayOf("YouTube / video intro", "Podcast", "Tutorial", "Product promo")
+            AlertDialog.Builder(this).setTitle("Choose a script template").setItems(templates) { _, which ->
+                try {
+                    val key = arrayOf("youtube", "podcast", "tutorial", "product promo")[which]
+                    val current = activeCreatorProject ?: return@setItems
+                    val created = creatorProjectStore?.createTemplate(templates[which], key) ?: return@setItems
+                    activeCreatorProject = creatorProjectStore?.save(current.copy(scripts = current.scripts + created))
+                    statusText.text = "Created ${created.title} template. It is saved in this project."
+                } catch (error: Exception) { statusText.text = "Template creation failed: ${error.message}" }
+            }.setNegativeButton("Cancel", null).show()
+        }, matchWidth())
+        creatorScriptsPanel.addView(exchangeButton("Insert production marker", "Insert a marker at the script cursor") {
+            val markers = arrayOf("[INTRO]", "[MAIN POINT]", "[PAUSE]", "[EMPHASIS]", "[MUSIC]", "[SFX]", "[RETAKE]", "[CHAPTER]", "[CAPTION BREAK]", "[OUTRO]")
+            AlertDialog.Builder(this).setTitle("Insert marker").setItems(markers) { _, which ->
+                val start = creatorBodyInput.selectionStart.coerceAtLeast(0)
+                val end = creatorBodyInput.selectionEnd.coerceAtLeast(start)
+                creatorBodyInput.text.replace(start, end, markers[which] + " ")
+                creatorBodyInput.setSelection((start + markers[which].length + 1).coerceAtMost(creatorBodyInput.text.length))
+            }.setNegativeButton("Cancel", null).show()
+        }, matchWidth())
         creatorScriptsPanel.addView(creatorExchangeActions, matchWidth())
         creatorScriptsPanel.addView(creatorSaveStatus, matchWidth())
         creatorScriptsPanel.addView(creatorTakesSummary, matchWidth())
