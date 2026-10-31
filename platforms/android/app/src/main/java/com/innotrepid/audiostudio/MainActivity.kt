@@ -1024,6 +1024,10 @@ class MainActivity : Activity() {
                 creatorSaveStatus.text = "Save failed · your edits are still here: ${error.message}"
             }
         }
+        val creatorSectionFilter = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("All sections", "Cue sections", "Sections without cues"))
+        }
+
         val creatorScriptStats = TextView(this).apply {
             textSize = 12f
             setTextColor(Color.rgb(174, 185, 204))
@@ -1135,9 +1139,6 @@ class MainActivity : Activity() {
             setPadding(0, dp(10), 0, dp(2))
         }, matchWidth())
         creatorScriptsPanel.addView(creatorSectionSpinner, matchWidth())
-        val creatorSectionFilter = Spinner(this).apply {
-            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("All sections", "Cue sections", "Sections without cues"))
-        }
         creatorScriptsPanel.addView(creatorSectionFilter, matchWidth())
         creatorScriptsPanel.addView(creatorScriptStats, matchWidth())
         creatorSectionFilter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
