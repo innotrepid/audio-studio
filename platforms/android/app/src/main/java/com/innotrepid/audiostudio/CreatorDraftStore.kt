@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -80,6 +81,7 @@ internal class CreatorDraftStore(context: Context) {
     @Synchronized
     @Throws(IOException::class)
     fun save(document: Document): Document {
+        file.parentFile?.mkdirs()
         validate(document)
         val bytes = encode(document).toByteArray(StandardCharsets.UTF_8)
         if (bytes.size > maxBytes) throw IOException("Draft data exceeds the 1 MB safety limit.")
