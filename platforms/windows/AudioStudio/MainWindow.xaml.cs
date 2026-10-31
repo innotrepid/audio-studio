@@ -1109,6 +1109,7 @@ public sealed partial class MainWindow : Window
         var index = CreatorSectionComboBox.SelectedIndex;
         if (index < 0 || index >= script.Sections.Count || index == _selectedCreatorSectionIndex)
             return;
+        SaveCreatorScript();
         _selectedCreatorSectionIndex = index;
         _loadingCreatorEditor = true;
         CreatorScriptBodyBox.Text = script.Sections[index].Text;
