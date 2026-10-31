@@ -88,6 +88,7 @@ class MainActivity : Activity() {
     private var latestVerifiedTakeUri: Uri? = null
     private var creatorProjectStore: CreatorProjectStore? = null
     private var activeCreatorProject: CreatorProjectStore.Project? = null
+    private var selectedCreatorScriptId: String? = null
     private var creatorTakesSummaryText: TextView? = null
     private var creatorExchangePending: String? = null
     private var teleprompterScrollView: ScrollView? = null
@@ -897,7 +898,6 @@ class MainActivity : Activity() {
             setHintTextColor(Color.rgb(150, 163, 184))
         }
         var selectedCreatorSectionId: String? = null
-        var selectedCreatorScriptId: String? = null
         var updatingCreatorSection = false
         val creatorScriptSpinner = Spinner(this)
         val creatorSectionSpinner = Spinner(this)
@@ -2738,7 +2738,7 @@ class MainActivity : Activity() {
             if (resultCode == RESULT_OK && data?.data != null && kind != null) {
                 try {
                     val project = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
-                    val script = currentCreatorScript(project) ?: project.scripts.first()
+                    val script = project.scripts.firstOrNull { it.scriptId == selectedCreatorScriptId } ?: project.scripts.first()
                     val content = when (kind) {
                         "project" -> creatorProjectStore!!.exportJson(project)
                         "narration" -> creatorProjectStore!!.exportNarration(script)
