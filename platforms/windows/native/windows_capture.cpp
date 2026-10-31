@@ -125,17 +125,23 @@ public:
     }
 
     int pause() {
-        if (!active_.load()) return 0;
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!active_.load() || paused_.load()) return 0;
         pause_requested_.store(true, std::memory_order_release);
         if (audio_event_ != nullptr) SetEvent(audio_event_);
-        return 1;
+        return pause_cv_.wait_for(lock, std::chrono::seconds(2), [this] {
+            return paused_.load() || !active_.load();
+        }) && paused_.load() ? 1 : 0;
     }
 
     int resume() {
-        if (!active_.load()) return 0;
+        std::unique_lock<std::mutex> lock(mutex_);
+        if (!active_.load() || !paused_.load()) return 0;
         resume_requested_.store(true, std::memory_order_release);
         if (audio_event_ != nullptr) SetEvent(audio_event_);
-        return 1;
+        return pause_cv_.wait_for(lock, std::chrono::seconds(2), [this] {
+            return !paused_.load() || !active_.load();
+        }) && active_.load() && !paused_.load() ? 1 : 0;
     }
 
     int select_device(const wchar_t* device_id) {
@@ -258,6 +264,7 @@ private:
                             if (FAILED(pause_hr)) { capture_result = pause_hr; break; }
                             capture_paused = true;
                             paused_.store(true, std::memory_order_release);
+                            pause_cv_.notify_all();
                             set_status(L"Recording paused.");
                         }
                         if (resume_requested_.exchange(false, std::memory_order_acq_rel) && capture_paused) {
@@ -274,6 +281,7 @@ private:
                             if (FAILED(resume_hr)) { capture_result = resume_hr; break; }
                             capture_paused = false;
                             paused_.store(false, std::memory_order_release);
+                            pause_cv_.notify_all();
                             set_status(L"Recording resumed.");
                         }
                         const DWORD wait_result = WaitForSingleObject(event_handle, 200);
@@ -376,6 +384,7 @@ private:
 
     mutable std::mutex mutex_;
     std::condition_variable startup_cv_;
+    std::condition_variable pause_cv_;
     std::thread worker_;
     std::atomic<bool> stop_requested_{false};
     std::atomic<bool> pause_requested_{false};
