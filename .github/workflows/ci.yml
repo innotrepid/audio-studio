@@ -94,13 +94,13 @@ jobs:
       - name: Upload self-contained Windows application
         uses: actions/upload-artifact@v4
         with:
-          name: audio-studio-windows-self-contained
+          name: synvidra-windows-self-contained
           path: platforms/windows/AudioStudio/artifacts/windows-self-contained/
           if-no-files-found: error
       - name: Upload Windows application shell
         uses: actions/upload-artifact@v4
         with:
-          name: audio-studio-windows-shell
+          name: synvidra-windows-shell
           path: platforms/windows/AudioStudio/bin/x64/Release/net8.0-windows10.0.19041.0/
           if-no-files-found: error
 
@@ -150,6 +150,6 @@ jobs:
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: audio-studio-android-debug
+          name: synvidra-android-debug
           path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
