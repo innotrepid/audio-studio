@@ -89,6 +89,7 @@ class MainActivity : Activity() {
     private var creatorProjectStore: CreatorProjectStore? = null
     private var activeCreatorProject: CreatorProjectStore.Project? = null
     private var creatorTakesSummaryText: TextView? = null
+    private var creatorExchangePending: String? = null
     private var teleprompterScrollView: ScrollView? = null
     private var teleprompterScriptView: TextView? = null
     private var teleprompterCountdownText: TextView? = null
@@ -1218,6 +1219,36 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, dp(280)
         ))
         creatorScriptsPanel.addView(creatorSaveButton, matchWidth())
+        val creatorExchangeActions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        fun exchangeButton(label: String, description: String, action: () -> Unit) =
+            Button(this).apply { text = label; contentDescription = description; minHeight = dp(42); setOnClickListener { action() } }
+        creatorExchangeActions.addView(exchangeButton("Import project JSON", "Import validated Creator project") {
+            pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
+            saveCreatorScript()
+            creatorExchangePending = "import"
+            val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+            }
+            try { startActivityForResult(picker, REQUEST_CREATOR_IMPORT) }
+            catch (error: Exception) { creatorExchangePending = null; creatorSaveStatus.text = "Import picker unavailable: ${error.message}" }
+        }, matchWidth())
+        creatorExchangeActions.addView(exchangeButton("Export project JSON", "Export complete Creator project JSON") {
+            saveCreatorScript()
+            creatorExchangePending = "project"
+            launchCreatorExport("application/json", "${activeCreatorProject?.title ?: "audio-studio-project"}.json")
+        }, matchWidth())
+        creatorExchangeActions.addView(exchangeButton("Export narration TXT", "Export narration text only") {
+            saveCreatorScript()
+            creatorExchangePending = "narration"
+            launchCreatorExport("text/plain", "${activeCreatorProject?.scripts?.firstOrNull()?.title ?: "narration"}.txt")
+        }, matchWidth())
+        creatorExchangeActions.addView(exchangeButton("Export production copy TXT", "Export script with cues and production notes") {
+            saveCreatorScript()
+            creatorExchangePending = "production"
+            launchCreatorExport("text/plain", "${activeCreatorProject?.scripts?.firstOrNull()?.title ?: "production-copy"}.txt")
+        }, matchWidth())
+        creatorScriptsPanel.addView(creatorExchangeActions, matchWidth())
         creatorScriptsPanel.addView(creatorSaveStatus, matchWidth())
         creatorScriptsPanel.addView(creatorTakesSummary, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
@@ -2399,6 +2430,56 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform document picker result API for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CREATOR_IMPORT) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val uri = data.data!!
+                    val raw = contentResolver.openInputStream(uri)?.use { input ->
+                        val output = java.io.ByteArrayOutputStream()
+                        val buffer = ByteArray(8192)
+                        var total = 0
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            if (total > 1_048_576) throw IOException("Project file exceeds the 1 MB safety limit.")
+                            output.write(buffer, 0, count)
+                        }
+                        output.toString("UTF-8")
+                    } ?: throw IOException("Could not read the selected document.")
+                    val store = creatorProjectStore ?: throw IOException("Creator storage is unavailable.")
+                    val imported = store.importJson(raw)
+                    activeCreatorProject = store.save(imported)
+                    creatorSaveStatus.text = "Project imported and validated. Reopen Creator Scripts to refresh its editor."
+                } catch (error: Exception) {
+                    creatorSaveStatus.text = "Import failed — current project was not changed: ${error.message}"
+                }
+            }
+            creatorExchangePending = null
+            return
+        }
+        if (requestCode == REQUEST_CREATOR_EXPORT) {
+            val kind = creatorExchangePending
+            creatorExchangePending = null
+            if (resultCode == RESULT_OK && data?.data != null && kind != null) {
+                try {
+                    val project = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
+                    val script = project.scripts.first()
+                    val content = when (kind) {
+                        "project" -> creatorProjectStore!!.exportJson(project)
+                        "narration" -> creatorProjectStore!!.exportNarration(script)
+                        "production" -> creatorProjectStore!!.exportProductionCopy(script)
+                        else -> throw IOException("Unknown export type.")
+                    }
+                    contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
+                        ?: throw IOException("Could not write the selected destination.")
+                    creatorSaveStatus.text = "Export complete · ${data.data!!.lastPathSegment}"
+                } catch (error: Exception) {
+                    creatorSaveStatus.text = "Export failed: ${error.message}"
+                }
+            } else creatorSaveStatus.text = "Export cancelled."
+            return
+        }
         if (requestCode == REQUEST_DIAGNOSTICS_EXPORT) {
             if (resultCode == RESULT_OK && data?.data != null) exportDiagnostics(data.data!!)
             else diagnosticsCapture.record("diagnostics_export", "cancelled")
@@ -2905,6 +2986,16 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun launchCreatorExport(mimeType: String, filename: String) {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = mimeType
+            putExtra(Intent.EXTRA_TITLE, filename)
+        }
+        try { startActivityForResult(intent, REQUEST_CREATOR_EXPORT) }
+        catch (error: Exception) { creatorExchangePending = null; statusText.text = "Export picker unavailable: ${error.message}" }
+    }
+
     private fun matchWidth(): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -2918,6 +3009,8 @@ class MainActivity : Activity() {
         private const val REQUEST_TRIM_OUTPUT = 1004
         private const val REQUEST_DIAGNOSTICS_EXPORT = 1005
         private const val REQUEST_LIBRARY_AUDIO = 1006
+        private const val REQUEST_CREATOR_IMPORT = 1007
+        private const val REQUEST_CREATOR_EXPORT = 1008
         private const val WAV_HEADER_BYTES = 44L
         private const val STALE_PROCESSING_FILE_AGE_MS = 24L * 60L * 60L * 1000L
     }
