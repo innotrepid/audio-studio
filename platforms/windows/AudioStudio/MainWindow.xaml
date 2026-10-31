@@ -312,6 +312,10 @@
                     </StackPanel>
                     <StackPanel x:Name="CreatorScriptsWorkspace" Spacing="14">
                         <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Create from template" Click="CreatorCreateTemplate_Click" />
+                            <Button Content="Insert production marker" Click="CreatorInsertMarker_Click" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
                             <Button Content="Import project JSON" Click="CreatorImportProject_Click" />
                             <Button Content="Export project JSON" Click="CreatorExportProject_Click" />
                             <Button Content="Export narration TXT" Click="CreatorExportNarration_Click" />
