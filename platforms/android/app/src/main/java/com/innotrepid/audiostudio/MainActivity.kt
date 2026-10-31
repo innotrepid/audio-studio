@@ -821,6 +821,9 @@ class MainActivity : Activity() {
             })
         }
         val creatorStore = CreatorProjectStore(this).also { creatorProjectStore = it }
+        var selectedCreatorSectionId: String? = null
+        var updatingCreatorSection = false
+        val creatorSectionSpinner = Spinner(this)
         val creatorTitleInput = EditText(this).apply {
             hint = "Script title"
             textSize = 16f
@@ -1006,12 +1009,13 @@ class MainActivity : Activity() {
             }
             try {
                 val script = current.scripts.first()
+                val updatedSections = script.sections.map { section ->
+                    if (section.sectionId == selectedCreatorSectionId) section.copy(text = creatorBodyInput.text?.toString().orEmpty()) else section
+                }
                 val updatedScript = script.copy(
                     title = title,
                     updatedUtc = java.time.Instant.now().toString(),
-                    sections = script.sections.mapIndexed { index, section ->
-                        if (index == 0) section.copy(text = creatorBodyInput.text?.toString().orEmpty()) else section
-                    }
+                    sections = updatedSections
                 )
                 activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(updatedScript) + current.scripts.drop(1)))
                 creatorSaveStatus.text = "Saved locally · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
@@ -1023,7 +1027,25 @@ class MainActivity : Activity() {
             activeCreatorProject = creatorStore.loadOrCreate()
             val firstScript = activeCreatorProject!!.scripts.first()
             creatorTitleInput.setText(firstScript.title)
+            selectedCreatorSectionId = firstScript.sections.first().sectionId
+            updatingCreatorSection = true
+            creatorSectionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, firstScript.sections.map { it.title })
+            creatorSectionSpinner.setSelection(0)
             creatorBodyInput.setText(firstScript.sections.first().text)
+            updatingCreatorSection = false
+            creatorSectionSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                    if (updatingCreatorSection) return
+                    val latest = activeCreatorProject?.scripts?.firstOrNull() ?: return
+                    val nextSection = latest.sections.getOrNull(position) ?: return
+                    selectedCreatorSectionId = nextSection.sectionId
+                    updatingCreatorSection = true
+                    creatorBodyInput.setText(nextSection.text)
+                    updatingCreatorSection = false
+                    teleprompterScriptView?.text = nextSection.text.ifBlank { "This section is empty. Add text in Creator → Scripts." }
+                }
+            }
             creatorSaveStatus.text = "Saved locally · edits autosave"
             creatorTakesSummary.text = "Linked takes: ${activeCreatorProject?.takes?.size ?: 0}"
         } catch (error: Exception) {
@@ -1062,6 +1084,14 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, dp(2))
         }, matchWidth())
         creatorScriptsPanel.addView(creatorTitleInput, matchWidth())
+        creatorScriptsPanel.addView(TextView(this).apply {
+            text = "SECTION"
+            textSize = 10f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, dp(10), 0, dp(2))
+        }, matchWidth())
+        creatorScriptsPanel.addView(creatorSectionSpinner, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
             text = "SCRIPT"
             textSize = 10f
