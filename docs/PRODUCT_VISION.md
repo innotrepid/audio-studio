@@ -2,7 +2,7 @@
 
 ## Summary
 
-Audio Studio is a personal voice production studio for creators who want to record their own voice without needing a professional recording room. It combines practical recording tools, careful speech cleanup, intelligent editing, and creator workflow support in one application for Android and Windows.
+Synvidra is a personal voice production studio for creators who want to record their own voice without needing a professional recording room. It combines practical recording tools, careful speech cleanup, intelligent editing, and creator workflow support in one application for Android and Windows.
 
 The product should make a creator's real voice a first-class option alongside optional synthetic narration. It should remove repetitive work without removing creative control.
 
@@ -10,7 +10,7 @@ The product should make a creator's real voice a first-class option alongside op
 
 A creator may need to move between a script editor, recorder, noise-reduction tool, audio editor, transcription service, synthetic voice provider, and video-editing workflow. Recording conditions may be noisy or reverberant, and mistakes can make retakes and assembly time-consuming.
 
-Audio Studio aims to reduce this fragmentation.
+Synvidra aims to reduce this fragmentation.
 
 ## Target users
 
@@ -41,7 +41,7 @@ The first version does not need to implement every area. These are the product's
 
 ## Differentiation
 
-Audio Studio is not only a noise-removal filter or a conventional multitrack editor. Its central value is the connected workflow: script → recording → retakes → cleanup → assembly → captions and production handoff.
+Synvidra is not only a noise-removal filter or a conventional multitrack editor. Its central value is the connected workflow: script → recording → retakes → cleanup → assembly → captions and production handoff.
 
 ## Principles
 
@@ -64,4 +64,4 @@ Audio Studio is not only a noise-removal filter or a conventional multitrack edi
 
 ## Experience direction
 
-Audio Studio uses a Hybrid Studio experience: a calm, approachable Record and Creator journey alongside precise Editor and Processing workspaces. The primary interactive accent is blue, with mint reserved for live/healthy audio feedback. Android and Windows share product concepts and terminology while using native, platform-appropriate layouts.
+Synvidra uses a Hybrid Studio experience: a calm, approachable Record and Creator journey alongside precise Editor and Processing workspaces. The primary interactive accent is blue, with mint reserved for live/healthy audio feedback. Android and Windows share product concepts and terminology while using native, platform-appropriate layouts.
