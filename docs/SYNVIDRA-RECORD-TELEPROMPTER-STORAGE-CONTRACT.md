@@ -31,7 +31,7 @@ Music/
 1. Record has no outer vertical scroll; teleprompter occupies the remaining space and stays centered.
 2. Speed, text size, line spacing, and countdown are available in Teleprompter workspace and retained after navigation/relaunch.
 3. Selected script/section is reflected in both Teleprompter workspace and Record.
-4. Pause/resume pauses/resumes audio and scroll together; elapsed time reflects active capture time.
+4. Pause/resume pauses/resumes native audio capture and teleprompter scrolling together; elapsed time reflects active capture time. On Windows, pause/resume requests are serviced by the WASAPI capture worker thread, and queued pre-pause samples are drained before capture resumes.
 5. Recovery and latest verified take handoff remain functional.
 6. New recording, processed WAV, subtitles, and exports appear under Music/Synvidra in their respective folders on both platforms.
 7. App-private partial recordings remain recoverable; original files are never overwritten.
