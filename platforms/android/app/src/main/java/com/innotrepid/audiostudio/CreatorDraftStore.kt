@@ -145,7 +145,7 @@ internal class CreatorDraftStore(context: Context) {
                 )
             }
             val script = CreatorProjectStore.Script(obj.getString("scriptId"), obj.getString("title"),
-                obj.optString("createdUtc", item.getString("createdUtc")), obj.optString("updatedUtc", item.getString("updatedUtc")), sections)
+                obj.optString("createdUtc").takeIf { it.isNotBlank() && it != "null" } ?: item.getString("createdUtc"), obj.optString("updatedUtc").takeIf { it.isNotBlank() && it != "null" } ?: item.getString("updatedUtc"), sections)
             drafts += Draft(item.getString("draftId"), item.getString("name"), item.getString("createdUtc"),
                 item.getString("updatedUtc"), script)
         }
