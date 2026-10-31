@@ -86,6 +86,10 @@ public sealed partial class MainWindow : Window
 
     private readonly DispatcherTimer _creatorSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(650) };
     private CreatorProjectStore? _creatorStore;
+    private CreatorDraftStore? _creatorDraftStore;
+    private CreatorDraftStore.DraftDocument? _creatorDraftDocument;
+    private bool _loadingCreatorDraftPicker;
+    private string? _selectedCreatorDraftId;
     private CreatorProjectStore.ProjectDocument? _creatorProject;
     private bool _loadingCreatorEditor;
     private int _selectedCreatorSectionIndex;
@@ -1034,6 +1038,11 @@ public sealed partial class MainWindow : Window
             var file = await picker.PickSaveFileAsync();
             if (file is null) { CreatorSaveStatusText.Text = "Export cancelled."; return; }
             var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
+            _creatorDraftDocument = _creatorDraftStore.Load();
+            if (_creatorDraftDocument is null)
+                _creatorDraftDocument = CreatorDraftStore.Create(script.Title, script, null);
+            _creatorDraftStore.Save(_creatorDraftDocument);
+            RefreshCreatorDraftPicker(_creatorDraftDocument.ActiveDraftId);
             var content = kind switch
             {
                 "project" => _creatorStore.ExportJson(_creatorProject),
@@ -1053,6 +1062,7 @@ public sealed partial class MainWindow : Window
         {
             _creatorStore = new CreatorProjectStore();
             var result = _creatorStore.LoadOrCreate();
+            _creatorDraftStore = new CreatorDraftStore();
             _creatorProject = result.Project;
             var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
             _selectedCreatorSectionIndex = 0;
@@ -1076,6 +1086,113 @@ public sealed partial class MainWindow : Window
             CreatorSaveButton.IsEnabled = false;
             CreatorSaveStatusText.Text = $"Project could not be loaded safely: {error.Message}";
         }
+    }
+
+    private void RefreshCreatorDraftPicker(string? selectId = null)
+    {
+        if (_creatorDraftDocument is null) return;
+        var drafts = _creatorDraftDocument.Drafts;
+        var chosen = drafts.FirstOrDefault(item => item.DraftId == selectId) ?? drafts.FirstOrDefault();
+        _loadingCreatorDraftPicker = true;
+        CreatorDraftComboBox.ItemsSource = drafts.Select(item => item.Name).ToList();
+        CreatorDraftComboBox.SelectedIndex = chosen is null ? -1 : drafts.IndexOf(chosen);
+        _selectedCreatorDraftId = chosen?.DraftId;
+        CreatorDraftNameBox.Text = chosen?.Name ?? string.Empty;
+        _loadingCreatorDraftPicker = false;
+    }
+
+    private void CreatorDraft_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingCreatorDraftPicker || _creatorDraftDocument is null) return;
+        var draft = _creatorDraftDocument.Drafts.ElementAtOrDefault(CreatorDraftComboBox.SelectedIndex);
+        if (draft is null) return;
+        _selectedCreatorDraftId = draft.DraftId;
+        _creatorDraftDocument.ActiveDraftId = draft.DraftId;
+        CreatorDraftNameBox.Text = draft.Name;
+    }
+
+    private void CreatorDraftCreate_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SaveCreatorScript();
+            var script = SelectedCreatorScript ?? throw new InvalidOperationException("No script is selected.");
+            var name = string.IsNullOrWhiteSpace(CreatorDraftNameBox.Text) ? script.Title : CreatorDraftNameBox.Text;
+            _creatorDraftDocument = CreatorDraftStore.Create(name, script, _creatorDraftDocument);
+            _creatorDraftStore?.Save(_creatorDraftDocument);
+            RefreshCreatorDraftPicker(_creatorDraftDocument.ActiveDraftId);
+            CreatorSaveStatusText.Text = "Named draft created.";
+        }
+        catch (Exception error) { CreatorSaveStatusText.Text = $"Could not create draft: {error.Message}"; }
+    }
+
+    private void CreatorDraftUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SaveCreatorScript();
+            if (_creatorDraftDocument is null || _selectedCreatorDraftId is null || SelectedCreatorScript is null)
+                throw new InvalidOperationException("Select a draft and a script first.");
+            _creatorDraftDocument = CreatorDraftStore.Update(_creatorDraftDocument, _selectedCreatorDraftId,
+                CreatorDraftNameBox.Text, SelectedCreatorScript);
+            _creatorDraftStore?.Save(_creatorDraftDocument);
+            RefreshCreatorDraftPicker(_selectedCreatorDraftId);
+            CreatorSaveStatusText.Text = "Named draft updated.";
+        }
+        catch (Exception error) { CreatorSaveStatusText.Text = $"Could not update draft: {error.Message}"; }
+    }
+
+    private async void CreatorDraftLoad_Click(object sender, RoutedEventArgs e)
+    {
+        var draft = _creatorDraftDocument?.Drafts.FirstOrDefault(item => item.DraftId == _selectedCreatorDraftId);
+        var target = SelectedCreatorScript;
+        if (draft is null || target is null || _creatorProject is null || _creatorStore is null) return;
+        var dialog = new ContentDialog
+        {
+            Title = "Load named draft?",
+            Content = $"This replaces the currently selected script’s content with “{draft.Name}”. Other scripts and recorded takes remain unchanged.",
+            PrimaryButtonText = "Load", CloseButtonText = "Cancel", XamlRoot = Content.XamlRoot
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        try
+        {
+            _creatorSaveTimer.Stop();
+            var index = _creatorProject.Scripts.FindIndex(item => item.ScriptId == target.ScriptId);
+            if (index < 0) throw new InvalidOperationException("Selected project script no longer exists.");
+            var replacement = JsonSerializer.Deserialize<CreatorProjectStore.ScriptDocument>(
+                JsonSerializer.SerializeToUtf8Bytes(draft.Script)) ?? throw new InvalidDataException("Draft could not be copied.");
+            replacement.ScriptId = target.ScriptId;
+            replacement.UpdatedUtc = DateTime.UtcNow.ToString("O");
+            _creatorProject.Scripts[index] = replacement;
+            _creatorStore.Save(_creatorProject);
+            _selectedCreatorScriptId = replacement.ScriptId;
+            _selectedCreatorSectionIndex = 0;
+            _loadingCreatorEditor = true;
+            CreatorScriptComboBox.ItemsSource = _creatorProject.Scripts.Select(item => item.Title).ToList();
+            CreatorScriptComboBox.SelectedIndex = index;
+            CreatorScriptTitleBox.Text = replacement.Title;
+            CreatorSectionComboBox.ItemsSource = replacement.Sections.OrderBy(item => item.Order).Select(item => item.Title).ToList();
+            CreatorSectionComboBox.SelectedIndex = 0;
+            CreatorScriptBodyBox.Text = replacement.Sections.OrderBy(item => item.Order).First().Text;
+            TeleprompterScriptText.Text = CreatorScriptBodyBox.Text;
+            _loadingCreatorEditor = false;
+            CreatorSaveStatusText.Text = $"Loaded draft “{draft.Name}” into the selected script.";
+        }
+        catch (Exception error) { _loadingCreatorEditor = false; CreatorSaveStatusText.Text = $"Draft load failed: {error.Message}"; }
+    }
+
+    private void CreatorDraftDelete_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_creatorDraftDocument is null || _selectedCreatorDraftId is null)
+                throw new InvalidOperationException("Select a draft first.");
+            _creatorDraftDocument = CreatorDraftStore.Delete(_creatorDraftDocument, _selectedCreatorDraftId);
+            _creatorDraftStore?.Save(_creatorDraftDocument);
+            RefreshCreatorDraftPicker(_creatorDraftDocument.ActiveDraftId);
+            CreatorSaveStatusText.Text = "Named draft deleted.";
+        }
+        catch (Exception error) { CreatorSaveStatusText.Text = $"Could not delete draft: {error.Message}"; }
     }
 
     private void StartStudioTake_Click(object sender, RoutedEventArgs e)
