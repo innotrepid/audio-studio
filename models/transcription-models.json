@@ -12,8 +12,8 @@
       "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
       "license": "MIT",
       "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
-      "sizeBytes": null,
-      "sizeNote": "Upstream UI reports 77.7 MB; CI must record exact byte count before packaging."
+      "sizeBytes": 77691713,
+      "sizeNote": "Verified artifact metadata: 77,691,713 bytes and SHA-256 published for this exact upstream revision."
     },
     {
       "id": "silero-vad",
@@ -24,8 +24,8 @@
       "revision": "60b7ffa243625ebdc1070275a29f18c87843786a",
       "license": "MIT",
       "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3",
-      "sizeBytes": null,
-      "sizeNote": "Exact upstream byte size must be verified by CI before packaging."
+      "sizeBytes": 2327524,
+      "sizeNote": "Verified upstream artifact metadata: 2,327,524 bytes and SHA-256."
     }
   ]
 }
