@@ -1024,13 +1024,31 @@ class MainActivity : Activity() {
                 creatorSaveStatus.text = "Save failed · your edits are still here: ${error.message}"
             }
         }
+        val creatorScriptStats = TextView(this).apply {
+            textSize = 12f
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, dp(6), 0, dp(4))
+        }
+        fun updateCreatorStats() {
+            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
+            val sections = script.sections.sortedBy { it.order }
+            val text = sections.joinToString("\\n") { it.text }
+            val words = Regex("\\\\b[\\\\p{L}\\\\p{N}]+(?:['’_-][\\\\p{L}\\\\p{N}]+)*\\\\b").findAll(text).count()
+            val chars = text.count { !it.isWhitespace() }
+            val minutes = if (words == 0) 0 else kotlin.math.ceil(words / 150.0).toInt()
+            creatorScriptStats.text = "$words words · $chars characters · about $minutes min at 150 wpm · ${sections.count { it.cues.isNotEmpty() }} cue section(s)"
+        }
+        var visibleCreatorSections: List<CreatorProjectStore.Section> = emptyList()
         fun refreshCreatorSections(selectId: String? = selectedCreatorSectionId) {
             val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
             val ordered = script.sections.sortedBy { it.order }
+            val filterPosition = creatorSectionFilter.selectedItemPosition.coerceAtLeast(0)
+            visibleCreatorSections = when (filterPosition) { 1 -> ordered.filter { it.cues.isNotEmpty() }; 2 -> ordered.filter { it.cues.isEmpty() }; else -> ordered }
             selectedCreatorSectionId = ordered.firstOrNull { it.sectionId == selectId }?.sectionId ?: ordered.first().sectionId
             updatingCreatorSection = true
-            creatorSectionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, ordered.map { it.title })
-            creatorSectionSpinner.setSelection(ordered.indexOfFirst { it.sectionId == selectedCreatorSectionId }.coerceAtLeast(0))
+            creatorSectionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, visibleCreatorSections.map { it.title })
+            val visibleIndex = visibleCreatorSections.indexOfFirst { it.sectionId == selectedCreatorSectionId }
+            if (visibleIndex >= 0) creatorSectionSpinner.setSelection(visibleIndex)
             creatorBodyInput.setText(ordered.first { it.sectionId == selectedCreatorSectionId }.text)
             updatingCreatorSection = false
             teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { "This section is empty. Add text in Creator → Scripts." }
@@ -1060,7 +1078,7 @@ class MainActivity : Activity() {
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                     if (updatingCreatorSection) return
                     val latest = activeCreatorProject?.scripts?.firstOrNull() ?: return
-                    val nextSection = latest.sections.getOrNull(position) ?: return
+                    val nextSection = visibleCreatorSections.getOrNull(position) ?: return
                     if (selectedCreatorSectionId != null) saveCreatorScript()
                     selectedCreatorSectionId = nextSection.sectionId
                     updatingCreatorSection = true
@@ -1120,20 +1138,6 @@ class MainActivity : Activity() {
         val creatorSectionFilter = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("All sections", "Cue sections", "Sections without cues"))
         }
-        val creatorScriptStats = TextView(this).apply {
-            textSize = 12f
-            setTextColor(Color.rgb(174, 185, 204))
-            setPadding(0, dp(6), 0, dp(4))
-        }
-        fun updateCreatorStats() {
-            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
-            val sections = script.sections.sortedBy { it.order }
-            val text = sections.joinToString("\\n") { it.text }
-            val words = Regex("\\\\b[\\\\p{L}\\\\p{N}]+(?:['’_-][\\\\p{L}\\\\p{N}]+)*\\\\b").findAll(text).count()
-            val chars = text.count { !it.isWhitespace() }
-            val minutes = if (words == 0) 0 else kotlin.math.ceil(words / 150.0).toInt()
-            creatorScriptStats.text = "$words words · $chars characters · about $minutes min at 150 wpm · ${sections.count { it.cues.isNotEmpty() }} cue section(s)"
-        }
         creatorScriptsPanel.addView(creatorSectionFilter, matchWidth())
         creatorScriptsPanel.addView(creatorScriptStats, matchWidth())
         creatorSectionFilter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
@@ -1145,6 +1149,7 @@ class MainActivity : Activity() {
                     2 -> sections.filter { it.cues.isEmpty() }
                     else -> sections
                 }
+                visibleCreatorSections = filtered
                 updatingCreatorSection = true
                 creatorSectionSpinner.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, filtered.map { it.title })
                 val selectedIndex = filtered.indexOfFirst { it.sectionId == selectedCreatorSectionId }
