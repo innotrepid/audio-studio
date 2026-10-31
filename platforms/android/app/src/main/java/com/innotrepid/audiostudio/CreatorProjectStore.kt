@@ -318,7 +318,7 @@ internal class CreatorProjectStore(context: Context) {
             captionTimestamp(caption.endMs, ',') + "\n" + caption.text
     }.joinToString("\n\n") + if (captions.isEmpty()) "" else "\n"
 
-    fun exportWebVtt(captions: List<Caption>): String = "WEBVTT\\n\\n" + captions.sortedBy { it.startMs }.joinToString("\n\n") { caption ->
+    fun exportWebVtt(captions: List<Caption>): String = "WEBVTT\n\n" + captions.sortedBy { it.startMs }.joinToString("\n\n") { caption ->
         captionTimestamp(caption.startMs, '.') + " --> " + captionTimestamp(caption.endMs, '.') + "\n" + caption.text
     } + if (captions.isEmpty()) "" else "\n"
 
