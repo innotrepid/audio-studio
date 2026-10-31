@@ -2189,8 +2189,12 @@ public sealed partial class MainWindow : Window
                     return;
                 }
 
-                var outputPath = System.Text.RegularExpressions.Regex.Replace(
+                var recoveredBasePath = System.Text.RegularExpressions.Regex.Replace(
                     partialPath, @"\.partial-[0-9]+$", "");
+                var outputPath = File.Exists(recoveredBasePath)
+                    ? Path.Combine(Path.GetDirectoryName(recoveredBasePath)!,
+                        $"{Path.GetFileNameWithoutExtension(recoveredBasePath)}-recovered-{DateTime.Now:yyyyMMdd_HHmmss}.wav")
+                    : recoveredBasePath;
                 var prompt = new Microsoft.UI.Xaml.Controls.ContentDialog
                 {
                     Title = "Interrupted recording found",
@@ -2208,9 +2212,40 @@ public sealed partial class MainWindow : Window
                 var nativeMessage = await Task.Run(() =>
                     Marshal.PtrToStringUni(NativeRecoverPartialWav(partialPath, outputPath))
                     ?? "Native recovery returned no status.");
-                RecoveryStatusText.Text = nativeMessage == "RECOVERED"
-                    ? $"Recovered: {Path.GetFileName(outputPath)}"
-                    : nativeMessage;
+                if (nativeMessage != "RECOVERED")
+                {
+                    RecoveryStatusText.Text = nativeMessage;
+                    continue;
+                }
+
+                var recoveredDetails = await Task.Run(() => ReadRecordingTakeDetails(outputPath));
+                if (recoveredDetails is null)
+                {
+                    RecoveryStatusText.Text = $"Recovery produced a file that did not pass WAV verification. The recovered file and original temporary file were retained: {outputPath}";
+                    continue;
+                }
+
+                try
+                {
+                    var publishedPath = SynvidraStorage.CreateUniquePath(
+                        SynvidraStorage.MediaKind.Recording, ".wav", "Recovered");
+                    File.Copy(outputPath, publishedPath, overwrite: false);
+                    var publishedDetails = await Task.Run(() => ReadRecordingTakeDetails(publishedPath));
+                    if (publishedDetails is null)
+                    {
+                        RecoveryStatusText.Text = $"Recovered WAV verified in private staging, but its public copy failed verification. Both files were retained. Private take: {outputPath}";
+                        continue;
+                    }
+
+                    _lastVerifiedRecordingPath = publishedPath;
+                    OpenLatestTakeButton.IsEnabled = true;
+                    OpenLatestTakeFromRecordButton.IsEnabled = true;
+                    RecoveryStatusText.Text = $"Recovered and verified: {Path.GetFileName(publishedPath)}. Private recovery source retained.";
+                }
+                catch (Exception publishException)
+                {
+                    RecoveryStatusText.Text = $"Recovered WAV verified in private staging, but publishing failed: {publishException.Message}. Private take retained at: {outputPath}";
+                }
             }
         }
         catch (Exception exception)
