@@ -322,6 +322,7 @@
                             <Button Content="Export production copy" Click="CreatorExportProduction_Click" />
                         </StackPanel>
                         <TextBlock Text="SCRIPT TITLE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
+                        <ComboBox x:Name="CreatorScriptComboBox" PlaceholderText="Choose a script" SelectionChanged="CreatorScript_SelectionChanged" />
                         <TextBox x:Name="CreatorScriptTitleBox" PlaceholderText="Give this script a title" TextChanged="CreatorScript_TextChanged" />
                         <TextBlock Text="SECTION" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                         <ComboBox x:Name="CreatorSectionComboBox" PlaceholderText="Choose a script section" SelectionChanged="CreatorSection_SelectionChanged" />
