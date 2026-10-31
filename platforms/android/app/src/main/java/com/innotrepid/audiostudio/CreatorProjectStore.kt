@@ -237,6 +237,45 @@ internal class CreatorProjectStore(context: Context) {
             .toString(2)
     }
 
+    /** Export the complete native project document. Linked takes remain references; audio files are untouched. */
+    @Synchronized
+    @Throws(IOException::class)
+    fun exportJson(project: Project): String {
+        validate(project)
+        return encode(project)
+    }
+
+    /** Parse and validate a complete document before callers replace the active project. */
+    @Synchronized
+    @Throws(IOException::class)
+    fun importJson(json: String): Project {
+        if (json.toByteArray(StandardCharsets.UTF_8).size > maxDocumentBytes) {
+            throw IOException("Project file exceeds the 1 MB safety limit.")
+        }
+        return try {
+            decode(json)
+        } catch (error: Exception) {
+            throw IOException("Import rejected; the current project was not changed: ${error.message}", error)
+        }
+    }
+
+    fun exportNarration(script: Script): String =
+        script.sections.sortedBy { it.order }.joinToString("\n\n") { it.text.trim() }.trim() + "\n"
+
+    fun exportProductionCopy(script: Script): String = buildString {
+        appendLine(script.title)
+        appendLine("=".repeat(script.title.length.coerceAtLeast(1)))
+        appendLine()
+        script.sections.sortedBy { it.order }.forEachIndexed { index, section ->
+            appendLine("[SECTION ${index + 1}] ${section.title}")
+            section.cues.forEach { appendLine("[CUE] $it") }
+            if (section.notes.isNotBlank()) appendLine("[PRODUCTION NOTES] ${section.notes}")
+            appendLine()
+            appendLine(section.text.trim())
+            appendLine()
+        }
+    }
+
     private fun decode(json: String): Project {
         val root = JSONObject(json)
         val version = root.optInt("schemaVersion", -1)
