@@ -1,6 +1,6 @@
 # Android application
 
-Audio Studio's Android shell uses Kotlin for the UI and lifecycle/permissions, the Android NDK for native integration, and the shared C++ audio engine. Oboe is included for native audio capture integration.
+Synvidra's Android shell uses Kotlin for the UI and lifecycle/permissions, the Android NDK for native integration, and the shared C++ audio engine. Oboe is included for native audio capture integration.
 
 ## Build
 
@@ -9,7 +9,7 @@ Open this folder in Android Studio with Android SDK 35, JDK 17, CMake 3.22.1, an
 ## Implemented capabilities
 
 - Record microphone audio and save finalized PCM16 WAV recordings.
-- Save recordings in the user-accessible `Music/audio studio/recordings` folder.
+- Save recordings in the user-accessible `Music/Synvidra/Recordings` folder.
 - Show recording elapsed time and provide explicit start/stop-and-save controls.
 - Process supported WAV inputs into a separate output file using the available processing workflow, including RNNoise, experimental DeepFilterNet3 (BETA), and the classic noise-gate path where exposed by the current UI.
 - Configure the available denoiser and processing parameters.
