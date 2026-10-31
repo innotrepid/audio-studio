@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <application
         android:allowBackup="false"
-        android:label="Audio Studio"
+        android:label="Synvidra"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
         <activity
