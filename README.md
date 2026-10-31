@@ -1,6 +1,6 @@
-# Audio Studio
+# Synvidra
 
-**Working title:** Audio Studio  
+**Product name:** Synvidra  
 **Status:** Native Android and Windows application with an established shared C++ audio core; Creator Studio capabilities are planned in staged delivery  
 **Targets:** Android and Windows  
 **Product direction:** A local-first voice recording and narration production studio.
@@ -9,7 +9,7 @@ Audio Studio is intended to help a creator move from a script to clean, edited, 
 
 The product roadmap covers dependable recording, speech cleanup, intelligent retakes, transcript-aware editing, script and teleprompter tools, optional AI narration, captions, and production handoff tools. The first release will focus on a reliable recording foundation rather than a large collection of unfinished features.
 
-> “Audio Studio” is a working title. The repository name remains unchanged until a suitable product name is researched and selected.
+Synvidra is the product name. The repository name remains unchanged to preserve the established source and automation URLs.
 
 ## Technology decision
 
