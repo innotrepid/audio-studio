@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.innotrepid.Synvidra"
+    namespace = "com.innotrepid.audiostudio"
     compileSdk = 35
 
     defaultConfig {
