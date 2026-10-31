@@ -825,25 +825,6 @@ class MainActivity : Activity() {
         var updatingCreatorSection = false
         val creatorSectionSpinner = Spinner(this)
         val creatorSectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        fun refreshCreatorSections(selectId: String? = selectedCreatorSectionId) {
-            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
-            val ordered = script.sections.sortedBy { it.order }
-            selectedCreatorSectionId = ordered.firstOrNull { it.sectionId == selectId }?.sectionId ?: ordered.first().sectionId
-            updatingCreatorSection = true
-            creatorSectionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, ordered.map { it.title })
-            creatorSectionSpinner.setSelection(ordered.indexOfFirst { it.sectionId == selectedCreatorSectionId }.coerceAtLeast(0))
-            creatorBodyInput.setText(ordered.first { it.sectionId == selectedCreatorSectionId }.text)
-            updatingCreatorSection = false
-            teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { "This section is empty. Add text in Creator → Scripts." }
-        }
-        fun mutateCreatorSections(transform: (List<CreatorProjectStore.Section>) -> List<CreatorProjectStore.Section>, selectId: String? = null) {
-            saveCreatorScript()
-            val current = activeCreatorProject ?: return
-            val script = current.scripts.first()
-            val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
-            activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString())) + current.scripts.drop(1)))
-            refreshCreatorSections(selectId ?: selectedCreatorSectionId)
-        }
         val creatorTitleInput = EditText(this).apply {
             hint = "Script title"
             textSize = 16f
@@ -1043,6 +1024,26 @@ class MainActivity : Activity() {
                 creatorSaveStatus.text = "Save failed · your edits are still here: ${error.message}"
             }
         }
+        fun refreshCreatorSections(selectId: String? = selectedCreatorSectionId) {
+            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
+            val ordered = script.sections.sortedBy { it.order }
+            selectedCreatorSectionId = ordered.firstOrNull { it.sectionId == selectId }?.sectionId ?: ordered.first().sectionId
+            updatingCreatorSection = true
+            creatorSectionSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, ordered.map { it.title })
+            creatorSectionSpinner.setSelection(ordered.indexOfFirst { it.sectionId == selectedCreatorSectionId }.coerceAtLeast(0))
+            creatorBodyInput.setText(ordered.first { it.sectionId == selectedCreatorSectionId }.text)
+            updatingCreatorSection = false
+            teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { "This section is empty. Add text in Creator → Scripts." }
+        }
+        fun mutateCreatorSections(transform: (List<CreatorProjectStore.Section>) -> List<CreatorProjectStore.Section>, selectId: String? = null) {
+            saveCreatorScript()
+            val current = activeCreatorProject ?: return
+            val script = current.scripts.first()
+            val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
+            activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString())) + current.scripts.drop(1)))
+            refreshCreatorSections(selectId ?: selectedCreatorSectionId)
+        }
+
         try {
             activeCreatorProject = creatorStore.loadOrCreate()
             val firstScript = activeCreatorProject!!.scripts.first()
