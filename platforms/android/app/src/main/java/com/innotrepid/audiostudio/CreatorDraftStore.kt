@@ -91,7 +91,7 @@ internal class CreatorDraftStore(context: Context) {
         require(document.drafts.any { it.draftId == draftId }) { "Selected draft no longer exists." }
         val remaining = document.drafts.filterNot { it.draftId == draftId }
         val active = if (document.activeDraftId == draftId) nextActiveId else document.activeDraftId
-        require(remaining.any { it.draftId == active }) { "Choose an existing draft before deleting the active draft." }
+        require(active != null && remaining.any { it.draftId == active }) { "Choose an existing draft before deleting the active draft." }
         return Document(remaining, active)
     }
 
