@@ -64,6 +64,8 @@ class MainActivity : Activity() {
 
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
+    private external fun nativePauseRecording(): Boolean
+    private external fun nativeResumeRecording(): Boolean
     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
     private external fun nativeAnalyzeWavWaveform(inputPath: String, bucketCount: Int): FloatArray
     private external fun nativeWavAnalysisError(inputPath: String): String
@@ -199,6 +201,8 @@ class MainActivity : Activity() {
         }
     }
     private var recordingStartedAtMs = 0L
+    private var recordingPausedAtMs = 0L
+    private var recordingPausedTotalMs = 0L
     private val recordingMeterClock = object : Runnable {
         override fun run() {
             if (!recording || isFinishing || isDestroyed) return
@@ -223,7 +227,9 @@ class MainActivity : Activity() {
     private val recordingClock = object : Runnable {
         override fun run() {
             if (!recording) return
-            val elapsedSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAtMs) / 1000L).coerceAtLeast(0L)
+            val now = SystemClock.elapsedRealtime()
+            val pausedNow = if (teleprompterPaused) now - recordingPausedAtMs else 0L
+            val elapsedSeconds = ((now - recordingStartedAtMs - recordingPausedTotalMs - pausedNow) / 1000L).coerceAtLeast(0L)
             val minutes = elapsedSeconds / 60L
             val seconds = elapsedSeconds % 60L
             recordingTimerText.text = "%02d:%02d".format(minutes, seconds)
@@ -2108,6 +2114,8 @@ class MainActivity : Activity() {
             teleprompterPauseButton?.isEnabled = startTeleprompter
             teleprompterCountdownText?.text = if (startTeleprompter) "Recording and script scroll are synchronized." else "Ready for your next take."
             recordingStartedAtMs = SystemClock.elapsedRealtime()
+            recordingPausedAtMs = 0L
+            recordingPausedTotalMs = 0L
             recordingTimerText.text = "00:00"
             statusText.text = "Recording in progress · audio is being captured"
             mainHandler.removeCallbacks(recordingClock)
@@ -2189,16 +2197,34 @@ class MainActivity : Activity() {
 
     private fun toggleTeleprompterPause() {
         if (!recording) return
-        teleprompterPaused = !teleprompterPaused
-        if (teleprompterPaused) {
+        val pause = !teleprompterPaused
+        val nativeChanged = try {
+            if (pause) nativePauseRecording() else nativeResumeRecording()
+        } catch (exception: Exception) {
+            statusText.text = "Could not change recording pause: " + (exception.message ?: "unknown error")
+            false
+        }
+        if (!nativeChanged) {
+            statusText.text = "The microphone could not change pause state. Your take remains active."
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        teleprompterPaused = pause
+        if (pause) {
+            recordingPausedAtMs = now
+            mainHandler.removeCallbacks(recordingClock)
             mainHandler.removeCallbacks(teleprompterScrollClock)
-            teleprompterPauseButton?.text = "Resume scroll"
-            teleprompterCountdownText?.text = "Script paused · recording continues."
+            teleprompterPauseButton?.text = "Resume take"
+            teleprompterCountdownText?.text = "Take and script paused."
+            statusText.text = "Recording paused · tap Resume take to continue."
         } else {
-            teleprompterPauseButton?.text = "Pause scroll"
-            teleprompterCountdownText?.text = "Script scrolling · recording continues."
+            recordingPausedTotalMs += (now - recordingPausedAtMs).coerceAtLeast(0L)
+            recordingPausedAtMs = 0L
+            teleprompterPauseButton?.text = "Pause take"
+            teleprompterCountdownText?.text = "Recording and script scrolling are synchronized."
             teleprompterLastFrameMs = SystemClock.uptimeMillis()
             teleprompterScrollRemainder = 0f
+            mainHandler.post(recordingClock)
             mainHandler.post(teleprompterScrollClock)
         }
     }
@@ -2226,7 +2252,9 @@ class MainActivity : Activity() {
         if (!recording) return
         recording = false
         stopTeleprompterScroll()
-        val elapsedSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAtMs) / 1000L).coerceAtLeast(0L)
+        val now = SystemClock.elapsedRealtime()
+        val pausedNow = if (teleprompterPaused) now - recordingPausedAtMs else 0L
+        val elapsedSeconds = ((now - recordingStartedAtMs - recordingPausedTotalMs - pausedNow) / 1000L).coerceAtLeast(0L)
         recordingTimerText.text = "%02d:%02d".format(elapsedSeconds / 60L, elapsedSeconds % 60L)
         mainHandler.removeCallbacks(recordingClock)
         mainHandler.removeCallbacks(recordingMeterClock)
