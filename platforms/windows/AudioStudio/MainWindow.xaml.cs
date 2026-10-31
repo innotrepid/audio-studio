@@ -89,6 +89,8 @@ public sealed partial class MainWindow : Window
     private CreatorProjectStore.ProjectDocument? _creatorProject;
     private bool _loadingCreatorEditor;
     private int _selectedCreatorSectionIndex;
+    private string? _selectedCreatorScriptId;
+    private CreatorProjectStore.ScriptDocument? SelectedCreatorScript => _creatorProject?.Scripts.FirstOrDefault(script => script.ScriptId == _selectedCreatorScriptId) ?? _creatorProject?.Scripts.FirstOrDefault();
     private readonly DispatcherTimer _teleprompterCountdownTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _teleprompterScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private int _teleprompterCountdownRemaining;
@@ -1031,7 +1033,7 @@ public sealed partial class MainWindow : Window
             InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
             var file = await picker.PickSaveFileAsync();
             if (file is null) { CreatorSaveStatusText.Text = "Export cancelled."; return; }
-            var script = _creatorProject.Scripts[0];
+            var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
             var content = kind switch
             {
                 "project" => _creatorStore.ExportJson(_creatorProject),
@@ -1052,7 +1054,7 @@ public sealed partial class MainWindow : Window
             _creatorStore = new CreatorProjectStore();
             var result = _creatorStore.LoadOrCreate();
             _creatorProject = result.Project;
-            var script = _creatorProject.Scripts[0];
+            var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
             _selectedCreatorSectionIndex = 0;
             _loadingCreatorEditor = true;
             CreatorScriptTitleBox.Text = script.Title;
@@ -1168,7 +1170,7 @@ public sealed partial class MainWindow : Window
     private void RefreshCreatorSections(string? selectedId = null)
     {
         if (_creatorProject is null) return;
-        var script = _creatorProject.Scripts[0];
+        var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
         var ordered = script.Sections.OrderBy(section => section.Order).ToList();
         _loadingCreatorEditor = true;
         CreatorSectionComboBox.ItemsSource = ordered.Select(section => section.Title).ToList();
@@ -1186,7 +1188,7 @@ public sealed partial class MainWindow : Window
     {
         SaveCreatorScript();
         if (_creatorProject is null || _creatorStore is null) return;
-        var script = _creatorProject.Scripts[0];
+        var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
         var updated = mutation(script.Sections.OrderBy(section => section.Order).ToList())
             .Select((section, index) => { section.Order = index; return section; }).ToList();
         script.Sections = updated;
@@ -1258,6 +1260,26 @@ public sealed partial class MainWindow : Window
         MutateCreatorSections(_ => remaining, next.SectionId);
     }
 
+    private void CreatorScript_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingCreatorEditor || _creatorProject is null)
+            return;
+        var next = _creatorProject.Scripts.ElementAtOrDefault(CreatorScriptComboBox.SelectedIndex);
+        if (next is null || next.ScriptId == _selectedCreatorScriptId)
+            return;
+        SaveCreatorScript();
+        _selectedCreatorScriptId = next.ScriptId;
+        _selectedCreatorSectionIndex = 0;
+        _loadingCreatorEditor = true;
+        CreatorScriptTitleBox.Text = next.Title;
+        var sections = next.Sections.OrderBy(item => item.Order).ToList();
+        CreatorSectionComboBox.ItemsSource = sections.Select(item => item.Title).ToList();
+        CreatorSectionComboBox.SelectedIndex = 0;
+        CreatorScriptBodyBox.Text = sections[0].Text;
+        TeleprompterScriptText.Text = sections[0].Text;
+        _loadingCreatorEditor = false;
+    }
+
     private void CreatorSection_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingCreatorEditor || _creatorProject is null)
@@ -1300,7 +1322,18 @@ public sealed partial class MainWindow : Window
             var key = new[] { "youtube", "podcast", "tutorial", "product promo" }[Math.Max(0, picker.SelectedIndex)];
             var script = CreatorProjectStore.CreateTemplate(picker.SelectedItem?.ToString() ?? key, key);
             _creatorProject.Scripts.Add(script); _creatorStore.Save(_creatorProject);
-            CreatorSaveStatusText.Text = $"Created and saved template: {script.Title}. Select it from the project to edit.";
+            _selectedCreatorScriptId = script.ScriptId;
+            _loadingCreatorEditor = true;
+            CreatorScriptComboBox.ItemsSource = _creatorProject.Scripts.Select(item => item.Title).ToList();
+            CreatorScriptComboBox.SelectedIndex = _creatorProject.Scripts.FindIndex(item => item.ScriptId == script.ScriptId);
+            CreatorScriptTitleBox.Text = script.Title;
+            _selectedCreatorSectionIndex = 0;
+            CreatorSectionComboBox.ItemsSource = script.Sections.OrderBy(item => item.Order).Select(item => item.Title).ToList();
+            CreatorSectionComboBox.SelectedIndex = 0;
+            CreatorScriptBodyBox.Text = script.Sections.OrderBy(item => item.Order).First().Text;
+            TeleprompterScriptText.Text = CreatorScriptBodyBox.Text;
+            _loadingCreatorEditor = false;
+            CreatorSaveStatusText.Text = $"Created and opened template: {script.Title}.";
         }
         catch (Exception error) { CreatorSaveStatusText.Text = $"Template creation failed: {error.Message}"; }
     }
@@ -1342,6 +1375,9 @@ public sealed partial class MainWindow : Window
         try
         {
             var script = _creatorProject.Scripts[0];
+            _selectedCreatorScriptId = script.ScriptId;
+            CreatorScriptComboBox.ItemsSource = _creatorProject.Scripts.Select(item => item.Title).ToList();
+            CreatorScriptComboBox.SelectedIndex = 0;
             if (_selectedCreatorSectionIndex < 0 || _selectedCreatorSectionIndex >= script.Sections.Count)
                 throw new InvalidOperationException("Select a valid script section before saving.");
             script.Title = title;
