@@ -315,6 +315,16 @@
                         <TextBox x:Name="CreatorScriptTitleBox" PlaceholderText="Give this script a title" TextChanged="CreatorScript_TextChanged" />
                         <TextBlock Text="SECTION" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                         <ComboBox x:Name="CreatorSectionComboBox" PlaceholderText="Choose a script section" SelectionChanged="CreatorSection_SelectionChanged" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="+ Section" Click="CreatorAddSection_Click" />
+                            <Button Content="+ Cue section" Click="CreatorAddCueSection_Click" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Rename" Click="CreatorRenameSection_Click" />
+                            <Button Content="↑" Click="CreatorMoveSectionUp_Click" />
+                            <Button Content="↓" Click="CreatorMoveSectionDown_Click" />
+                            <Button Content="Delete" Click="CreatorDeleteSection_Click" />
+                        </StackPanel>
                         <TextBlock Text="SCRIPT" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                         <TextBox x:Name="CreatorScriptBodyBox" PlaceholderText="Start writing your script…" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="280" ScrollViewer.VerticalScrollBarVisibility="Auto" TextChanged="CreatorScript_TextChanged" />
                         <StackPanel Orientation="Horizontal" Spacing="12">
