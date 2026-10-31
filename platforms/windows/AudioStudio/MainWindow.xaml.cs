@@ -1101,6 +1101,99 @@ public sealed partial class MainWindow : Window
         PauseTeleprompterButton.Content = "Pause scroll";
     }
 
+    private void RefreshCreatorSections(string? selectedId = null)
+    {
+        if (_creatorProject is null) return;
+        var script = _creatorProject.Scripts[0];
+        var ordered = script.Sections.OrderBy(section => section.Order).ToList();
+        _loadingCreatorEditor = true;
+        CreatorSectionComboBox.ItemsSource = ordered.Select(section => section.Title).ToList();
+        var index = selectedId is null ? Math.Clamp(_selectedCreatorSectionIndex, 0, ordered.Count - 1)
+            : ordered.FindIndex(section => section.SectionId == selectedId);
+        if (index < 0) index = 0;
+        _selectedCreatorSectionIndex = index;
+        CreatorSectionComboBox.SelectedIndex = index;
+        CreatorScriptBodyBox.Text = ordered[index].Text;
+        TeleprompterScriptText.Text = ordered[index].Text;
+        _loadingCreatorEditor = false;
+    }
+
+    private void MutateCreatorSections(Func<List<CreatorProjectStore.SectionDocument>, List<CreatorProjectStore.SectionDocument>> mutation, string? selectedId = null)
+    {
+        SaveCreatorScript();
+        if (_creatorProject is null || _creatorStore is null) return;
+        var script = _creatorProject.Scripts[0];
+        var updated = mutation(script.Sections.OrderBy(section => section.Order).ToList())
+            .Select((section, index) => { section.Order = index; return section; }).ToList();
+        script.Sections = updated;
+        _creatorStore.Save(_creatorProject);
+        RefreshCreatorSections(selectedId);
+        CreatorSaveStatusText.Text = "Saved locally · section changes autosaved";
+    }
+
+    private async void CreatorAddSection_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog { Title = "Add script section", PrimaryButtonText = "Add", CloseButtonText = "Cancel", XamlRoot = Content.XamlRoot };
+        var input = new TextBox { Text = "New section", PlaceholderText = "Section title" };
+        dialog.Content = input;
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || _creatorProject is null) return;
+        var id = Guid.NewGuid().ToString();
+        var section = new CreatorProjectStore.SectionDocument { SectionId = id, Title = string.IsNullOrWhiteSpace(input.Text) ? "Section" : input.Text.Trim()[..Math.Min(100,input.Text.Trim().Length)] };
+        MutateCreatorSections(list => { list.Add(section); return list; }, id);
+    }
+
+    private async void CreatorAddCueSection_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog { Title = "Add cue section", PrimaryButtonText = "Add", CloseButtonText = "Cancel", XamlRoot = Content.XamlRoot };
+        var input = new TextBox { Text = "Cue", PlaceholderText = "Cue section title" };
+        dialog.Content = input;
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || _creatorProject is null) return;
+        var id = Guid.NewGuid().ToString();
+        var section = new CreatorProjectStore.SectionDocument { SectionId = id, Title = string.IsNullOrWhiteSpace(input.Text) ? "Cue" : input.Text.Trim()[..Math.Min(100,input.Text.Trim().Length)], Cues = new List<string> { "[PAUSE]" } };
+        MutateCreatorSections(list => { list.Add(section); return list; }, id);
+    }
+
+    private async void CreatorRenameSection_Click(object sender, RoutedEventArgs e)
+    {
+        if (_creatorProject is null) return;
+        var section = _creatorProject.Scripts[0].Sections.OrderBy(item => item.Order).ElementAtOrDefault(_selectedCreatorSectionIndex);
+        if (section is null) return;
+        var dialog = new ContentDialog { Title = "Rename section", PrimaryButtonText = "Save", CloseButtonText = "Cancel", XamlRoot = Content.XamlRoot };
+        var input = new TextBox { Text = section.Title };
+        dialog.Content = input;
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(input.Text)) return;
+        var title = input.Text.Trim()[..Math.Min(100,input.Text.Trim().Length)];
+        MutateCreatorSections(list => { foreach (var item in list) if (item.SectionId == section.SectionId) item.Title = title; return list; }, section.SectionId);
+    }
+
+    private void CreatorMoveSectionUp_Click(object sender, RoutedEventArgs e) => MoveCreatorSection(-1);
+    private void CreatorMoveSectionDown_Click(object sender, RoutedEventArgs e) => MoveCreatorSection(1);
+
+    private void MoveCreatorSection(int offset)
+    {
+        if (_creatorProject is null) return;
+        var ordered = _creatorProject.Scripts[0].Sections.OrderBy(item => item.Order).ToList();
+        var index = ordered.FindIndex(item => item.SectionId == ordered.ElementAtOrDefault(_selectedCreatorSectionIndex)?.SectionId);
+        var target = index + offset;
+        if (index < 0 || target < 0 || target >= ordered.Count) return;
+        (ordered[index], ordered[target]) = (ordered[target], ordered[index]);
+        MutateCreatorSections(_ => ordered, ordered[target].SectionId);
+    }
+
+    private async void CreatorDeleteSection_Click(object sender, RoutedEventArgs e)
+    {
+        if (_creatorProject is null) return;
+        var ordered = _creatorProject.Scripts[0].Sections.OrderBy(item => item.Order).ToList();
+        if (ordered.Count <= 1) { CreatorSaveStatusText.Text = "A script must keep at least one section."; return; }
+        var section = ordered.ElementAtOrDefault(_selectedCreatorSectionIndex);
+        if (section is null) return;
+        var dialog = new ContentDialog { Title = "Delete section?", Content = $"Delete “{section.Title}”? This cannot be undone.", PrimaryButtonText = "Delete", CloseButtonText = "Cancel", XamlRoot = Content.XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        var remaining = ordered.Where(item => item.SectionId != section.SectionId).ToList();
+        var next = remaining[Math.Min(_selectedCreatorSectionIndex, remaining.Count - 1)];
+        MutateCreatorSections(_ => remaining, next.SectionId);
+    }
+
     private void CreatorSection_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loadingCreatorEditor || _creatorProject is null)
