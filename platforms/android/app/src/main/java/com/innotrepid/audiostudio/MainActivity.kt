@@ -1006,7 +1006,7 @@ class MainActivity : Activity() {
             val current = activeCreatorProject ?: return
             val title = creatorTitleInput.text?.toString()?.trim().orEmpty()
             if (title.isEmpty() || title.length > 200) {
-                creatorSaveStatus.text = "Enter a script title (1–200 characters)."
+                statusText.text = "Enter a script title (1–200 characters)."
                 return
             }
             try {
@@ -1020,9 +1020,9 @@ class MainActivity : Activity() {
                     sections = updatedSections
                 )
                 activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(updatedScript) + current.scripts.drop(1)))
-                creatorSaveStatus.text = "Saved locally · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                statusText.text = "Saved locally · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (error: Exception) {
-                creatorSaveStatus.text = "Save failed · your edits are still here: ${error.message}"
+                statusText.text = "Save failed · your edits are still here: ${error.message}"
             }
         }
         val creatorSectionFilter = Spinner(this).apply {
@@ -1093,10 +1093,10 @@ class MainActivity : Activity() {
                     updateCreatorStats()
                 }
             }
-            creatorSaveStatus.text = "Saved locally · edits autosave"
+            statusText.text = "Saved locally · edits autosave"
             creatorTakesSummary.text = "Linked takes: ${activeCreatorProject?.takes?.size ?: 0}"
         } catch (error: Exception) {
-            creatorSaveStatus.text = "Project could not be loaded safely: ${error.message}"
+            statusText.text = "Project could not be loaded safely: ${error.message}"
             creatorTitleInput.isEnabled = false
             creatorBodyInput.isEnabled = false
             creatorSaveButton.isEnabled = false
@@ -1109,7 +1109,7 @@ class MainActivity : Activity() {
                 teleprompterScriptView?.text = s?.toString().orEmpty().ifBlank { "Your script is empty. Add text in Creator → Scripts." }
                 updateCreatorStats()
                 if (activeCreatorProject == null) return
-                creatorSaveStatus.text = "Unsaved changes · saving shortly…"
+                statusText.text = "Unsaved changes · saving shortly…"
                 pendingCreatorSave?.let(creatorSaveHandler::removeCallbacks)
                 val pending = Runnable { saveCreatorScript() }
                 pendingCreatorSave = pending
@@ -1157,7 +1157,7 @@ class MainActivity : Activity() {
                 val selectedIndex = filtered.indexOfFirst { it.sectionId == selectedCreatorSectionId }
                 if (selectedIndex >= 0) creatorSectionSpinner.setSelection(selectedIndex)
                 updatingCreatorSection = false
-                if (filtered.isEmpty()) creatorSaveStatus.text = "No sections match this filter."
+                if (filtered.isEmpty()) statusText.text = "No sections match this filter."
             }
         }
 
@@ -1200,7 +1200,7 @@ class MainActivity : Activity() {
         },LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
         creatorSectionManage.addView(actionButton("Delete","Delete selected section") {
             val list=activeCreatorProject?.scripts?.firstOrNull()?.sections?.sortedBy { it.order } ?: return@actionButton
-            if(list.size<=1) { creatorSaveStatus.text="A script must keep at least one section."; return@actionButton }
+            if(list.size<=1) { statusText.text="A script must keep at least one section."; return@actionButton }
             val s=list.firstOrNull { it.sectionId==selectedCreatorSectionId } ?: return@actionButton
             AlertDialog.Builder(this).setTitle("Delete section?").setMessage("Delete the selected section?").setPositiveButton("Delete") { _,_ ->
                 val next=list.filterNot { it.sectionId==s.sectionId }
@@ -1231,7 +1231,7 @@ class MainActivity : Activity() {
                 type = "application/json"
             }
             try { startActivityForResult(picker, REQUEST_CREATOR_IMPORT) }
-            catch (error: Exception) { creatorExchangePending = null; creatorSaveStatus.text = "Import picker unavailable: ${error.message}" }
+            catch (error: Exception) { creatorExchangePending = null; statusText.text = "Import picker unavailable: ${error.message}" }
         }, matchWidth())
         creatorExchangeActions.addView(exchangeButton("Export project JSON", "Export complete Creator project JSON") {
             saveCreatorScript()
@@ -2450,9 +2450,9 @@ class MainActivity : Activity() {
                     val store = creatorProjectStore ?: throw IOException("Creator storage is unavailable.")
                     val imported = store.importJson(raw)
                     activeCreatorProject = store.save(imported)
-                    creatorSaveStatus.text = "Project imported and validated. Reopen Creator Scripts to refresh its editor."
+                    statusText.text = "Project imported and validated. Reopen Creator Scripts to refresh its editor."
                 } catch (error: Exception) {
-                    creatorSaveStatus.text = "Import failed — current project was not changed: ${error.message}"
+                    statusText.text = "Import failed — current project was not changed: ${error.message}"
                 }
             }
             creatorExchangePending = null
@@ -2473,11 +2473,11 @@ class MainActivity : Activity() {
                     }
                     contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
                         ?: throw IOException("Could not write the selected destination.")
-                    creatorSaveStatus.text = "Export complete · ${data.data!!.lastPathSegment}"
+                    statusText.text = "Export complete · ${data.data!!.lastPathSegment}"
                 } catch (error: Exception) {
-                    creatorSaveStatus.text = "Export failed: ${error.message}"
+                    statusText.text = "Export failed: ${error.message}"
                 }
-            } else creatorSaveStatus.text = "Export cancelled."
+            } else statusText.text = "Export cancelled."
             return
         }
         if (requestCode == REQUEST_DIAGNOSTICS_EXPORT) {
