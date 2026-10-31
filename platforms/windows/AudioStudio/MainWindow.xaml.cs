@@ -88,6 +88,7 @@ public sealed partial class MainWindow : Window
     private CreatorProjectStore? _creatorStore;
     private CreatorProjectStore.ProjectDocument? _creatorProject;
     private bool _loadingCreatorEditor;
+    private int _selectedCreatorSectionIndex;
     private readonly DispatcherTimer _teleprompterCountdownTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _teleprompterScrollTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private int _teleprompterCountdownRemaining;
@@ -988,11 +989,13 @@ public sealed partial class MainWindow : Window
             var result = _creatorStore.LoadOrCreate();
             _creatorProject = result.Project;
             var script = _creatorProject.Scripts[0];
-            var section = script.Sections[0];
+            _selectedCreatorSectionIndex = 0;
             _loadingCreatorEditor = true;
             CreatorScriptTitleBox.Text = script.Title;
-            CreatorScriptBodyBox.Text = section.Text;
-            TeleprompterScriptText.Text = section.Text;
+            CreatorSectionComboBox.ItemsSource = script.Sections.Select(section => section.Title).ToList();
+            CreatorSectionComboBox.SelectedIndex = 0;
+            CreatorScriptBodyBox.Text = script.Sections[0].Text;
+            TeleprompterScriptText.Text = script.Sections[0].Text;
             CreatorTakesSummaryText.Text = $"Linked takes: {_creatorProject.Takes.Count}";
             _loadingCreatorEditor = false;
             CreatorSaveStatusText.Text = result.RecoveredFromBackup
@@ -1098,6 +1101,21 @@ public sealed partial class MainWindow : Window
         PauseTeleprompterButton.Content = "Pause scroll";
     }
 
+    private void CreatorSection_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingCreatorEditor || _creatorProject is null)
+            return;
+        var script = _creatorProject.Scripts[0];
+        var index = CreatorSectionComboBox.SelectedIndex;
+        if (index < 0 || index >= script.Sections.Count || index == _selectedCreatorSectionIndex)
+            return;
+        _selectedCreatorSectionIndex = index;
+        _loadingCreatorEditor = true;
+        CreatorScriptBodyBox.Text = script.Sections[index].Text;
+        TeleprompterScriptText.Text = script.Sections[index].Text;
+        _loadingCreatorEditor = false;
+    }
+
     private void CreatorScript_TextChanged(object sender, TextChangedEventArgs e)
     {
         TeleprompterScriptText.Text = CreatorScriptBodyBox.Text;
@@ -1129,10 +1147,11 @@ public sealed partial class MainWindow : Window
         try
         {
             var script = _creatorProject.Scripts[0];
-            var section = script.Sections[0];
+            if (_selectedCreatorSectionIndex < 0 || _selectedCreatorSectionIndex >= script.Sections.Count)
+                throw new InvalidOperationException("Select a valid script section before saving.");
             script.Title = title;
             script.UpdatedUtc = DateTime.UtcNow.ToString("O");
-            section.Text = CreatorScriptBodyBox.Text;
+            script.Sections[_selectedCreatorSectionIndex].Text = CreatorScriptBodyBox.Text;
             _creatorStore.Save(_creatorProject);
             CreatorSaveStatusText.Text = $"Saved locally · {DateTime.Now:HH:mm:ss}";
         }
