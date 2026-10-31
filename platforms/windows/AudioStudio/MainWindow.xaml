@@ -2,7 +2,7 @@
     x:Class="AudioStudio.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="Audio Studio">
+    Title="Synvidra">
 
     <Grid Background="#0C0C14">
     <Grid.Resources>
