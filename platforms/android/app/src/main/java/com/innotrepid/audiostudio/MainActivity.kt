@@ -1513,8 +1513,14 @@ class MainActivity : Activity() {
         creatorCaptionsPanel.addView(captionStatus,matchWidth())
         creatorCaptionsPanel.addView(TextView(this).apply { text="CAPTIONS · edit times in milliseconds"; textSize=11f; setTextColor(Color.rgb(174,185,204)); setPadding(0,dp(12),0,dp(4)) },matchWidth())
         creatorCaptionsPanel.addView(captionList,matchWidth())
-        creatorCaptionsPanel.addView(exchangeButton("Export SRT","Export captions as SubRip subtitles") { creatorExchangePending="srt"; launchCreatorExport("application/x-subrip","captions.srt") },matchWidth())
-        creatorCaptionsPanel.addView(exchangeButton("Export WebVTT","Export captions as WebVTT subtitles") { creatorExchangePending="vtt"; launchCreatorExport("text/vtt","captions.vtt") },matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Export SRT","Export captions as SubRip subtitles") {
+            try { persistCaptions(activeCreatorProject?.captions.orEmpty()); creatorExchangePending="srt"; launchCreatorExport("application/x-subrip","captions.srt") }
+            catch(error:Exception) { captionStatus.text="Could not save transcript before export: ${error.message}" }
+        },matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Export WebVTT","Export captions as WebVTT subtitles") {
+            try { persistCaptions(activeCreatorProject?.captions.orEmpty()); creatorExchangePending="vtt"; launchCreatorExport("text/vtt","captions.vtt") }
+            catch(error:Exception) { captionStatus.text="Could not save transcript before export: ${error.message}" }
+        },matchWidth())
         creatorScriptsPanel.addView(creatorSaveStatus, matchWidth())
         creatorScriptsPanel.addView(creatorTakesSummary, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
