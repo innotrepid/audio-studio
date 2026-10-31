@@ -1012,7 +1012,7 @@ public sealed partial class MainWindow : Window
         }
         foreach (var caption in captions)
         {
-            var row = new StackPanel { Spacing = 6, Padding = new Thickness(10) };
+            var row = new StackPanel { Spacing = 6 };
             row.Children.Add(new TextBlock { Text = caption.StartMs + "–" + caption.EndMs + " ms", FontSize = 11 });
             row.Children.Add(new TextBlock { Text = caption.Text, TextWrapping = TextWrapping.Wrap });
             var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
