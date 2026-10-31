@@ -12,22 +12,24 @@ Before pinning the exact artifact, record its upstream filename, release/revisio
 - Input: 16,000 Hz mono PCM, with tested resampling and explicit sample-format/range handling.
 - Output: transcript segments and word-level start/end timestamps, with confidence/quality metadata where available.
 - Intended use: local narration transcription, word timing, script alignment, retake selection, and caption drafting. Timings are anchors to refine—not guaranteed edit boundaries.
+- Product requirement: Synvidra must work offline immediately after installation, without a post-install model download or separate model setup.
 
 ## Model distribution and repository policy
 
-**Never commit model binaries (`*.bin`, Whisper model files, or Silero model artifacts) to Git.**
+**Bundle the required inference models in distributable APK and Windows release packages.** A user must not need to download models after installing Synvidra.
 
-1. Add explicit ignore rules for model/cache/download directories and model binary extensions, while checking that no tracked source assets are accidentally hidden.
-2. Prefer first-launch download for end-user builds; CI may download pinned artifacts for validation.
-3. Pin exact upstream artifact URLs/revisions and SHA-256 hashes in a text manifest.
-4. Download to a temporary file, verify size and checksum, then atomically move into the model cache.
-5. Show download progress, provide retry/cancel, and explain offline/unavailable-model behavior.
-6. Keep model version and status visible in diagnostics; allow safe replacement/upgrade without damaging projects.
-7. Do not bundle a model in APK or Windows package unless a later measured product decision explicitly requires it.
+1. Do not commit large model binaries into ordinary Git history. Store pinned model artifacts in a controlled upstream release or GitHub Release asset, and have CI retrieve them during packaging. If a model must be supplied manually, provide its official source link and checksum instructions to the project owner for upload to the repository's release assets—not as a normal source commit.
+2. Add explicit ignore rules for temporary model/cache/download directories and model binary extensions, while checking that no tracked source assets are accidentally hidden.
+3. Pin exact upstream artifact URLs/revisions, license notices, SHA-256 hashes, and verified byte sizes in a text manifest.
+4. CI must fetch each pinned artifact, verify size and checksum, and fail packaging on mismatch or unavailable assets.
+5. Package models into each supported release artifact and verify their presence in the APK and Windows package. The app must resolve bundled model paths reliably and must not depend on network access at runtime.
+6. Keep model version and status visible in diagnostics; support safe model replacement/upgrade in a future app update without damaging projects.
+7. Include required model license/attribution notices in the app distribution and documentation. Confirm redistribution terms before bundling any model.
+8. Keep package-size, install-time, storage-footprint, and runtime-memory budgets explicit; do not silently omit a model to meet a size limit.
 
 ## Silero VAD
 
-Evaluate and integrate Silero Voice Activity Detection for speech/silence regions and pause candidates. Confirm the exact upstream artifact, license, version, checksum, supported runtime, and input contract before distribution. VAD regions may propose chunk boundaries, cut points, and room-tone sampling windows; they must not automatically destructively edit source audio.
+Evaluate and integrate Silero Voice Activity Detection for speech/silence regions and pause candidates. Confirm the exact upstream artifact, license, version, checksum, supported runtime, and input contract before distribution. If selected as a required feature, bundle its model in the APK and Windows package under the same verified-artifact policy. VAD regions may propose chunk boundaries, cut points, and room-tone sampling windows; they must not automatically destructively edit source audio.
 
 ## Production audio pipeline
 
@@ -89,7 +91,8 @@ Finish and test the existing Creator/Production foundations first:
 ## Acceptance test matrix
 
 Use deterministic audio fixtures covering clean narration, silence, room tone, pauses, repeated words, flubs, ad-libs, clipped starts/ends, and replacement takes.
-- Model download: fresh install, interrupted download, retry, checksum mismatch, offline start, and model upgrade.
+- Bundled model: verify model presence in fresh APK and Windows package; install and run transcription offline with network disabled.
+- Packaging: verify model checksums, license notices, package contents, and documented size budgets.
 - Resampler: mono/stereo sources, varied sample rates, duration preservation, no unexpected clipping.
 - Transcription: known reference transcript, word timestamps within defined tolerance, empty/no-speech handling.
 - Alignment: skips, insertions, repetitions, ad-libs, and ambiguous matches.
@@ -102,7 +105,7 @@ Use deterministic audio fixtures covering clean narration, silence, room tone, p
 ## Implementation sequence
 
 A. Finish Production markers/replacement-request foundations and recovery tests.
-B. Add model manifest, ignore rules, secure download/cache lifecycle, and diagnostics.
+B. Establish pinned model manifest, redistribution/license review, CI artifact retrieval, APK/Windows bundling, and diagnostics.
 C. Add resampler and Whisper.cpp integration with word-timing tests.
 D. Add Silero VAD and annotated pause tests.
 E. Add script-to-spoken alignment and word-level project schema.
