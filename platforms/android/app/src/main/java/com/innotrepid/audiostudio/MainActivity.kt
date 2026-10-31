@@ -1640,7 +1640,7 @@ class MainActivity : Activity() {
                 Manifest.permission.READ_EXTERNAL_STORAGE
             }
             if (checkSelfPermission(readPermission) != PackageManager.PERMISSION_GRANTED) {
-                libraryStatus.text = "Allow audio-file access to show WAVs in Music/Audio Studio."
+                libraryStatus.text = "Allow audio-file access to show WAVs in Music/Synvidra."
                 diagnosticsCapture.record("library_permission", "requested", mapOf("permission" to readPermission))
                 requestPermissions(arrayOf(readPermission), REQUEST_LIBRARY_AUDIO)
                 return
@@ -1663,7 +1663,7 @@ class MainActivity : Activity() {
                     collection,
                     projection,
                     "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
-                    arrayOf("Music/Audio Studio/%"),
+                    arrayOf("Music/Synvidra/%"),
                     "${MediaStore.MediaColumns.DATE_ADDED} DESC"
                 )?.use { cursor ->
                     val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
@@ -1674,7 +1674,7 @@ class MainActivity : Activity() {
                         scannedRows++
                         val name = cursor.getString(nameColumn) ?: continue
                         if (!name.endsWith(".wav", ignoreCase = true)) continue
-                        val folder = cursor.getString(pathColumn)?.substringAfter("Audio Studio/")?.trimEnd('/') ?: "Audio Studio"
+                        val folder = cursor.getString(pathColumn)?.substringAfter("Synvidra/")?.trimEnd('/') ?: "Audio Studio"
                         val category = when {
                             folder.contains("Processed", ignoreCase = true) -> "Processed copy"
                             folder.contains("Trim", ignoreCase = true) -> "Trimmed export"
@@ -2781,35 +2781,8 @@ class MainActivity : Activity() {
             creatorExchangePending = null
             return
         }
-        if (requestCode == REQUEST_CREATOR_EXPORT) {
-            val kind = creatorExchangePending
-            creatorExchangePending = null
-            if (resultCode == RESULT_OK && data?.data != null && kind != null) {
-                try {
-                    val project = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
-                    val script = project.scripts.firstOrNull { it.scriptId == selectedCreatorScriptId } ?: project.scripts.first()
-                    val content = when (kind) {
-                        "project" -> creatorProjectStore!!.exportJson(project)
-                        "narration" -> creatorProjectStore!!.exportNarration(script)
-                        "production" -> creatorProjectStore!!.exportProductionCopy(script)
-                        "srt" -> creatorProjectStore!!.exportSrt(project.captions)
-                        "vtt" -> creatorProjectStore!!.exportWebVtt(project.captions)
-                        else -> throw IOException("Unknown export type.")
-                    }
-                    contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-                        ?: throw IOException("Could not write the selected destination.")
-                    statusText.text = "Export complete · ${data.data!!.lastPathSegment}"
-                } catch (error: Exception) {
-                    statusText.text = "Export failed: ${error.message}"
-                }
-            } else statusText.text = "Export cancelled."
-            return
-        }
-        if (requestCode == REQUEST_DIAGNOSTICS_EXPORT) {
-            if (resultCode == RESULT_OK && data?.data != null) exportDiagnostics(data.data!!)
-            else diagnosticsCapture.record("diagnostics_export", "cancelled")
-            return
-        }
+
+
         if (requestCode == REQUEST_WAVEFORM) {
             wavPickerActive = false
             diagnosticsCapture.record("waveform_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
@@ -3061,7 +3034,7 @@ class MainActivity : Activity() {
             put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")
             put(
                 MediaStore.Audio.Media.RELATIVE_PATH,
-                Environment.DIRECTORY_MUSIC + "/Audio Studio/" + folder
+                Environment.DIRECTORY_MUSIC + "/Synvidra/" + folder
             )
             put(MediaStore.Audio.Media.IS_PENDING, 1)
         }
@@ -3160,18 +3133,22 @@ class MainActivity : Activity() {
     }
 
     private fun chooseDiagnosticsExport() {
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TITLE, "audio-studio-diagnostics.txt")
-        }
-        try {
-            startActivityForResult(intent, REQUEST_DIAGNOSTICS_EXPORT)
-            diagnosticsCapture.record("diagnostics_export", "picker_opened")
-        } catch (exception: Exception) {
-            diagnosticsCapture.record("diagnostics_export", "picker_failed", error = exception)
-            libraryStatusMessage("Could not open diagnostics export: ${exception.message ?: "unknown error"}")
-        }
+        Thread {
+            try {
+                val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                val uri = publishTextExport(
+                    diagnosticsCapture.reportBytes(),
+                    "Synvidra_Export_Diagnostics_$timestamp.txt",
+                    "Exports",
+                    "text/plain"
+                )
+                diagnosticsCapture.record("diagnostics_export", "success", mapOf("uri" to uri.toString()))
+                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Diagnostics report exported and verified to Music/Synvidra/Exports. It contains no audio samples." }
+            } catch (exception: Exception) {
+                diagnosticsCapture.record("diagnostics_export", "failure", error = exception)
+                mainHandler.post { if (!isFinishing && !isDestroyed) libraryStatusMessage("Diagnostics export failed: ${exception.message ?: "unknown error"}") }
+            }
+        }.start()
     }
 
     private fun libraryStatusMessage(message: String) {
@@ -3180,31 +3157,7 @@ class MainActivity : Activity() {
         statusText.text = message
     }
 
-    private fun exportDiagnostics(destination: Uri) {
-        Thread {
-            try {
-                val report = diagnosticsCapture.reportBytes()
-                contentResolver.openOutputStream(destination, "w")?.use { it.write(report) }
-                    ?: throw IOException("Could not open the chosen diagnostics destination.")
-                val exported = contentResolver.openInputStream(destination)?.use { input ->
-                    var count = 0L
-                    val buffer = ByteArray(8192)
-                    while (true) {
-                        val n = input.read(buffer)
-                        if (n < 0) break
-                        count += n
-                    }
-                    count
-                } ?: throw IOException("Could not verify the exported diagnostics report.")
-                if (exported != report.size.toLong()) throw IOException("Diagnostics report verification failed.")
-                diagnosticsCapture.record("diagnostics_export", "success", mapOf("report_bytes" to exported))
-                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Diagnostics report exported and verified. It contains no audio samples." }
-            } catch (exception: Exception) {
-                diagnosticsCapture.record("diagnostics_export", "failure", error = exception)
-                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Diagnostics export failed: ${exception.message ?: "unknown error"}" }
-            }
-        }.start()
-    }
+
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -3301,13 +3254,72 @@ class MainActivity : Activity() {
     }
 
     private fun launchCreatorExport(mimeType: String, filename: String) {
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = mimeType
-            putExtra(Intent.EXTRA_TITLE, filename)
+        val kind = creatorExchangePending ?: return
+        creatorExchangePending = null
+        Thread {
+            try {
+                val project = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
+                val script = project.scripts.firstOrNull { it.scriptId == selectedCreatorScriptId } ?: project.scripts.first()
+                val content = when (kind) {
+                    "project" -> creatorProjectStore!!.exportJson(project)
+                    "narration" -> creatorProjectStore!!.exportNarration(script)
+                    "production" -> creatorProjectStore!!.exportProductionCopy(script)
+                    "srt" -> creatorProjectStore!!.exportSrt(project.captions)
+                    "vtt" -> creatorProjectStore!!.exportWebVtt(project.captions)
+                    else -> throw IOException("Unknown export type.")
+                }
+                val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                val subtitles = kind == "srt" || kind == "vtt"
+                val extension = filename.substringAfterLast('.', "txt")
+                val outputName = if (subtitles) "Synvidra_Subtitles_$timestamp.$extension"
+                    else "Synvidra_Export_${kind.replace(Regex("[^A-Za-z0-9_-]"), "_")}_$timestamp.$extension"
+                val uri = publishTextExport(content.toByteArray(Charsets.UTF_8), outputName,
+                    if (subtitles) "Subtitles" else "Exports", mimeType)
+                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Export verified · Music/Synvidra/${if (subtitles) "Subtitles" else "Exports"}/$outputName" }
+            } catch (error: Exception) {
+                mainHandler.post { if (!isFinishing && !isDestroyed) statusText.text = "Export failed: ${error.message ?: "unknown error"}" }
+            }
+        }.start()
+    }
+
+    @Throws(IOException::class)
+    private fun publishTextExport(bytes: ByteArray, filename: String, folder: String, mimeType: String): Uri {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) throw IOException("Automatic public exports require Android 10 or later; your content remains available in the app.")
+        val base = filename.substringBeforeLast('.')
+        val extension = filename.substringAfterLast('.', "")
+        var candidate = filename
+        var suffix = 1
+        val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        fun exists(name: String): Boolean {
+            val relative = Environment.DIRECTORY_MUSIC + "/Synvidra/$folder/"
+            contentResolver.query(collection, arrayOf(MediaStore.Files.FileColumns._ID),
+                "${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.DISPLAY_NAME}=?",
+                arrayOf(relative, name), null)?.use { return it.moveToFirst() }
+            return false
         }
-        try { startActivityForResult(intent, REQUEST_CREATOR_EXPORT) }
-        catch (error: Exception) { creatorExchangePending = null; statusText.text = "Export picker unavailable: ${error.message}" }
+        while (exists(candidate)) { candidate = "$base ($suffix).$extension"; suffix++ }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, candidate)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/Synvidra/$folder")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = contentResolver.insert(collection, values) ?: throw IOException("Could not create public export.")
+        try {
+            contentResolver.openOutputStream(uri, "w")?.use { it.write(bytes) } ?: throw IOException("Could not write export.")
+            val count = contentResolver.openInputStream(uri)?.use { input ->
+                val buffer = ByteArray(8192); var total = 0L
+                while (true) { val n = input.read(buffer); if (n < 0) break; total += n }
+                total
+            } ?: throw IOException("Could not verify export.")
+            if (count != bytes.size.toLong()) throw IOException("Export verification failed: expected ${bytes.size}, found $count bytes.")
+            val finalized = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
+            if (contentResolver.update(uri, finalized, null, null) <= 0) throw IOException("Could not finalize export.")
+            return uri
+        } catch (error: Exception) {
+            contentResolver.delete(uri, null, null)
+            throw error
+        }
     }
 
     private fun matchWidth(): LinearLayout.LayoutParams =
