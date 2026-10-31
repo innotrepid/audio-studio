@@ -2162,9 +2162,17 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            var candidates = Directory.GetFiles(folder.Path)
+            var privateStagingDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AudioStudio", "recording-staging");
+            var candidateDirectories = new[] { folder.Path, privateStagingDirectory }
+                .Where(Directory.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            var candidates = candidateDirectories
+                .SelectMany(directory => Directory.GetFiles(directory))
                 .Where(path => System.Text.RegularExpressions.Regex.IsMatch(
                     Path.GetFileName(path), @"\.partial-[0-9]+$"))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             if (candidates.Length == 0)
