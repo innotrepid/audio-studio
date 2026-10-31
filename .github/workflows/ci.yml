@@ -147,9 +147,11 @@ jobs:
         run: gradle -p platforms/android :app:testDebugUnitTest
       - name: Build Android debug APK
         run: gradle -p platforms/android :app:assembleDebug
+      - name: Stage Synvidra-branded Android APK
+        run: cp platforms/android/app/build/outputs/apk/debug/app-debug.apk platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
           name: synvidra-android-debug
-          path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          path: platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk
           if-no-files-found: error
