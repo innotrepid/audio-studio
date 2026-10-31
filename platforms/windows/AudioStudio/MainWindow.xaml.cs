@@ -1284,6 +1284,43 @@ public sealed partial class MainWindow : Window
         _creatorSaveTimer.Start();
     }
 
+    private async void CreatorCreateTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        var choices = new[] { "YouTube / video intro", "Podcast", "Tutorial", "Product promo" };
+        var picker = new ComboBox { ItemsSource = choices, SelectedIndex = 0, MinWidth = 260 };
+        var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+        {
+            Title = "Create script from template", Content = picker,
+            PrimaryButtonText = "Create", CloseButtonText = "Cancel",
+            DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Primary, XamlRoot = Content.XamlRoot
+        };
+        if (await dialog.ShowAsync() != Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary || _creatorProject is null || _creatorStore is null) return;
+        try
+        {
+            var key = new[] { "youtube", "podcast", "tutorial", "product promo" }[Math.Max(0, picker.SelectedIndex)];
+            var script = CreatorProjectStore.CreateTemplate(picker.SelectedItem?.ToString() ?? key, key);
+            _creatorProject.Scripts.Add(script); _creatorStore.Save(_creatorProject);
+            CreatorSaveStatusText.Text = $"Created and saved template: {script.Title}. Select it from the project to edit.";
+        }
+        catch (Exception error) { CreatorSaveStatusText.Text = $"Template creation failed: {error.Message}"; }
+    }
+
+    private async void CreatorInsertMarker_Click(object sender, RoutedEventArgs e)
+    {
+        var markers = new[] { "[INTRO]", "[MAIN POINT]", "[PAUSE]", "[EMPHASIS]", "[MUSIC]", "[SFX]", "[RETAKE]", "[CHAPTER]", "[CAPTION BREAK]", "[OUTRO]" };
+        var picker = new ComboBox { ItemsSource = markers, SelectedIndex = 0, MinWidth = 260 };
+        var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+        {
+            Title = "Insert production marker", Content = picker,
+            PrimaryButtonText = "Insert", CloseButtonText = "Cancel",
+            DefaultButton = Microsoft.UI.Xaml.Controls.ContentDialogButton.Primary, XamlRoot = Content.XamlRoot
+        };
+        if (await dialog.ShowAsync() != Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary || picker.SelectedItem is not string marker) return;
+        var start = CreatorScriptBodyBox.SelectionStart; var length = CreatorScriptBodyBox.SelectionLength;
+        CreatorScriptBodyBox.Text = CreatorScriptBodyBox.Text.Remove(start, length).Insert(start, marker + " ");
+        CreatorScriptBodyBox.SelectionStart = start + marker.Length + 1;
+        CreatorSaveStatusText.Text = "Marker inserted. Save script to keep the change.";
+    }
     private void CreatorSave_Click(object sender, RoutedEventArgs e)
     {
         _creatorSaveTimer.Stop();
