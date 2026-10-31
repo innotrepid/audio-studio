@@ -229,6 +229,32 @@ internal sealed class CreatorProjectStore
                 (string.IsNullOrWhiteSpace(section.Notes) ? string.Empty : "Notes: " + section.Notes + Environment.NewLine) +
                 section.Text));
 
+    // Starter outlines use editable prompts rather than generated narration.
+    internal static ScriptDocument CreateTemplate(string title, string template)
+    {
+        var now = DateTime.UtcNow.ToString("O");
+        var outline = template.Trim().ToLowerInvariant() switch
+        {
+            "youtube" or "video intro" => new[] { ("Hook", "[HOOK]\\nOpen with the viewer's problem or curiosity."), ("Intro", "[INTRO]\\nIntroduce the topic and promise."), ("Main points", "[MAIN POINT]\\nDeliver the key information."), ("Outro", "[OUTRO]\\nSummarize and invite the next action.") },
+            "podcast" => new[] { ("Cold open", "[INTRO]\\nStart with a compelling moment."), ("Welcome", "Welcome listeners and introduce the episode."), ("Discussion", "[MAIN POINT]\\nEpisode discussion and stories."), ("Wrap-up", "[OUTRO]\\nRecap, credits, and next episode.") },
+            "tutorial" => new[] { ("Outcome", "[INTRO]\\nShow what the viewer will learn."), ("Prerequisites", "List tools or knowledge needed."), ("Steps", "[MAIN POINT]\\nExplain the process step by step."), ("Recap", "[OUTRO]\\nReview the result and next steps.") },
+            "product promo" or "promo" => new[] { ("Problem", "[INTRO]\\nIdentify the audience's pain point."), ("Solution", "[MAIN POINT]\\nIntroduce the product and benefit."), ("Proof", "Add a specific, verifiable proof point."), ("Call to action", "[OUTRO]\\nState one clear next action.") },
+            _ => throw new ArgumentException("Choose YouTube/video intro, podcast, tutorial, or product promo.", nameof(template))
+        };
+        return new ScriptDocument
+        {
+            ScriptId = Guid.NewGuid().ToString(),
+            Title = string.IsNullOrWhiteSpace(title) ? template : title.Trim(),
+            CreatedUtc = now,
+            UpdatedUtc = now,
+            Sections = outline.Select((item, index) => new SectionDocument
+            {
+                SectionId = Guid.NewGuid().ToString(), Title = item.Item1,
+                Text = item.Item2, Order = index
+            }).ToList()
+        };
+    }
+
     private static void Validate(ProjectDocument project)
     {
         if (project.SchemaVersion != 1)
