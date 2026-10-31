@@ -981,6 +981,70 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private async void CreatorImportProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (_creatorStore is null) { CreatorSaveStatusText.Text = "Creator storage is unavailable."; return; }
+        try
+        {
+            var picker = new FileOpenPicker();
+            picker.FileTypeFilter.Add(".json");
+            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+            var file = await picker.PickSingleFileAsync();
+            if (file is null) { CreatorSaveStatusText.Text = "Import cancelled. Current project unchanged."; return; }
+            if (new FileInfo(file.Path).Length > 1_048_576) throw new InvalidDataException("Project file exceeds the 1 MB safety limit.");
+            var json = await FileIO.ReadTextAsync(file);
+            var imported = _creatorStore.ImportJson(json); // Validate before replacing current project.
+            _creatorStore.Save(imported);
+            _creatorProject = imported;
+            _selectedCreatorSectionIndex = 0;
+            var script = imported.Scripts[0];
+            _loadingCreatorEditor = true;
+            CreatorScriptTitleBox.Text = script.Title;
+            CreatorSectionComboBox.ItemsSource = script.Sections.OrderBy(s => s.Order).Select(s => s.Title).ToList();
+            CreatorSectionComboBox.SelectedIndex = 0;
+            CreatorScriptBodyBox.Text = script.Sections.OrderBy(s => s.Order).First().Text;
+            TeleprompterScriptText.Text = CreatorScriptBodyBox.Text;
+            CreatorTakesSummaryText.Text = $"Linked takes: {imported.Takes.Count}";
+            _loadingCreatorEditor = false;
+            CreatorSaveStatusText.Text = "Project imported, validated, and saved. Existing audio files were not changed.";
+        }
+        catch (Exception error) { _loadingCreatorEditor = false; CreatorSaveStatusText.Text = $"Import failed — current project was preserved: {error.Message}"; }
+    }
+
+    private async void CreatorExportProject_Click(object sender, RoutedEventArgs e) =>
+        await ExportCreatorTextAsync("project", "audio-studio-project.json", ".json");
+
+    private async void CreatorExportNarration_Click(object sender, RoutedEventArgs e) =>
+        await ExportCreatorTextAsync("narration", "narration.txt", ".txt");
+
+    private async void CreatorExportProduction_Click(object sender, RoutedEventArgs e) =>
+        await ExportCreatorTextAsync("production", "production-copy.txt", ".txt");
+
+    private async Task ExportCreatorTextAsync(string kind, string suggestedName, string extension)
+    {
+        if (_creatorStore is null || _creatorProject is null) { CreatorSaveStatusText.Text = "No Creator project is loaded."; return; }
+        try
+        {
+            var picker = new FileSavePicker();
+            picker.FileTypeChoices.Add(extension == ".json" ? "JSON project" : "Text document", new List<string> { extension });
+            picker.SuggestedFileName = suggestedName;
+            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
+            var file = await picker.PickSaveFileAsync();
+            if (file is null) { CreatorSaveStatusText.Text = "Export cancelled."; return; }
+            var script = _creatorProject.Scripts[0];
+            var content = kind switch
+            {
+                "project" => _creatorStore.ExportJson(_creatorProject),
+                "narration" => CreatorProjectStore.ExportNarration(script),
+                "production" => CreatorProjectStore.ExportProductionCopy(script),
+                _ => throw new InvalidOperationException("Unknown export type.")
+            };
+            await FileIO.WriteTextAsync(file, content);
+            CreatorSaveStatusText.Text = $"Exported and saved · {file.Name}";
+        }
+        catch (Exception error) { CreatorSaveStatusText.Text = $"Export failed: {error.Message}"; }
+    }
+
     private void InitializeCreatorWorkspace()
     {
         try
