@@ -139,8 +139,8 @@ internal class CreatorDraftStore(context: Context) {
                 val s = sectionsJson.getJSONObject(j)
                 val cues = s.optJSONArray("cues") ?: JSONArray()
                 CreatorProjectStore.Section(
-                    s.getString("sectionId"), s.getString("title"), s.optString("text"),
-                    s.optInt("order"), s.optString("notes"),
+                    s.getString("sectionId"), s.getString("title"), s.optString("text", ""),
+                    s.optInt("order"), s.optString("notes", ""),
                     (0 until cues.length()).map { cues.getString(it) }
                 )
             }
