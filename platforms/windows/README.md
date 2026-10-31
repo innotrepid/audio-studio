@@ -6,7 +6,7 @@ The Windows shell uses C# and WinUI 3. It calls a narrow C ABI exported by the s
 
 Use Visual Studio 2022 with the Windows App SDK / WinUI tooling and .NET 8. Repository CI builds and tests the C++ core, then builds the WinUI shell and packages the native engine DLL beside it.
 
-CI publishes an **unpackaged, self-contained Windows x64 build** as the `audio-studio-windows-self-contained` artifact. It opts into Windows App SDK self-contained deployment and includes the native audio engine DLL, so it should not require the Windows App Runtime 1.6 framework package to be preinstalled. Download and extract the complete artifact folder, then launch `AudioStudio.exe` without moving it away from its companion files. This is a portable deployment folder, not an MSIX installer; the Windows OS minimum still applies.
+CI publishes an **unpackaged, self-contained Windows x64 build** as the `audio-studio-windows-self-contained` artifact. It opts into Windows App SDK self-contained deployment and includes the native audio engine DLL, so it should not require the Windows App Runtime 1.6 framework package to be preinstalled. Download and extract the complete artifact folder, then launch `Synvidra.exe` without moving it away from its companion files. This is a portable deployment folder, not an MSIX installer; the Windows OS minimum still applies.
 
 ## Recording and recovery
 
@@ -18,7 +18,7 @@ If initialization or main-window creation throws a managed exception, the app at
 
 `%LOCALAPPDATA%\AudioStudio\startup.log`
 
-Unhandled application, WinUI UI-thread, and unobserved task exceptions are also logged where possible. These diagnostics cannot capture every failure: for example, Windows may terminate the process before managed code starts or before the logger can run. If no dialog or log appears, check **Event Viewer → Windows Logs → Application** for an `AudioStudio.exe`, `.NET Runtime`, or `Application Error` entry.
+Unhandled application, WinUI UI-thread, and unobserved task exceptions are also logged where possible. These diagnostics cannot capture every failure: for example, Windows may terminate the process before managed code starts or before the logger can run. If no dialog or log appears, check **Event Viewer → Windows Logs → Application** for an `Synvidra.exe`, `.NET Runtime`, or `Application Error` entry.
 
 
 ## UI and product direction
