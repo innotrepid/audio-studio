@@ -1401,15 +1401,17 @@ public sealed partial class MainWindow : Window
     {
         if (_loadingCreatorEditor || _creatorProject is null)
             return;
-        var script = _creatorProject.Scripts[0];
+        var script = SelectedCreatorScript;
+        if (script is null) return;
+        var orderedSections = script.Sections.OrderBy(item => item.Order).ToList();
         var index = CreatorSectionComboBox.SelectedIndex;
-        if (index < 0 || index >= script.Sections.Count || index == _selectedCreatorSectionIndex)
+        if (index < 0 || index >= orderedSections.Count || index == _selectedCreatorSectionIndex)
             return;
         SaveCreatorScript();
         _selectedCreatorSectionIndex = index;
         _loadingCreatorEditor = true;
-        CreatorScriptBodyBox.Text = script.Sections[index].Text;
-        TeleprompterScriptText.Text = script.Sections[index].Text;
+        CreatorScriptBodyBox.Text = orderedSections[index].Text;
+        TeleprompterScriptText.Text = orderedSections[index].Text;
         _loadingCreatorEditor = false;
     }
 
@@ -1491,10 +1493,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            var script = _creatorProject.Scripts[0];
-            _selectedCreatorScriptId = script.ScriptId;
-            CreatorScriptComboBox.ItemsSource = _creatorProject.Scripts.Select(item => item.Title).ToList();
-            CreatorScriptComboBox.SelectedIndex = 0;
+            var script = SelectedCreatorScript ?? throw new InvalidOperationException("No Creator script is selected.");
             if (_selectedCreatorSectionIndex < 0 || _selectedCreatorSectionIndex >= script.Sections.Count)
                 throw new InvalidOperationException("Select a valid script section before saving.");
             script.Title = title;
