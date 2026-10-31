@@ -1039,6 +1039,7 @@ class MainActivity : Activity() {
                     if (updatingCreatorSection) return
                     val latest = activeCreatorProject?.scripts?.firstOrNull() ?: return
                     val nextSection = latest.sections.getOrNull(position) ?: return
+                    if (selectedCreatorSectionId != null) saveCreatorScript()
                     selectedCreatorSectionId = nextSection.sectionId
                     updatingCreatorSection = true
                     creatorBodyInput.setText(nextSection.text)
