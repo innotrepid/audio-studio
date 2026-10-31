@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\AudioStudio\CreatorProjectStore.cs" Link="CreatorProjectStore.cs" />
+    <Compile Include="..\AudioStudio\CreatorDraftStore.cs" Link="CreatorDraftStore.cs" />
   </ItemGroup>
 </Project>

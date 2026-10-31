@@ -28,24 +28,75 @@ internal sealed class CreatorDraftStore
         WriteIndented = true
     };
     private readonly string _path;
+    private string BackupPath => _path + ".bak";
     private const int MaxBytes = 1_048_576;
 
-    internal CreatorDraftStore()
+    internal CreatorDraftStore(string? rootDirectory = null)
     {
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AudioStudio", "Creator");
+        var folder = rootDirectory is null
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AudioStudio", "Creator")
+            : Path.GetFullPath(rootDirectory);
         Directory.CreateDirectory(folder);
         _path = Path.Combine(folder, "drafts.json");
     }
 
     internal DraftDocument? Load()
     {
-        if (!File.Exists(_path)) return null;
-        if (new FileInfo(_path).Length > MaxBytes) throw new InvalidDataException("Draft data exceeds the 1 MB safety limit.");
-        var document = JsonSerializer.Deserialize<DraftDocument>(File.ReadAllBytes(_path), Options)
+        if (!File.Exists(_path) && !File.Exists(BackupPath)) return null;
+
+        Exception? primaryError = null;
+        if (File.Exists(_path))
+        {
+            try { return ReadAndValidate(_path); }
+            catch (Exception error) { primaryError = error; }
+        }
+
+        if (File.Exists(BackupPath))
+        {
+            try
+            {
+                var recovered = ReadAndValidate(BackupPath);
+                RestorePrimaryWithoutRotatingBackup(recovered);
+                return recovered;
+            }
+            catch (Exception backupError)
+            {
+                throw new InvalidDataException(
+                    $"The named drafts and their recovery copy are invalid. Both files were preserved. Primary: {primaryError?.Message ?? "missing"}. Backup: {backupError.Message}",
+                    backupError);
+            }
+        }
+
+        throw new InvalidDataException(
+            $"The saved named drafts are invalid and were preserved: {primaryError?.Message ?? "unknown error"}",
+            primaryError);
+    }
+
+    private DraftDocument ReadAndValidate(string path)
+    {
+        if (new FileInfo(path).Length > MaxBytes)
+            throw new InvalidDataException("Draft data exceeds the 1 MB safety limit.");
+        var document = JsonSerializer.Deserialize<DraftDocument>(File.ReadAllBytes(path), Options)
             ?? throw new InvalidDataException("Draft document is empty.");
         Validate(document);
         return document;
+    }
+
+    private void RestorePrimaryWithoutRotatingBackup(DraftDocument document)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(document, Options);
+        var temporary = _path + ".recovery.tmp";
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporary, _path, overwrite: true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 
     internal void Save(DraftDocument document)
@@ -54,7 +105,6 @@ internal sealed class CreatorDraftStore
         var bytes = JsonSerializer.SerializeToUtf8Bytes(document, Options);
         if (bytes.Length > MaxBytes) throw new InvalidDataException("Draft data exceeds the 1 MB safety limit.");
         var temporary = _path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        var backup = _path + ".bak";
         try
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
@@ -62,7 +112,7 @@ internal sealed class CreatorDraftStore
                 stream.Write(bytes);
                 stream.Flush(flushToDisk: true);
             }
-            if (File.Exists(_path)) File.Replace(temporary, _path, backup, ignoreMetadataErrors: true);
+            if (File.Exists(_path)) File.Replace(temporary, _path, BackupPath, ignoreMetadataErrors: true);
             else File.Move(temporary, _path);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }

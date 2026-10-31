@@ -8,7 +8,9 @@ try
     RecoveryRestoresLastValidGeneration(Path.Combine(root, "recovery"));
     InvalidPrimaryIsPreserved(Path.Combine(root, "invalid"));
     InvalidTakeReferencesAreRejected(Path.Combine(root, "validation"));
-    Console.WriteLine("Creator project persistence tests passed (4 scenarios).");
+    DraftsRoundTripAndRecover(Path.Combine(root, "draft-recovery"));
+    InvalidDraftPrimaryIsPreserved(Path.Combine(root, "draft-invalid"));
+    Console.WriteLine("Creator project and named-draft persistence tests passed (6 scenarios).");
 }
 finally
 {
@@ -53,14 +55,8 @@ static void InvalidPrimaryIsPreserved(string root)
     File.WriteAllText(primary, malformed);
 
     var threw = false;
-    try
-    {
-        new CreatorProjectStore(root).LoadOrCreate();
-    }
-    catch (InvalidDataException)
-    {
-        threw = true;
-    }
+    try { new CreatorProjectStore(root).LoadOrCreate(); }
+    catch (InvalidDataException) { threw = true; }
 
     Assert(threw, "Malformed project without backup should fail safely.");
     Assert(File.ReadAllText(primary) == malformed, "Malformed source file should remain available for diagnosis.");
@@ -72,25 +68,58 @@ static void InvalidTakeReferencesAreRejected(string root)
     var project = store.LoadOrCreate().Project;
     project.Takes.Add(new CreatorProjectStore.TakeDocument
     {
-        TakeId = Guid.NewGuid().ToString(),
-        SourcePath = Path.Combine(root, "take.wav"),
-        DurationMs = 1200,
-        SampleRateHz = 48000,
-        Channels = 1,
-        ScriptId = "missing-script",
-        SectionId = "missing-section"
+        TakeId = Guid.NewGuid().ToString(), SourcePath = Path.Combine(root, "take.wav"),
+        DurationMs = 1200, SampleRateHz = 48000, Channels = 1,
+        ScriptId = "missing-script", SectionId = "missing-section"
     });
 
     var threw = false;
-    try
-    {
-        store.Save(project);
-    }
-    catch (InvalidDataException)
-    {
-        threw = true;
-    }
+    try { store.Save(project); }
+    catch (InvalidDataException) { threw = true; }
     Assert(threw, "A take referencing a missing script must be rejected.");
+}
+
+static void DraftsRoundTripAndRecover(string root)
+{
+    Directory.CreateDirectory(root);
+    var projectRoot = Path.Combine(root, "project");
+    var script = new CreatorProjectStore(projectRoot).LoadOrCreate().Project.Scripts[0];
+    var store = new CreatorDraftStore(Path.Combine(root, "drafts"));
+    var document = CreatorDraftStore.Create("First draft", script, null);
+    document = CreatorDraftStore.Create("Second draft", script, document);
+    store.Save(document);
+
+    var changedScript = new CreatorProjectStore.ScriptDocument
+    {
+        ScriptId = script.ScriptId, Title = "Updated script",
+        Sections = script.Sections
+    };
+    CreatorDraftStore.Update(document, document.ActiveDraftId, "Renamed second", changedScript);
+    store.Save(document);
+
+    var primary = Path.Combine(root, "drafts", "drafts.json");
+    File.WriteAllText(primary, "{ malformed");
+    var recovered = new CreatorDraftStore(Path.Combine(root, "drafts")).Load();
+
+    Assert(recovered is not null, "A valid draft backup should be recovered.");
+    Assert(recovered!.Drafts.Count == 2, "Recovery should preserve both named drafts.");
+    Assert(recovered.Drafts.Any(d => d.Name == "Second draft"), "Recovery should restore the previous valid draft generation.");
+    Assert(File.ReadAllText(primary).Contains("Second draft", StringComparison.Ordinal), "Recovered draft primary was not restored.");
+}
+
+static void InvalidDraftPrimaryIsPreserved(string root)
+{
+    Directory.CreateDirectory(root);
+    var primary = Path.Combine(root, "drafts.json");
+    const string malformed = "{ invalid draft JSON";
+    File.WriteAllText(primary, malformed);
+
+    var threw = false;
+    try { new CreatorDraftStore(root).Load(); }
+    catch (InvalidDataException) { threw = true; }
+
+    Assert(threw, "Malformed named drafts without backup should fail safely.");
+    Assert(File.ReadAllText(primary) == malformed, "Malformed named-draft source should be preserved.");
 }
 
 static void Assert(bool condition, string message)
