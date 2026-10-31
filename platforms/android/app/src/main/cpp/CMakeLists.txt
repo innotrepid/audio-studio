@@ -4,6 +4,20 @@ project(audio_studio_android LANGUAGES CXX)
 include(FetchContent)
 
 # Keep Android on the exact same DSP revision as the desktop builds.
+# Pinned whisper.cpp CPU inference runtime; no network/model access at runtime.
+set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(WHISPER_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(whisper_cpp
+    GIT_REPOSITORY https://github.com/ggml-org/whisper.cpp.git
+    GIT_TAG 5359861c739e955e79d9a303bcbc70fb988958b1
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(whisper_cpp)
+
+
 set(DSP_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(DSP_BUILD_STATIC ON CACHE BOOL "" FORCE)
 set(DSP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -60,5 +74,5 @@ target_link_libraries(audio_studio_core PUBLIC dsp_engine_static noise_cancellat
 find_package(oboe REQUIRED CONFIG)
 
 target_link_libraries(audio_studio_android
-    PRIVATE audio_studio_core oboe::oboe log dl m
+    PRIVATE audio_studio_core whisper oboe::oboe log dl m
 )
