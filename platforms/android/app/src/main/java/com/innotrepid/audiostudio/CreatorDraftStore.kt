@@ -138,21 +138,18 @@ internal class CreatorDraftStore(context: Context) {
             val sections = (0 until sectionsJson.length()).map { j ->
                 val s = sectionsJson.getJSONObject(j)
                 val cues = s.optJSONArray("cues") ?: JSONArray()
-                SectionDecode(s, cues)
-            }.map { it.section }
+                CreatorProjectStore.Section(
+                    s.getString("sectionId"), s.getString("title"), s.optString("text"),
+                    s.optInt("order"), s.optString("notes"),
+                    (0 until cues.length()).map { cues.getString(it) }
+                )
+            }
             val script = CreatorProjectStore.Script(obj.getString("scriptId"), obj.getString("title"),
-                obj.getString("createdUtc"), obj.getString("updatedUtc"), sections)
+                obj.optString("createdUtc", item.getString("createdUtc")), obj.optString("updatedUtc", item.getString("updatedUtc")), sections)
             drafts += Draft(item.getString("draftId"), item.getString("name"), item.getString("createdUtc"),
                 item.getString("updatedUtc"), script)
         }
         return Document(drafts, root.getString("activeDraftId")).also(::validate)
     }
 
-    private data class SectionDecode(val section: JSONObject, val cues: JSONArray) {
-        val section: CreatorProjectStore.Section = CreatorProjectStore.Section(
-            section.getString("sectionId"), section.getString("title"), section.optString("text"),
-            section.optInt("order"), section.optString("notes"),
-            (0 until cues.length()).map { cues.getString(it) }
-        )
-    }
 }
