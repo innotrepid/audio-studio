@@ -14,6 +14,8 @@ internal sealed class CreatorProjectStore
         public string UpdatedUtc { get; set; } = DateTime.UtcNow.ToString("O");
         public List<ScriptDocument> Scripts { get; set; } = new();
         public List<TakeDocument> Takes { get; set; } = new();
+        public string Transcript { get; set; } = string.Empty;
+        public List<CaptionDocument> Captions { get; set; } = new();
     }
 
     internal sealed class ScriptDocument
@@ -33,6 +35,14 @@ internal sealed class CreatorProjectStore
         public int Order { get; set; }
         public string Notes { get; set; } = string.Empty;
         public List<string> Cues { get; set; } = new();
+    }
+
+    internal sealed class CaptionDocument
+    {
+        public string CaptionId { get; set; } = Guid.NewGuid().ToString();
+        public long StartMs { get; set; }
+        public long EndMs { get; set; }
+        public string Text { get; set; } = string.Empty;
     }
 
     internal sealed class TakeDocument
@@ -216,6 +226,50 @@ internal sealed class CreatorProjectStore
         return project;
     }
 
+    /// <summary>Creates estimated caption windows from reading pace, not audio-aligned timestamps.</summary>
+    internal static List<CaptionDocument> GenerateDraftCaptions(string transcript, int maxWords, int wordsPerMinute = 150)
+    {
+        if (maxWords is < 3 or > 30) throw new ArgumentOutOfRangeException(nameof(maxWords), "Words per caption must be between 3 and 30.");
+        if (wordsPerMinute is < 30 or > 300) throw new ArgumentOutOfRangeException(nameof(wordsPerMinute), "Reading pace must be between 30 and 300 words per minute.");
+        var words = (transcript ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        long cursor = 0;
+        return words.Chunk(maxWords).Select(chunk =>
+        {
+            var duration = Math.Max(1_000L, (long)Math.Ceiling(chunk.Length * 60_000.0 / wordsPerMinute));
+            var caption = new CaptionDocument { StartMs = cursor, EndMs = cursor + duration, Text = string.Join(" ", chunk) };
+            cursor += duration;
+            return caption;
+        }).ToList();
+    }
+
+    internal static string ExportSrt(IEnumerable<CaptionDocument> captions)
+    {
+        var ordered = captions.OrderBy(caption => caption.StartMs).ToList();
+        return ordered.Count == 0 ? string.Empty : string.Join(Environment.NewLine + Environment.NewLine,
+            ordered.Select((caption, index) =>
+                (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + Environment.NewLine +
+                FormatCaptionTime(caption.StartMs, ',') + " --> " + FormatCaptionTime(caption.EndMs, ',') +
+                Environment.NewLine + caption.Text)) + Environment.NewLine;
+    }
+
+    internal static string ExportWebVtt(IEnumerable<CaptionDocument> captions)
+    {
+        var ordered = captions.OrderBy(caption => caption.StartMs).ToList();
+        return "WEBVTT" + Environment.NewLine + Environment.NewLine +
+            (ordered.Count == 0 ? string.Empty : string.Join(Environment.NewLine + Environment.NewLine,
+                ordered.Select(caption => FormatCaptionTime(caption.StartMs, '.') + " --> " +
+                    FormatCaptionTime(caption.EndMs, '.') + Environment.NewLine + caption.Text)) + Environment.NewLine);
+    }
+
+    private static string FormatCaptionTime(long milliseconds, char separator)
+    {
+        var hours = milliseconds / 3_600_000;
+        var minutes = milliseconds / 60_000 % 60;
+        var seconds = milliseconds / 1_000 % 60;
+        var millis = milliseconds % 1_000;
+        return $"{hours:00}:{minutes:00}:{seconds:00}{separator}{millis:000}";
+    }
+
     internal static string ExportNarration(ScriptDocument script) =>
         string.Join(Environment.NewLine + Environment.NewLine,
             script.Sections.OrderBy(section => section.Order).Select(section => section.Text ?? string.Empty));
@@ -283,6 +337,20 @@ internal sealed class CreatorProjectStore
                 if ((section.Text?.Length ?? 0) > MaxSectionTextLength)
                     throw new InvalidDataException("Section text exceeds the 100,000 character limit.");
             }
+        }
+
+        if ((project.Transcript?.Length ?? 0) > MaxSectionTextLength)
+            throw new InvalidDataException("Transcript exceeds the 100,000 character limit.");
+        if (project.Captions is null || project.Captions.Count > 10_000)
+            throw new InvalidDataException("Caption count exceeds the 10,000 item limit.");
+        foreach (var caption in project.Captions)
+        {
+            if (string.IsNullOrWhiteSpace(caption.CaptionId) || !ids.Add(caption.CaptionId))
+                throw new InvalidDataException("Caption IDs must be present and unique.");
+            if (caption.StartMs < 0 || caption.EndMs <= caption.StartMs)
+                throw new InvalidDataException("Caption end time must be after its start time.");
+            if (string.IsNullOrWhiteSpace(caption.Text) || caption.Text.Length > 1_000)
+                throw new InvalidDataException("Caption text must contain 1–1,000 characters.");
         }
 
         foreach (var take in project.Takes ?? new List<TakeDocument>())

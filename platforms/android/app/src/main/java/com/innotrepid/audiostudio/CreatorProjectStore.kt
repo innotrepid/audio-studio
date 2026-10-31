@@ -32,13 +32,22 @@ internal class CreatorProjectStore(context: Context) {
         val sections: List<Section>
     )
 
+    data class Caption(
+        val captionId: String,
+        val startMs: Long,
+        val endMs: Long,
+        val text: String
+    )
+
     data class Project(
         val projectId: String,
         val title: String,
         val createdUtc: String,
         val updatedUtc: String,
         val scripts: List<Script>,
-        val takes: List<JSONObject> = emptyList()
+        val takes: List<JSONObject> = emptyList(),
+        val transcript: String = "",
+        val captions: List<Caption> = emptyList()
     )
 
     private val file = File(context.filesDir, "creator/projects/default-project.json")
@@ -179,6 +188,13 @@ internal class CreatorProjectStore(context: Context) {
                 require(section.text.length <= maxSectionTextLength) { "Section text exceeds the 100,000 character limit." }
             }
         }
+        require(project.transcript.length <= maxSectionTextLength) { "Transcript exceeds the 100,000 character limit." }
+        require(project.captions.size <= 10_000) { "Caption count exceeds the 10,000 item limit." }
+        project.captions.forEach { caption ->
+            require(caption.captionId.isNotBlank() && ids.add(caption.captionId)) { "Caption IDs must be present and unique." }
+            require(caption.startMs >= 0L && caption.endMs > caption.startMs) { "Caption end time must be after its start time." }
+            require(caption.text.isNotBlank() && caption.text.length <= 1_000) { "Caption text must contain 1–1,000 characters." }
+        }
         project.takes.forEach { take ->
             val id = take.optString("takeId")
             require(id.isNotBlank() && ids.add(id)) { "Take IDs must be present and unique." }
@@ -234,6 +250,13 @@ internal class CreatorProjectStore(context: Context) {
             .put("updatedUtc", project.updatedUtc)
             .put("scripts", scripts)
             .put("takes", JSONArray(project.takes))
+            .put("transcript", project.transcript)
+            .put("captions", JSONArray().apply {
+                project.captions.forEach { caption ->
+                    put(JSONObject().put("captionId", caption.captionId).put("startMs", caption.startMs)
+                        .put("endMs", caption.endMs).put("text", caption.text))
+                }
+            })
             .toString(2)
     }
 
@@ -274,6 +297,37 @@ internal class CreatorProjectStore(context: Context) {
             appendLine(section.text.trim())
             appendLine()
         }
+    }
+
+    /** Generate clearly estimated timings from reading speed; these are not audio-aligned timestamps. */
+    fun generateDraftCaptions(transcript: String, maxWords: Int, wordsPerMinute: Int = 150): List<Caption> {
+        require(maxWords in 3..30) { "Words per caption must be between 3 and 30." }
+        require(wordsPerMinute in 30..300) { "Reading pace must be between 30 and 300 words per minute." }
+        val words = transcript.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        var cursor = 0L
+        return words.chunked(maxWords).map { chunk ->
+            val duration = maxOf(1_000L, kotlin.math.ceil(chunk.size * 60_000.0 / wordsPerMinute).toLong())
+            val caption = Caption(UUID.randomUUID().toString(), cursor, cursor + duration, chunk.joinToString(" "))
+            cursor += duration
+            caption
+        }
+    }
+
+    fun exportSrt(captions: List<Caption>): String = captions.sortedBy { it.startMs }.mapIndexed { index, caption ->
+        (index + 1).toString() + "\\n" + captionTimestamp(caption.startMs, ',') + " --> " +
+            captionTimestamp(caption.endMs, ',') + "\\n" + caption.text
+    }.joinToString("\\n\\n") + if (captions.isEmpty()) "" else "\\n"
+
+    fun exportWebVtt(captions: List<Caption>): String = "WEBVTT\\n\\n" + captions.sortedBy { it.startMs }.joinToString("\\n\\n") { caption ->
+        captionTimestamp(caption.startMs, '.') + " --> " + captionTimestamp(caption.endMs, '.') + "\\n" + caption.text
+    } + if (captions.isEmpty()) "" else "\\n"
+
+    private fun captionTimestamp(milliseconds: Long, decimal: Char): String {
+        val hours = milliseconds / 3_600_000L
+        val minutes = (milliseconds / 60_000L) % 60L
+        val seconds = (milliseconds / 1_000L) % 60L
+        val millis = milliseconds % 1_000L
+        return String.format(java.util.Locale.US, "%02d:%02d:%02d%c%03d", hours, minutes, seconds, decimal, millis)
     }
 
     /** Starter outlines intentionally contain editable placeholders, not generated narration. */
@@ -320,13 +374,20 @@ internal class CreatorProjectStore(context: Context) {
         }
         val takesJson = root.optJSONArray("takes") ?: JSONArray()
         val takes = (0 until takesJson.length()).map { takesJson.getJSONObject(it) }
+        val captionsJson = root.optJSONArray("captions") ?: JSONArray()
+        val captions = (0 until captionsJson.length()).map { index ->
+            val item = captionsJson.getJSONObject(index)
+            Caption(item.getString("captionId"), item.getLong("startMs"), item.getLong("endMs"), item.getString("text"))
+        }
         return Project(
             projectId = root.getString("projectId"),
             title = root.getString("title"),
             createdUtc = root.getString("createdUtc"),
             updatedUtc = root.getString("updatedUtc"),
             scripts = scripts,
-            takes = takes
+            takes = takes,
+            transcript = root.optString("transcript", ""),
+            captions = captions
         ).also(::validate)
     }
 }

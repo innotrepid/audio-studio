@@ -42,6 +42,14 @@ class CreatorProjectStoreTest {
             val loaded = CreatorProjectStore(context).loadOrCreate()
             assertEquals("Studio session", loaded.title)
             assertEquals("A saved script line.", loaded.scripts.first().sections.first().text)
+            val draftCaptions = store.generateDraftCaptions("One two three four five six seven", 3)
+            val captionProject = loaded.copy(transcript = "One two three four five six seven", captions = draftCaptions)
+            store.save(captionProject)
+            val captionReload = CreatorProjectStore(context).loadOrCreate()
+            assertEquals("One two three four five six seven", captionReload.transcript)
+            assertEquals(3, captionReload.captions.size)
+            assertTrue(store.exportSrt(captionReload.captions).contains("00:00:00,000 -->"))
+            assertTrue(store.exportWebVtt(captionReload.captions).startsWith("WEBVTT"))
         } finally {
             root.deleteRecursively()
         }
@@ -115,6 +123,20 @@ class CreatorProjectStoreTest {
         } finally {
             root.deleteRecursively()
         }
+    }
+
+    @Test
+    fun invalidCaptionTimingIsRejected() {
+        val (context, root) = isolatedContext()
+        try {
+            val store = CreatorProjectStore(context)
+            val project = store.loadOrCreate()
+            val invalid = CreatorProjectStore.Caption("caption-1", 2_000, 1_000, "Invalid timing")
+            var failed = false
+            try { store.save(project.copy(captions = listOf(invalid))) }
+            catch (_: IllegalArgumentException) { failed = true }
+            assertTrue("Caption end time must follow its start time.", failed)
+        } finally { root.deleteRecursively() }
     }
 
     @Test

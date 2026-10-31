@@ -10,7 +10,8 @@ try
     InvalidTakeReferencesAreRejected(Path.Combine(root, "validation"));
     DraftsRoundTripAndRecover(Path.Combine(root, "draft-recovery"));
     InvalidDraftPrimaryIsPreserved(Path.Combine(root, "draft-invalid"));
-    Console.WriteLine("Creator project and named-draft persistence tests passed (6 scenarios).");
+    CaptionTimingAndExportAreValidated(Path.Combine(root, "captions"));
+    Console.WriteLine("Creator project, named-draft, and caption persistence tests passed (7 scenarios).");
 }
 finally
 {
@@ -120,6 +121,27 @@ static void InvalidDraftPrimaryIsPreserved(string root)
 
     Assert(threw, "Malformed named drafts without backup should fail safely.");
     Assert(File.ReadAllText(primary) == malformed, "Malformed named-draft source should be preserved.");
+}
+
+static void CaptionTimingAndExportAreValidated(string root)
+{
+    var store = new CreatorProjectStore(root);
+    var project = store.LoadOrCreate().Project;
+    project.Transcript = "One two three four five six seven";
+    project.Captions = CreatorProjectStore.GenerateDraftCaptions(project.Transcript, 3);
+    store.Save(project);
+
+    var loaded = new CreatorProjectStore(root).LoadOrCreate().Project;
+    Assert(loaded.Transcript == project.Transcript, "Transcript did not round-trip.");
+    Assert(loaded.Captions.Count == 3, "Draft captions were not persisted.");
+    Assert(CreatorProjectStore.ExportSrt(loaded.Captions).Contains("00:00:00,000 -->"), "SRT timestamps were not formatted.");
+    Assert(CreatorProjectStore.ExportWebVtt(loaded.Captions).StartsWith("WEBVTT", StringComparison.Ordinal), "WebVTT header is missing.");
+
+    loaded.Captions[0].EndMs = loaded.Captions[0].StartMs;
+    var threw = false;
+    try { store.Save(loaded); }
+    catch (InvalidDataException) { threw = true; }
+    Assert(threw, "Invalid caption timing must be rejected.");
 }
 
 static void Assert(bool condition, string message)
