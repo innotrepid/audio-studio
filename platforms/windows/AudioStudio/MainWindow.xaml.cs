@@ -1956,31 +1956,24 @@ public sealed partial class MainWindow : Window
         if (_teleprompterStartPending)
         {
             StartStudioTakeButton.IsEnabled = false;
-            StartStudioTakeButton.Content = "Choose save location…";
+            StartStudioTakeButton.Content = "Preparing private recording…";
         }
-        RecordingStatusText.Text = "Choose where to save the recording…";
+        RecordingStatusText.Text = "Preparing private recording…";
         try
         {
-            var picker = new FileSavePicker
-            {
-                SuggestedFileName = $"AudioStudio-{DateTime.Now:yyyyMMdd-HHmmss}"
-            };
-            picker.FileTypeChoices.Add("WAV audio", new List<string> { ".wav" });
-            InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
-            var file = await picker.PickSaveFileAsync();
-            if (file is null)
-            {
-                RecordingStatusText.Text = "Recording cancelled. No file was created.";
-                if (_teleprompterStartPending) ResetTeleprompterControls();
-                return;
-            }
+            var stagingDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "AudioStudio", "recording-staging");
+            Directory.CreateDirectory(stagingDirectory);
+            var stagingPath = Path.Combine(stagingDirectory,
+                $"Synvidra_Recording_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.wav");
 
             RecordingStatusText.Text = "Opening microphone…";
-            var started = await Task.Run(() => NativeRecordingStart(file.Path));
+            var started = await Task.Run(() => NativeRecordingStart(stagingPath));
             RecordingStatusText.Text = ReadRecordingStatus();
             if (started != 0)
             {
-                _currentRecordingPath = file.Path;
+                _currentRecordingPath = stagingPath;
                 _recordingUiActive = true;
                 _recordingStopwatch.Restart();
                 RecordingElapsedText.Text = "00:00";
@@ -2044,14 +2037,34 @@ public sealed partial class MainWindow : Window
                 var nativeReportedSaved = nativeStatus.StartsWith("Recording saved", StringComparison.OrdinalIgnoreCase);
                 if (stopResult != 0 && nativeReportedSaved && takeDetails is not null)
                 {
-                    _lastVerifiedRecordingPath = takePath;
-                    OpenLatestTakeButton.IsEnabled = true;
-                    OpenLatestTakeFromRecordButton.IsEnabled = true;
-                    var projectLinkStatus = AssociateVerifiedTake(takePath);
-                    RecordingStatusText.Text = $"FINALIZED AND VERIFIED — {nativeStatus}" +
-                        Environment.NewLine + Environment.NewLine + takeDetails +
-                        Environment.NewLine + "This take is ready in Editor." +
-                        Environment.NewLine + projectLinkStatus;
+                    try
+                    {
+                        var publishedPath = SynvidraStorage.CreateUniquePath(
+                            SynvidraStorage.MediaKind.Recording, ".wav");
+                        File.Copy(takePath, publishedPath, overwrite: false);
+                        var publishedDetails = await Task.Run(() => ReadRecordingTakeDetails(publishedPath));
+                        if (publishedDetails is null)
+                        {
+                            RecordingStatusText.Text = "PRIVATE TAKE VERIFIED, BUT PUBLIC COPY COULD NOT BE VERIFIED. The private staged WAV was retained at: " + takePath;
+                        }
+                        else
+                        {
+                            _lastVerifiedRecordingPath = publishedPath;
+                            OpenLatestTakeButton.IsEnabled = true;
+                            OpenLatestTakeFromRecordButton.IsEnabled = true;
+                            var projectLinkStatus = AssociateVerifiedTake(publishedPath);
+                            RecordingStatusText.Text = $"FINALIZED, VERIFIED AND PUBLISHED — {nativeStatus}" +
+                                Environment.NewLine + Environment.NewLine + publishedDetails +
+                                Environment.NewLine + "Saved to: " + publishedPath +
+                                Environment.NewLine + "Private recovery staging retained at: " + takePath +
+                                Environment.NewLine + projectLinkStatus;
+                        }
+                    }
+                    catch (Exception publishException)
+                    {
+                        RecordingStatusText.Text = "PRIVATE TAKE VERIFIED, BUT PUBLISHING FAILED. The staged WAV was retained at: " +
+                            takePath + Environment.NewLine + publishException.Message;
+                    }
                 }
                 else if (nativeReportedSaved)
                 {
