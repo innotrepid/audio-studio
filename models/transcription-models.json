@@ -12,8 +12,8 @@
       "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
       "license": "MIT",
       "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
-      "sizeBytes": 77700000,
-      "sizeNote": "Upstream UI reports 77.7 MB; CI must verify exact byte count before finalizing this field."
+      "sizeBytes": null,
+      "sizeNote": "Upstream UI reports 77.7 MB; CI must record exact byte count before packaging."
     },
     {
       "id": "silero-vad",
