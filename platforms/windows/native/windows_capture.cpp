@@ -91,6 +91,9 @@ public:
         peak_.store(0.0F);
         clipping_.store(false);
         stop_requested_.store(false);
+        pause_requested_.store(false);
+        resume_requested_.store(false);
+        paused_.store(false);
         startup_complete_ = false;
         startup_ok_ = false;
         status_ = selected_device_id_.empty()
@@ -119,6 +122,20 @@ public:
         if (worker_.joinable()) worker_.join();
         std::lock_guard<std::mutex> lock(mutex_);
         return status_.find(L"saved") != std::wstring::npos ? 1 : 0;
+    }
+
+    int pause() {
+        if (!active_.load()) return 0;
+        pause_requested_.store(true, std::memory_order_release);
+        if (audio_event_ != nullptr) SetEvent(audio_event_);
+        return 1;
+    }
+
+    int resume() {
+        if (!active_.load()) return 0;
+        resume_requested_.store(true, std::memory_order_release);
+        if (audio_event_ != nullptr) SetEvent(audio_event_);
+        return 1;
     }
 
     int select_device(const wchar_t* device_id) {
@@ -234,7 +251,31 @@ private:
                         : L"Recording from the selected microphone…");
                     std::vector<float> converted;
                     HRESULT capture_result = S_OK;
+                    bool capture_paused = false;
                     while (!stop_requested_.load()) {
+                        if (pause_requested_.exchange(false, std::memory_order_acq_rel) && !capture_paused) {
+                            const HRESULT pause_hr = client->Stop();
+                            if (FAILED(pause_hr)) { capture_result = pause_hr; break; }
+                            capture_paused = true;
+                            paused_.store(true, std::memory_order_release);
+                            set_status(L"Recording paused.");
+                        }
+                        if (resume_requested_.exchange(false, std::memory_order_acq_rel) && capture_paused) {
+                            UINT32 stale_frames = 0;
+                            while (SUCCEEDED(capture->GetNextPacketSize(&stale_frames)) && stale_frames > 0) {
+                                BYTE* stale_data = nullptr; UINT32 stale_count = 0; DWORD stale_flags = 0;
+                                const HRESULT stale_hr = capture->GetBuffer(&stale_data, &stale_count, &stale_flags, nullptr, nullptr);
+                                if (FAILED(stale_hr)) { capture_result = stale_hr; break; }
+                                const HRESULT release_stale = capture->ReleaseBuffer(stale_count);
+                                if (FAILED(release_stale)) { capture_result = release_stale; break; }
+                            }
+                            if (FAILED(capture_result)) break;
+                            const HRESULT resume_hr = client->Start();
+                            if (FAILED(resume_hr)) { capture_result = resume_hr; break; }
+                            capture_paused = false;
+                            paused_.store(false, std::memory_order_release);
+                            set_status(L"Recording resumed.");
+                        }
                         const DWORD wait_result = WaitForSingleObject(event_handle, 200);
                         if (wait_result == WAIT_TIMEOUT) continue;
                         if (wait_result != WAIT_OBJECT_0) {
@@ -337,6 +378,9 @@ private:
     std::condition_variable startup_cv_;
     std::thread worker_;
     std::atomic<bool> stop_requested_{false};
+    std::atomic<bool> pause_requested_{false};
+    std::atomic<bool> resume_requested_{false};
+    std::atomic<bool> paused_{false};
     std::atomic<bool> active_{false};
     std::atomic<float> peak_{0.0F};
     std::atomic<bool> clipping_{false};
@@ -380,6 +424,12 @@ extern "C" AUDIO_STUDIO_API int audio_studio_recording_start(const wchar_t* outp
 }
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_stop(void) {
     return capture_instance().stop();
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_recording_pause(void) {
+    return capture_instance().pause();
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_recording_resume(void) {
+    return capture_instance().resume();
 }
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_active(void) {
     return capture_instance().active();
