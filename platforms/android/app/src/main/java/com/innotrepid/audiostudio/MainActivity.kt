@@ -1097,7 +1097,7 @@ class MainActivity : Activity() {
                 }
                 val updatedScript = script.copy(
                     title = title,
-                    updatedUtc = java.time.java.time.Instant.now().toString(),
+                    updatedUtc = java.time.Instant.now().toString(),
                     sections = updatedSections
                 )
                 activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == updatedScript.scriptId) updatedScript else it }))
@@ -1161,7 +1161,7 @@ class MainActivity : Activity() {
             val current = activeCreatorProject ?: return
             val script = currentCreatorScript(current) ?: return
             val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
-            activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == script.scriptId) script.copy(sections = updated, updatedUtc = java.time.java.time.Instant.now().toString()) else it }))
+            activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == script.scriptId) script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString()) else it }))
             refreshCreatorSections(selectId ?: selectedCreatorSectionId)
         }
 
@@ -1283,7 +1283,7 @@ class MainActivity : Activity() {
                 .setPositiveButton("Load") { _, _ ->
                     try {
                         saveCreatorScript()
-                        val replacement = draft.script.copy(scriptId = target.scriptId, updatedUtc = java.time.java.time.Instant.now().toString())
+                        val replacement = draft.script.copy(scriptId = target.scriptId, updatedUtc = java.time.Instant.now().toString())
                         activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == target.scriptId) replacement else it }))
                         selectedCreatorScriptId = target.scriptId
                         creatorTitleInput.setText(replacement.title)
@@ -2302,7 +2302,7 @@ class MainActivity : Activity() {
                 .put("takeId", UUID.randomUUID().toString())
                 .put("sourceUri", publicUri?.toString())
                 .put("sourcePath", if (publicUri == null) stagedFile.absolutePath else JSONObject.NULL)
-                .put("createdUtc", java.time.java.time.Instant.now().toString())
+                .put("createdUtc", java.time.Instant.now().toString())
                 .put("durationMs", metadata[0] * 1000L / metadata[1])
                 .put("sampleRateHz", metadata[1])
                 .put("channels", metadata[2])
