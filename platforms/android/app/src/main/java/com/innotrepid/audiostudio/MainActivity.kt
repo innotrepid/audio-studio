@@ -871,7 +871,7 @@ class MainActivity : Activity() {
                     creatorCaptionsPanel.visibility = if (captionsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorProductionPanel.visibility = if (productionSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
-                    if (productionSelected) refreshProductionMarkers()
+                    if (productionSelected) creatorProductionPanel.tag = "refresh-markers"
                     if (captionsSelected) {
                         transcriptInput.setText(activeCreatorProject?.transcript.orEmpty())
                         refreshCaptionList()
@@ -1097,7 +1097,7 @@ class MainActivity : Activity() {
                 }
                 val updatedScript = script.copy(
                     title = title,
-                    updatedUtc = java.time.Instant.now().toString(),
+                    updatedUtc = java.time.java.time.Instant.now().toString(),
                     sections = updatedSections
                 )
                 activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == updatedScript.scriptId) updatedScript else it }))
