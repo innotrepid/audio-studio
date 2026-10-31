@@ -869,9 +869,9 @@ class MainActivity : Activity() {
                     val productionSelected = workspace == "Production"
                     creatorScriptsPanel.visibility = if (scriptsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorCaptionsPanel.visibility = if (captionsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
-                    creatorProductionPanel.visibility = if (productionSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                    creatorWorkspaceContent.getChildAt(creatorWorkspaceContent.childCount - 1)?.visibility = if (productionSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
-                    if (productionSelected) creatorProductionPanel.tag = "refresh-markers"
+                    if (productionSelected) creatorWorkspaceContent.getChildAt(creatorWorkspaceContent.childCount - 1)?.tag = "refresh-markers"
                     if (captionsSelected) {
                         transcriptInput.setText(activeCreatorProject?.transcript.orEmpty())
                         refreshCaptionList()
