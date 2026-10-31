@@ -38,6 +38,15 @@ internal sealed class CreatorProjectStore
         public List<string> Cues { get; set; } = new();
     }
 
+    internal sealed class ProductionMarkerDocument
+    {
+        public string MarkerId { get; set; } = Guid.NewGuid().ToString();
+        public string SectionId { get; set; } = string.Empty;
+        public string Type { get; set; } = "Retake";
+        public string Note { get; set; } = string.Empty;
+        public string CreatedUtc { get; set; } = DateTime.UtcNow.ToString("O");
+    }
+
     internal sealed class CaptionDocument
     {
         public string CaptionId { get; set; } = Guid.NewGuid().ToString();
