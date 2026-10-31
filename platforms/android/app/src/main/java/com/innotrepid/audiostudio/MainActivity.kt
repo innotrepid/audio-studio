@@ -823,8 +823,12 @@ class MainActivity : Activity() {
         }
         val creatorStore = CreatorProjectStore(this).also { creatorProjectStore = it }
         var selectedCreatorSectionId: String? = null
+        var selectedCreatorScriptId: String? = null
         var updatingCreatorSection = false
+        val creatorScriptSpinner = Spinner(this)
         val creatorSectionSpinner = Spinner(this)
+        fun currentCreatorScript(project: CreatorProjectStore.Project? = activeCreatorProject): CreatorProjectStore.Script? =
+            project?.scripts?.firstOrNull { it.scriptId == selectedCreatorScriptId } ?: project?.scripts?.firstOrNull()
         val creatorSectionActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val creatorTitleInput = EditText(this).apply {
             hint = "Script title"
@@ -1010,7 +1014,7 @@ class MainActivity : Activity() {
                 return
             }
             try {
-                val script = current.scripts.first()
+                val script = currentCreatorScript(current) ?: return
                 val updatedSections = script.sections.map { section ->
                     if (section.sectionId == selectedCreatorSectionId) section.copy(text = creatorBodyInput.text?.toString().orEmpty()) else section
                 }
@@ -1019,7 +1023,7 @@ class MainActivity : Activity() {
                     updatedUtc = java.time.Instant.now().toString(),
                     sections = updatedSections
                 )
-                activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(updatedScript) + current.scripts.drop(1)))
+                activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == updatedScript.scriptId) updatedScript else it }))
                 statusText.text = "Saved locally · " + java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
             } catch (error: Exception) {
                 statusText.text = "Save failed · your edits are still here: ${error.message}"
@@ -1035,7 +1039,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(6), 0, dp(4))
         }
         fun updateCreatorStats() {
-            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
+            val script = currentCreatorScript() ?: return
             val sections = script.sections.sortedBy { it.order }
             val text = sections.joinToString("\\n") { it.text }
             val words = Regex("\\\\b[\\\\p{L}\\\\p{N}]+(?:['’_-][\\\\p{L}\\\\p{N}]+)*\\\\b").findAll(text).count()
@@ -1064,13 +1068,14 @@ class MainActivity : Activity() {
             val current = activeCreatorProject ?: return
             val script = current.scripts.first()
             val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
-            activeCreatorProject = creatorStore.save(current.copy(scripts = listOf(script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString())) + current.scripts.drop(1)))
+            activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == script.scriptId) script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString()) else it }))
             refreshCreatorSections(selectId ?: selectedCreatorSectionId)
         }
 
         try {
             activeCreatorProject = creatorStore.loadOrCreate()
             val firstScript = activeCreatorProject!!.scripts.first()
+            selectedCreatorScriptId = firstScript.scriptId
             creatorTitleInput.setText(firstScript.title)
             selectedCreatorSectionId = firstScript.sections.first().sectionId
             updatingCreatorSection = true
@@ -1131,6 +1136,7 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, dp(8), 0, dp(2))
         }, matchWidth())
+        creatorScriptsPanel.addView(creatorScriptSpinner, matchWidth())
         creatorScriptsPanel.addView(creatorTitleInput, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
             text = "SECTION"
@@ -1142,6 +1148,23 @@ class MainActivity : Activity() {
         creatorScriptsPanel.addView(creatorSectionSpinner, matchWidth())
         creatorScriptsPanel.addView(creatorSectionFilter, matchWidth())
         creatorScriptsPanel.addView(creatorScriptStats, matchWidth())
+        creatorScriptSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, activeCreatorProject?.scripts?.map { it.title } ?: emptyList())
+        creatorScriptSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (updatingCreatorSection) return
+                val next = activeCreatorProject?.scripts?.getOrNull(position) ?: return
+                if (next.scriptId == selectedCreatorScriptId) return
+                saveCreatorScript()
+                selectedCreatorScriptId = next.scriptId
+                updatingCreatorSection = true
+                creatorTitleInput.setText(next.title)
+                selectedCreatorSectionId = next.sections.firstOrNull()?.sectionId
+                creatorSectionFilter.setSelection(0)
+                updatingCreatorSection = false
+                refreshCreatorSections(selectedCreatorSectionId)
+            }
+        }
         creatorSectionFilter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
@@ -1167,7 +1190,7 @@ class MainActivity : Activity() {
             AlertDialog.Builder(this).setTitle("Add section").setView(input).setPositiveButton("Add") { _,_ ->
                 val name=input.text.toString().trim().ifBlank { "Section" }.take(100)
                 val id=UUID.randomUUID().toString()
-                val section=CreatorProjectStore.Section(id,name,"",activeCreatorProject?.scripts?.first()?.sections?.size ?: 0)
+                val section=CreatorProjectStore.Section(id,name,"",currentCreatorScript()?.sections?.size ?: 0)
                 mutateCreatorSections({ it+section },id)
             }.setNegativeButton("Cancel",null).show()
         }, LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f))
@@ -1256,7 +1279,15 @@ class MainActivity : Activity() {
                     val current = activeCreatorProject ?: return@setItems
                     val created = creatorProjectStore?.createTemplate(templates[which], key) ?: return@setItems
                     activeCreatorProject = creatorProjectStore?.save(current.copy(scripts = current.scripts + created))
-                    statusText.text = "Created ${created.title} template. It is saved in this project."
+                    selectedCreatorScriptId = created.scriptId
+                    updatingCreatorSection = true
+                    creatorScriptSpinner.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, activeCreatorProject?.scripts?.map { it.title } ?: emptyList())
+                    creatorScriptSpinner.setSelection((activeCreatorProject?.scripts?.indexOfFirst { it.scriptId == created.scriptId } ?: 0).coerceAtLeast(0))
+                    creatorTitleInput.setText(created.title)
+                    selectedCreatorSectionId = created.sections.firstOrNull()?.sectionId
+                    updatingCreatorSection = false
+                    refreshCreatorSections(selectedCreatorSectionId)
+                    statusText.text = "Created and opened ${created.title}."
                 } catch (error: Exception) { statusText.text = "Template creation failed: ${error.message}" }
             }.setNegativeButton("Cancel", null).show()
         }, matchWidth())
