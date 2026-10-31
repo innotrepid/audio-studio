@@ -39,6 +39,14 @@ internal class CreatorProjectStore(context: Context) {
         val text: String
     )
 
+    data class ProductionMarker(
+        val markerId: String,
+        val sectionId: String,
+        val type: String,
+        val note: String,
+        val createdUtc: String
+    )
+
     data class Project(
         val projectId: String,
         val title: String,
@@ -47,7 +55,8 @@ internal class CreatorProjectStore(context: Context) {
         val scripts: List<Script>,
         val takes: List<JSONObject> = emptyList(),
         val transcript: String = "",
-        val captions: List<Caption> = emptyList()
+        val captions: List<Caption> = emptyList(),
+        val productionMarkers: List<ProductionMarker> = emptyList()
     )
 
     private val file = File(context.filesDir, "creator/projects/default-project.json")
@@ -251,6 +260,7 @@ internal class CreatorProjectStore(context: Context) {
             .put("scripts", scripts)
             .put("takes", JSONArray(project.takes))
             .put("transcript", project.transcript)
+            .put("productionMarkers", JSONArray().apply { project.productionMarkers.forEach { marker -> put(JSONObject().put("markerId", marker.markerId).put("sectionId", marker.sectionId).put("type", marker.type).put("note", marker.note).put("createdUtc", marker.createdUtc)) } })
             .put("captions", JSONArray().apply {
                 project.captions.forEach { caption ->
                     put(JSONObject().put("captionId", caption.captionId).put("startMs", caption.startMs)
@@ -374,6 +384,11 @@ internal class CreatorProjectStore(context: Context) {
         }
         val takesJson = root.optJSONArray("takes") ?: JSONArray()
         val takes = (0 until takesJson.length()).map { takesJson.getJSONObject(it) }
+        val markersJson = root.optJSONArray("productionMarkers") ?: JSONArray()
+        val markers = (0 until markersJson.length()).map { index ->
+            val item = markersJson.getJSONObject(index)
+            ProductionMarker(item.getString("markerId"), item.getString("sectionId"), item.getString("type"), item.optString("note", ""), item.optString("createdUtc", Instant.now().toString()))
+        }
         val captionsJson = root.optJSONArray("captions") ?: JSONArray()
         val captions = (0 until captionsJson.length()).map { index ->
             val item = captionsJson.getJSONObject(index)
@@ -387,7 +402,8 @@ internal class CreatorProjectStore(context: Context) {
             scripts = scripts,
             takes = takes,
             transcript = root.optString("transcript", ""),
-            captions = captions
+            captions = captions,
+            productionMarkers = markers
         ).also(::validate)
     }
 }
