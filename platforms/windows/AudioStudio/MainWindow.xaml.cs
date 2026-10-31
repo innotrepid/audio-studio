@@ -49,6 +49,12 @@ public sealed partial class MainWindow : Window
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_stop", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeRecordingStop();
 
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_pause", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeRecordingPause();
+
+    [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_resume", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int NativeRecordingResume();
+
     [DllImport("audio_studio_native.dll", EntryPoint = "audio_studio_recording_active", CallingConvention = CallingConvention.Cdecl)]
     private static extern int NativeRecordingActive();
 
@@ -1462,20 +1468,33 @@ public sealed partial class MainWindow : Window
     {
         if (NativeRecordingActive() == 0)
             return;
-        if (_teleprompterPaused)
+        var pausing = !_teleprompterPaused;
+        var nativeResult = pausing ? NativeRecordingPause() : NativeRecordingResume();
+        if (nativeResult == 0)
         {
-            _teleprompterPaused = false;
-            _teleprompterScrollTimer.Start();
-            PauseTeleprompterButton.Content = "Pause scroll";
-            TeleprompterStatusText.Text = "Script scrolling · recording continues.";
+            RecordingStatusText.Text = pausing
+                ? "The microphone could not pause; the take remains active."
+                : "The microphone could not resume; the take remains paused.";
+            return;
+        }
+        _teleprompterPaused = pausing;
+        if (pausing)
+        {
+            _recordingStopwatch.Stop();
+            _teleprompterScrollTimer.Stop();
+            PauseTeleprompterButton.Content = "Resume take";
+            TeleprompterStatusText.Text = "Take and script paused.";
+            RecordingStatusText.Text = "Recording paused · tap Resume take to continue.";
         }
         else
         {
-            _teleprompterPaused = true;
-            _teleprompterScrollTimer.Stop();
-            PauseTeleprompterButton.Content = "Resume scroll";
-            TeleprompterStatusText.Text = "Script paused · recording continues.";
+            _recordingStopwatch.Start();
+            _teleprompterScrollTimer.Start();
+            PauseTeleprompterButton.Content = "Pause take";
+            TeleprompterStatusText.Text = "Recording and script scrolling are synchronized.";
+            RecordingStatusText.Text = "Recording resumed.";
         }
+        RecordingElapsedText.Text = FormatRecordingElapsed();
     }
 
     private void StartTeleprompterScroll()
