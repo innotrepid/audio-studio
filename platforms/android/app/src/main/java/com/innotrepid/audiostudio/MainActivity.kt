@@ -1049,7 +1049,7 @@ class MainActivity : Activity() {
         }
         var visibleCreatorSections: List<CreatorProjectStore.Section> = emptyList()
         fun refreshCreatorSections(selectId: String? = selectedCreatorSectionId) {
-            val script = activeCreatorProject?.scripts?.firstOrNull() ?: return
+            val script = currentCreatorScript() ?: return
             val ordered = script.sections.sortedBy { it.order }
             val filterPosition = creatorSectionFilter.selectedItemPosition.coerceAtLeast(0)
             visibleCreatorSections = when (filterPosition) { 1 -> ordered.filter { it.cues.isNotEmpty() }; 2 -> ordered.filter { it.cues.isEmpty() }; else -> ordered }
@@ -1066,7 +1066,7 @@ class MainActivity : Activity() {
         fun mutateCreatorSections(transform: (List<CreatorProjectStore.Section>) -> List<CreatorProjectStore.Section>, selectId: String? = null) {
             saveCreatorScript()
             val current = activeCreatorProject ?: return
-            val script = current.scripts.first()
+            val script = currentCreatorScript(current) ?: return
             val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
             activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == script.scriptId) script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString()) else it }))
             refreshCreatorSections(selectId ?: selectedCreatorSectionId)
@@ -1087,7 +1087,7 @@ class MainActivity : Activity() {
                 override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
                 override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                     if (updatingCreatorSection) return
-                    val latest = activeCreatorProject?.scripts?.firstOrNull() ?: return
+                    val latest = currentCreatorScript() ?: return
                     val nextSection = visibleCreatorSections.getOrNull(position) ?: return
                     if (selectedCreatorSectionId != null) saveCreatorScript()
                     selectedCreatorSectionId = nextSection.sectionId
