@@ -1161,7 +1161,7 @@ class MainActivity : Activity() {
             val current = activeCreatorProject ?: return
             val script = currentCreatorScript(current) ?: return
             val updated = transform(script.sections.sortedBy { it.order }).mapIndexed { index, section -> section.copy(order = index) }
-            activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == script.scriptId) script.copy(sections = updated, updatedUtc = java.time.Instant.now().toString()) else it }))
+            activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == script.scriptId) script.copy(sections = updated, updatedUtc = java.time.java.time.Instant.now().toString()) else it }))
             refreshCreatorSections(selectId ?: selectedCreatorSectionId)
         }
 
@@ -1283,7 +1283,7 @@ class MainActivity : Activity() {
                 .setPositiveButton("Load") { _, _ ->
                     try {
                         saveCreatorScript()
-                        val replacement = draft.script.copy(scriptId = target.scriptId, updatedUtc = java.time.Instant.now().toString())
+                        val replacement = draft.script.copy(scriptId = target.scriptId, updatedUtc = java.time.java.time.Instant.now().toString())
                         activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == target.scriptId) replacement else it }))
                         selectedCreatorScriptId = target.scriptId
                         creatorTitleInput.setText(replacement.title)
@@ -1583,7 +1583,7 @@ class MainActivity : Activity() {
                 val script=currentCreatorScript(project) ?: throw IOException("Select a script first.")
                 val section=script.sections.sortedBy { it.order }.getOrNull(productionSectionSpinner.selectedItemPosition) ?: throw IOException("Select a section.")
                 val productionMarker=CreatorProjectStore.ProductionMarker(UUID.randomUUID().toString(),section.sectionId,
-                    productionTypeSpinner.selectedItem?.toString() ?: "Retake",productionNoteInput.text?.toString()?.trim().orEmpty(),Instant.now().toString())
+                    productionTypeSpinner.selectedItem?.toString() ?: "Retake",productionNoteInput.text?.toString()?.trim().orEmpty(),java.time.Instant.now().toString())
                 activeCreatorProject=(creatorProjectStore ?: throw IOException("Creator storage unavailable.")).save(project.copy(productionMarkers=project.productionMarkers+productionMarker))
                 productionNoteInput.setText("")
                 refreshProductionMarkers()
@@ -2302,7 +2302,7 @@ class MainActivity : Activity() {
                 .put("takeId", UUID.randomUUID().toString())
                 .put("sourceUri", publicUri?.toString())
                 .put("sourcePath", if (publicUri == null) stagedFile.absolutePath else JSONObject.NULL)
-                .put("createdUtc", java.time.Instant.now().toString())
+                .put("createdUtc", java.time.java.time.Instant.now().toString())
                 .put("durationMs", metadata[0] * 1000L / metadata[1])
                 .put("sampleRateHz", metadata[1])
                 .put("channels", metadata[2])
