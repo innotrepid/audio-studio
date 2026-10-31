@@ -321,6 +321,15 @@
                             <Button Content="Export narration TXT" Click="CreatorExportNarration_Click" />
                             <Button Content="Export production copy" Click="CreatorExportProduction_Click" />
                         </StackPanel>
+                        <TextBlock Text="NAMED DRAFTS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
+                        <ComboBox x:Name="CreatorDraftComboBox" PlaceholderText="Choose a named draft" SelectionChanged="CreatorDraft_SelectionChanged" />
+                        <TextBox x:Name="CreatorDraftNameBox" PlaceholderText="Named draft title" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save as draft" Click="CreatorDraftCreate_Click" />
+                            <Button Content="Update draft" Click="CreatorDraftUpdate_Click" />
+                            <Button Content="Load draft" Click="CreatorDraftLoad_Click" />
+                            <Button Content="Delete draft" Click="CreatorDraftDelete_Click" />
+                        </StackPanel>
                         <TextBlock Text="SCRIPT TITLE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                         <ComboBox x:Name="CreatorScriptComboBox" PlaceholderText="Choose a script" SelectionChanged="CreatorScript_SelectionChanged" />
                         <TextBox x:Name="CreatorScriptTitleBox" PlaceholderText="Give this script a title" TextChanged="CreatorScript_TextChanged" />
