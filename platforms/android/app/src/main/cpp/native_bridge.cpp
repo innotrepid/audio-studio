@@ -69,6 +69,7 @@ public:
         }
 
         stop_requested_.store(false, std::memory_order_release);
+        paused_.store(false, std::memory_order_release);
         overflow_.store(false, std::memory_order_release);
         write_failed_.store(false, std::memory_order_release);
         stream_error_.store(false, std::memory_order_release);
@@ -106,6 +107,32 @@ public:
         }
 
         running_.store(true, std::memory_order_release);
+        set_status("Recording");
+        return true;
+    }
+
+    bool pause() {
+        if (!running_.load(std::memory_order_acquire) || !stream_) return false;
+        if (paused_.load(std::memory_order_acquire)) return true;
+        const auto result = stream_->requestPause();
+        if (result != oboe::Result::OK) {
+            set_status(std::string("Could not pause microphone stream: ") + oboe::convertToText(result));
+            return false;
+        }
+        paused_.store(true, std::memory_order_release);
+        set_status("Recording paused");
+        return true;
+    }
+
+    bool resume() {
+        if (!running_.load(std::memory_order_acquire) || !stream_) return false;
+        if (!paused_.load(std::memory_order_acquire)) return true;
+        const auto result = stream_->requestStart();
+        if (result != oboe::Result::OK) {
+            set_status(std::string("Could not resume microphone stream: ") + oboe::convertToText(result));
+            return false;
+        }
+        paused_.store(false, std::memory_order_release);
         set_status("Recording");
         return true;
     }
@@ -285,6 +312,7 @@ private:
     std::atomic<float> meter_peak_{0.0F};
     std::atomic<bool> clipping_detected_{false};
     std::atomic<bool> running_{false};
+    std::atomic<bool> paused_{false};
     std::shared_ptr<oboe::AudioStream> stream_{};
     std::thread worker_{};
     std::mutex worker_mutex_{};
@@ -329,6 +357,20 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecording(
     }
     g_recorder = std::move(recorder);
     return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativePauseRecording(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    return g_recorder && g_recorder->pause() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeResumeRecording(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    return g_recorder && g_recorder->resume() ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT jfloatArray JNICALL
