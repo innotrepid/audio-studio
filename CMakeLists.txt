@@ -4,6 +4,21 @@ project(AudioStudio LANGUAGES CXX)
 include(CTest)
 include(FetchContent)
 
+# Pin whisper.cpp once at the repository root so desktop core, tests, and
+# platform native targets all resolve the same real CMake target.
+set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(WHISPER_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(WHISPER_CURL OFF CACHE BOOL "" FORCE)
+set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(whisper_cpp
+    GIT_REPOSITORY https://github.com/ggml-org/whisper.cpp.git
+    GIT_TAG 5359861c739e955e79d9a303bcbc70fb988958b1
+    GIT_SHALLOW FALSE
+)
+FetchContent_MakeAvailable(whisper_cpp)
+
 # Pin DSP-ENGINE to an immutable reviewed commit. Build only its static core;
 # platform audio backends are intentionally not used by offline WAV processing.
 set(DSP_BUILD_SHARED OFF CACHE BOOL "" FORCE)
