@@ -822,6 +822,17 @@ class MainActivity : Activity() {
             })
         }
         val creatorStore = CreatorProjectStore(this).also { creatorProjectStore = it }
+        val creatorDraftStore = CreatorDraftStore(this)
+        var creatorDraftDocument: CreatorDraftStore.Document? = null
+        var selectedCreatorDraftId: String? = null
+        var updatingCreatorDraftPicker = false
+        val creatorDraftSpinner = Spinner(this)
+        val creatorDraftNameInput = EditText(this).apply {
+            hint = "Named draft title"
+            setSingleLine(true)
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(150, 163, 184))
+        }
         var selectedCreatorSectionId: String? = null
         var selectedCreatorScriptId: String? = null
         var updatingCreatorSection = false
@@ -1063,6 +1074,22 @@ class MainActivity : Activity() {
             teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { "This section is empty. Add text in Creator → Scripts." }
             updateCreatorStats()
         }
+        fun refreshCreatorDraftPicker(selectId: String? = selectedCreatorDraftId) {
+            val drafts = creatorDraftDocument?.drafts.orEmpty()
+            updatingCreatorDraftPicker = true
+            creatorDraftSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, drafts.map { it.name })
+            val chosen = drafts.firstOrNull { it.draftId == selectId } ?: drafts.firstOrNull()
+            selectedCreatorDraftId = chosen?.draftId
+            if (chosen != null) {
+                creatorDraftSpinner.setSelection(drafts.indexOf(chosen))
+                creatorDraftNameInput.setText(chosen.name)
+            } else creatorDraftNameInput.setText("")
+            updatingCreatorDraftPicker = false
+        }
+        fun persistCreatorDrafts(document: CreatorDraftStore.Document) {
+            creatorDraftDocument = creatorDraftStore.save(document)
+            refreshCreatorDraftPicker(document.activeDraftId)
+        }
         fun mutateCreatorSections(transform: (List<CreatorProjectStore.Section>) -> List<CreatorProjectStore.Section>, selectId: String? = null) {
             saveCreatorScript()
             val current = activeCreatorProject ?: return
@@ -1075,6 +1102,12 @@ class MainActivity : Activity() {
         try {
             activeCreatorProject = creatorStore.loadOrCreate()
             val firstScript = activeCreatorProject!!.scripts.first()
+            creatorDraftDocument = creatorDraftStore.load()
+            if (creatorDraftDocument == null) {
+                val initialDraft = creatorDraftStore.create(firstScript.title, firstScript, null)
+                creatorDraftDocument = creatorDraftStore.save(initialDraft)
+            }
+            refreshCreatorDraftPicker(creatorDraftDocument?.activeDraftId)
             selectedCreatorScriptId = firstScript.scriptId
             creatorTitleInput.setText(firstScript.title)
             selectedCreatorSectionId = firstScript.sections.first().sectionId
@@ -1136,6 +1169,74 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, dp(8), 0, dp(2))
         }, matchWidth())
+        creatorScriptsPanel.addView(TextView(this).apply {
+            text = "NAMED DRAFTS"
+            textSize = 10f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, dp(14), 0, dp(3))
+        }, matchWidth())
+        creatorScriptsPanel.addView(creatorDraftSpinner, matchWidth())
+        creatorScriptsPanel.addView(creatorDraftNameInput, matchWidth())
+        val draftActions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        fun draftAction(label: String, action: () -> Unit) = Button(this).apply {
+            text = label
+            minHeight = dp(44)
+            setOnClickListener { action() }
+        }
+        draftActions.addView(draftAction("Save as draft") {
+            try {
+                saveCreatorScript()
+                val script = currentCreatorScript() ?: throw IOException("No selected script is available.")
+                val name = creatorDraftNameInput.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() } ?: script.title
+                persistCreatorDrafts(creatorDraftStore.create(name, script, creatorDraftDocument))
+                statusText.text = "Created named draft “$name”."
+            } catch (error: Exception) { statusText.text = "Could not create draft: ${error.message}" }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        draftActions.addView(draftAction("Update draft") {
+            try {
+                saveCreatorScript()
+                val id = selectedCreatorDraftId ?: throw IOException("Select a draft first.")
+                val script = currentCreatorScript() ?: throw IOException("No selected script is available.")
+                val name = creatorDraftNameInput.text?.toString().orEmpty()
+                val document = creatorDraftStore.update(creatorDraftDocument ?: throw IOException("No drafts are loaded."), id, name, script)
+                persistCreatorDrafts(document)
+                statusText.text = "Updated named draft."
+            } catch (error: Exception) { statusText.text = "Could not update draft: ${error.message}" }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        draftActions.addView(draftAction("Load draft") {
+            val draft = creatorDraftDocument?.drafts?.firstOrNull { it.draftId == selectedCreatorDraftId }
+            val current = activeCreatorProject
+            val target = currentCreatorScript(current)
+            if (draft == null || current == null || target == null) {
+                statusText.text = "Select a draft and a project script first."
+            } else AlertDialog.Builder(this)
+                .setTitle("Load named draft?")
+                .setMessage("This replaces the currently selected script’s content with “${draft.name}”. Other scripts and recorded takes remain unchanged.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Load") { _, _ ->
+                    try {
+                        saveCreatorScript()
+                        val replacement = draft.script.copy(scriptId = target.scriptId, updatedUtc = java.time.Instant.now().toString())
+                        activeCreatorProject = creatorStore.save(current.copy(scripts = current.scripts.map { if (it.scriptId == target.scriptId) replacement else it }))
+                        selectedCreatorScriptId = target.scriptId
+                        creatorTitleInput.setText(replacement.title)
+                        selectedCreatorSectionId = replacement.sections.firstOrNull()?.sectionId
+                        refreshCreatorSections(selectedCreatorSectionId)
+                        statusText.text = "Loaded draft “${draft.name}” into the selected script."
+                    } catch (error: Exception) { statusText.text = "Draft load failed: ${error.message}" }
+                }.show()
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        draftActions.addView(draftAction("Delete") {
+            try {
+                val doc = creatorDraftDocument ?: throw IOException("No drafts are loaded.")
+                val id = selectedCreatorDraftId ?: throw IOException("Select a draft first.")
+                val next = doc.drafts.firstOrNull { it.draftId != id }?.draftId
+                persistCreatorDrafts(creatorDraftStore.delete(doc, id, next))
+                statusText.text = "Deleted named draft."
+            } catch (error: Exception) { statusText.text = "Could not delete draft: ${error.message}" }
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        creatorScriptsPanel.addView(draftActions, matchWidth())
         creatorScriptsPanel.addView(creatorScriptSpinner, matchWidth())
         creatorScriptsPanel.addView(creatorTitleInput, matchWidth())
         creatorScriptsPanel.addView(TextView(this).apply {
@@ -1148,6 +1249,16 @@ class MainActivity : Activity() {
         creatorScriptsPanel.addView(creatorSectionSpinner, matchWidth())
         creatorScriptsPanel.addView(creatorSectionFilter, matchWidth())
         creatorScriptsPanel.addView(creatorScriptStats, matchWidth())
+        creatorDraftSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                if (updatingCreatorDraftPicker) return
+                val draft = creatorDraftDocument?.drafts?.getOrNull(position) ?: return
+                selectedCreatorDraftId = draft.draftId
+                creatorDraftNameInput.setText(draft.name)
+                creatorDraftDocument = creatorDraftDocument?.copy(activeDraftId = draft.draftId)
+            }
+        }
         creatorScriptSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, activeCreatorProject?.scripts?.map { it.title } ?: emptyList())
         creatorScriptSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
