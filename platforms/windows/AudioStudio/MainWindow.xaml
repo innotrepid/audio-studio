@@ -311,6 +311,12 @@
                         <Button Content="Production" Tag="Production" Click="CreatorSubnav_Click" />
                     </StackPanel>
                     <StackPanel x:Name="CreatorScriptsWorkspace" Spacing="14">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Import project JSON" Click="CreatorImportProject_Click" />
+                            <Button Content="Export project JSON" Click="CreatorExportProject_Click" />
+                            <Button Content="Export narration TXT" Click="CreatorExportNarration_Click" />
+                            <Button Content="Export production copy" Click="CreatorExportProduction_Click" />
+                        </StackPanel>
                         <TextBlock Text="SCRIPT TITLE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
                         <TextBox x:Name="CreatorScriptTitleBox" PlaceholderText="Give this script a title" TextChanged="CreatorScript_TextChanged" />
                         <TextBlock Text="SECTION" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="110" />
