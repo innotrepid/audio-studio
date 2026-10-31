@@ -16,6 +16,7 @@ internal sealed class CreatorProjectStore
         public List<TakeDocument> Takes { get; set; } = new();
         public string Transcript { get; set; } = string.Empty;
         public List<CaptionDocument> Captions { get; set; } = new();
+        public List<ProductionMarkerDocument> ProductionMarkers { get; set; } = new();
     }
 
     internal sealed class ScriptDocument
