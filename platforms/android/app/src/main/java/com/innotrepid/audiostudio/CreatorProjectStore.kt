@@ -314,13 +314,13 @@ internal class CreatorProjectStore(context: Context) {
     }
 
     fun exportSrt(captions: List<Caption>): String = captions.sortedBy { it.startMs }.mapIndexed { index, caption ->
-        (index + 1).toString() + "\\n" + captionTimestamp(caption.startMs, ',') + " --> " +
-            captionTimestamp(caption.endMs, ',') + "\\n" + caption.text
-    }.joinToString("\\n\\n") + if (captions.isEmpty()) "" else "\\n"
+        (index + 1).toString() + "\n" + captionTimestamp(caption.startMs, ',') + " --> " +
+            captionTimestamp(caption.endMs, ',') + "\n" + caption.text
+    }.joinToString("\n\n") + if (captions.isEmpty()) "" else "\n"
 
-    fun exportWebVtt(captions: List<Caption>): String = "WEBVTT\\n\\n" + captions.sortedBy { it.startMs }.joinToString("\\n\\n") { caption ->
-        captionTimestamp(caption.startMs, '.') + " --> " + captionTimestamp(caption.endMs, '.') + "\\n" + caption.text
-    } + if (captions.isEmpty()) "" else "\\n"
+    fun exportWebVtt(captions: List<Caption>): String = "WEBVTT\\n\\n" + captions.sortedBy { it.startMs }.joinToString("\n\n") { caption ->
+        captionTimestamp(caption.startMs, '.') + " --> " + captionTimestamp(caption.endMs, '.') + "\n" + caption.text
+    } + if (captions.isEmpty()) "" else "\n"
 
     private fun captionTimestamp(milliseconds: Long, decimal: Char): String {
         val hours = milliseconds / 3_600_000L
