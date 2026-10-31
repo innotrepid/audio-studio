@@ -977,20 +977,93 @@ public sealed partial class MainWindow : Window
 
         var isScripts = string.Equals(workspace, "Scripts", StringComparison.Ordinal);
         var isCaptions = string.Equals(workspace, "Captions", StringComparison.Ordinal);
+        var isProduction = string.Equals(workspace, "Production", StringComparison.Ordinal);
         CreatorScriptsWorkspace.Visibility = isScripts ? Visibility.Visible : Visibility.Collapsed;
         CreatorCaptionsWorkspace.Visibility = isCaptions ? Visibility.Visible : Visibility.Collapsed;
-        CreatorSubworkspaceNotice.Visibility = isScripts || isCaptions ? Visibility.Collapsed : Visibility.Visible;
+        CreatorProductionWorkspace.Visibility = isProduction ? Visibility.Visible : Visibility.Collapsed;
+        CreatorSubworkspaceNotice.Visibility = isScripts || isCaptions || isProduction ? Visibility.Collapsed : Visibility.Visible;
         if (isCaptions)
         {
             CreatorTranscriptBox.Text = _creatorProject?.Transcript ?? string.Empty;
             RefreshCreatorCaptions();
         }
+        if (isProduction) RefreshCreatorProductionMarkers();
         CreatorSubworkspaceNotice.Text = workspace switch
         {
             "Teleprompter" => "TELEPROMPTER\nIntegrated recording teleprompter with countdown, synchronized scroll, and reading controls. Your scripts remain saved in Scripts.",
-            "Production" => "PRODUCTION\nProduction markers, retake notes, and take review linked to your project.",
+            "Production" => string.Empty,
             _ => string.Empty
         };
+    }
+
+    private void RefreshCreatorProductionMarkers()
+    {
+        CreatorProductionSectionComboBox.Items.Clear();
+        var script = SelectedCreatorScript;
+        if (script is not null)
+        {
+            foreach (var section in script.Sections.OrderBy(item => item.Order))
+                CreatorProductionSectionComboBox.Items.Add(section.Title);
+            if (CreatorProductionSectionComboBox.Items.Count > 0 && CreatorProductionSectionComboBox.SelectedIndex < 0)
+                CreatorProductionSectionComboBox.SelectedIndex = 0;
+        }
+        CreatorProductionMarkerListPanel.Children.Clear();
+        var markers = _creatorProject?.ProductionMarkers.OrderBy(item => item.CreatedUtc).ToList()
+            ?? new List<CreatorProjectStore.ProductionMarkerDocument>();
+        if (markers.Count == 0)
+        {
+            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = "No production markers yet." });
+            return;
+        }
+        foreach (var marker in markers)
+        {
+            var sectionTitle = _creatorProject?.Scripts.SelectMany(item => item.Sections)
+                .FirstOrDefault(item => item.SectionId == marker.SectionId)?.Title ?? "Orphaned section";
+            var row = new StackPanel { Spacing = 6 };
+            row.Children.Add(new TextBlock { Text = marker.Type + " · " + sectionTitle, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
+            row.Children.Add(new TextBlock { Text = marker.Note, TextWrapping = TextWrapping.Wrap });
+            var remove = new Button { Content = "Remove marker" };
+            remove.Click += (_, _) =>
+            {
+                try
+                {
+                    _creatorProject!.ProductionMarkers.RemoveAll(item => item.MarkerId == marker.MarkerId);
+                    _creatorStore!.Save(_creatorProject);
+                    RefreshCreatorProductionMarkers();
+                    CreatorProductionStatusText.Text = "Marker removed.";
+                }
+                catch (Exception error) { CreatorProductionStatusText.Text = "Could not remove marker: " + error.Message; }
+            };
+            row.Children.Add(remove);
+            CreatorProductionMarkerListPanel.Children.Add(row);
+        }
+    }
+
+    private void CreatorProductionAdd_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_creatorProject is null || _creatorStore is null || SelectedCreatorScript is null)
+                throw new InvalidOperationException("Select a script first.");
+            var sectionIndex = CreatorProductionSectionComboBox.SelectedIndex;
+            var section = SelectedCreatorScript.Sections.OrderBy(item => item.Order).ElementAtOrDefault(sectionIndex)
+                ?? throw new InvalidOperationException("Select a section for this marker.");
+            var type = (CreatorProductionTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Retake";
+            var note = CreatorProductionNoteBox.Text?.Trim() ?? string.Empty;
+            _creatorProject.ProductionMarkers.Add(new CreatorProjectStore.ProductionMarkerDocument
+            {
+                MarkerId = Guid.NewGuid().ToString(),
+                SectionId = section.SectionId,
+                Type = type,
+                Note = note,
+                CreatedUtc = DateTime.UtcNow.ToString("O")
+            });
+            _creatorStore.Save(_creatorProject);
+            CreatorProductionNoteBox.Text = string.Empty;
+            RefreshCreatorProductionMarkers();
+            CreatorProductionStatusText.Text = type + " marker saved to “" + section.Title + "”.";
+        }
+        catch (Exception error) { CreatorProductionStatusText.Text = "Marker was not saved: " + error.Message; }
     }
 
     private void SaveCreatorTranscriptAndCaptions()
