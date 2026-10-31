@@ -817,7 +817,8 @@ class MainActivity : Activity() {
             Button(this).apply { text=label; contentDescription=description; minHeight=dp(40); setOnClickListener { action() } }
         fun persistCaptions(next: List<CreatorProjectStore.Caption>) {
             val current = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
-            val updated = creatorStore.save(current.copy(transcript = transcriptInput.text?.toString().orEmpty(), captions = next))
+            val updated = (creatorProjectStore ?: throw IOException("Creator storage is unavailable."))
+                .save(current.copy(transcript = transcriptInput.text?.toString().orEmpty(), captions = next))
             activeCreatorProject = updated
             captionStatus.text = "Saved transcript and ${next.size} caption(s)."
         }
