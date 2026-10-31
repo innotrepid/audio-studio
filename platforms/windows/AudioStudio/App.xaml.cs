@@ -11,7 +11,7 @@ public partial class App : Application
     private Window? _window;
     private static readonly string LogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "AudioStudio",
+        "Synvidra",
         "startup.log");
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -58,7 +58,7 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
-            ShowStartupFailure("Audio Studio could not open its main window.", exception);
+            ShowStartupFailure("Synvidra could not open its main window.", exception);
             throw;
         }
     }
@@ -70,7 +70,7 @@ public partial class App : Application
                       $"A diagnostic log was written to:\n{LogPath}";
         try
         {
-            MessageBoxW(IntPtr.Zero, details, "Audio Studio startup error", 0x10);
+            MessageBoxW(IntPtr.Zero, details, "Synvidra startup error", 0x10);
         }
         catch
         {
