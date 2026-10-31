@@ -813,7 +813,8 @@ class MainActivity : Activity() {
         }
         val captionStatus = TextView(this).apply { textSize = 12f; setTextColor(Color.rgb(190, 198, 214)) }
         val captionList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        var refreshingCaptionList = false
+        fun captionActionButton(label: String, description: String, action: () -> Unit) =
+            Button(this).apply { text=label; contentDescription=description; minHeight=dp(40); setOnClickListener { action() } }
         fun persistCaptions(next: List<CreatorProjectStore.Caption>) {
             val current = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
             val updated = creatorStore.save(current.copy(transcript = transcriptInput.text?.toString().orEmpty(), captions = next))
@@ -830,7 +831,7 @@ class MainActivity : Activity() {
                 val row = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10),dp(8),dp(10),dp(8)); background = android.graphics.drawable.GradientDrawable().apply { setColor(Color.rgb(27,34,48)); cornerRadius=dp(8).toFloat() } }
                 row.addView(TextView(this).apply { text = "${index+1}. ${caption.startMs}–${caption.endMs} ms"; textSize=11f; setTextColor(Color.rgb(160,190,255)) })
                 row.addView(TextView(this).apply { text=caption.text; textSize=14f; setTextColor(Color.WHITE) })
-                row.addView(actionButton("Edit caption","Edit caption timing and text") {
+                row.addView(captionActionButton("Edit caption","Edit caption timing and text") {
                     val fields=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(8),0,dp(8),0) }
                     val start=EditText(this).apply { hint="Start time (ms)"; inputType=android.text.InputType.TYPE_CLASS_NUMBER; setText(caption.startMs.toString()) }
                     val end=EditText(this).apply { hint="End time (ms)"; inputType=android.text.InputType.TYPE_CLASS_NUMBER; setText(caption.endMs.toString()) }
@@ -844,7 +845,7 @@ class MainActivity : Activity() {
                         } catch(error:Exception) { captionStatus.text="Caption not saved: ${error.message}" }
                     }.show()
                 })
-                row.addView(actionButton("Delete caption","Delete this caption") {
+                row.addView(captionActionButton("Delete caption","Delete this caption") {
                     try { persistCaptions(activeCreatorProject?.captions.orEmpty().filterNot { it.captionId==caption.captionId }); refreshCaptionList() }
                     catch(error:Exception) { captionStatus.text="Caption delete failed: ${error.message}" }
                 })
@@ -1475,6 +1476,10 @@ class MainActivity : Activity() {
         creatorScriptsPanel.addView(creatorExchangeActions, matchWidth())
         creatorCaptionsPanel.addView(TextView(this).apply { text="TRANSCRIPT"; textSize=11f; setTypeface(null,android.graphics.Typeface.BOLD); setTextColor(Color.rgb(160,190,255)); setPadding(0,dp(12),0,dp(4)) },matchWidth())
         creatorCaptionsPanel.addView(transcriptInput,matchWidth())
+        creatorCaptionsPanel.addView(exchangeButton("Save transcript","Save transcript edits without changing caption timings") {
+            try { persistCaptions(activeCreatorProject?.captions.orEmpty()) }
+            catch(error:Exception) { captionStatus.text="Transcript save failed: ${error.message}" }
+        },matchWidth())
         creatorCaptionsPanel.addView(exchangeButton("Copy selected script to transcript","Copy selected script sections into the editable transcript") {
             saveCreatorScript()
             val script=currentCreatorScript() ?: return@exchangeButton
@@ -2726,11 +2731,13 @@ class MainActivity : Activity() {
             if (resultCode == RESULT_OK && data?.data != null && kind != null) {
                 try {
                     val project = activeCreatorProject ?: throw IOException("No Creator project is loaded.")
-                    val script = project.scripts.first()
+                    val script = currentCreatorScript(project) ?: project.scripts.first()
                     val content = when (kind) {
                         "project" -> creatorProjectStore!!.exportJson(project)
                         "narration" -> creatorProjectStore!!.exportNarration(script)
                         "production" -> creatorProjectStore!!.exportProductionCopy(script)
+                        "srt" -> creatorProjectStore!!.exportSrt(project.captions)
+                        "vtt" -> creatorProjectStore!!.exportWebVtt(project.captions)
                         else -> throw IOException("Unknown export type.")
                     }
                     contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
