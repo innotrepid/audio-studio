@@ -276,6 +276,20 @@ internal class CreatorProjectStore(context: Context) {
         }
     }
 
+    /** Starter outlines intentionally contain editable placeholders, not generated narration. */
+    fun createTemplate(title: String, template: String): Script {
+        val now = Instant.now().toString()
+        val outline = when (template.lowercase()) {
+            "youtube", "video intro" -> listOf("Hook" to "[HOOK]\\nOpen with the viewer's problem or curiosity.", "Intro" to "[INTRO]\\nIntroduce the topic and promise.", "Main points" to "[MAIN POINT]\\nDeliver the key information.", "Outro" to "[OUTRO]\\nSummarize and invite the next action.")
+            "podcast" -> listOf("Cold open" to "[INTRO]\\nStart with a compelling moment.", "Welcome" to "Welcome listeners and introduce the episode.", "Discussion" to "[MAIN POINT]\\nEpisode discussion and stories.", "Wrap-up" to "[OUTRO]\\nRecap, credits, and next episode.")
+            "tutorial" -> listOf("Outcome" to "[INTRO]\\nShow what the viewer will learn.", "Prerequisites" to "List tools or knowledge needed.", "Steps" to "[MAIN POINT]\\nExplain the process step by step.", "Recap" to "[OUTRO]\\nReview the result and next steps.")
+            "product promo", "promo" -> listOf("Problem" to "[INTRO]\\nIdentify the audience's pain point.", "Solution" to "[MAIN POINT]\\nIntroduce the product and benefit.", "Proof" to "Add a specific, verifiable proof point.", "Call to action" to "[OUTRO]\\nState one clear next action.")
+            else -> throw IllegalArgumentException("Choose YouTube/video intro, podcast, tutorial, or product promo.")
+        }
+        return Script(UUID.randomUUID().toString(), title.trim().ifBlank { template }, now, now,
+            outline.mapIndexed { index, item -> Section(UUID.randomUUID().toString(), item.first, item.second, index) })
+    }
+
     private fun decode(json: String): Project {
         val root = JSONObject(json)
         val version = root.optInt("schemaVersion", -1)
