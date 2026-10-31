@@ -51,13 +51,13 @@ internal class CreatorDraftStore(context: Context) {
                 return recovered
             } catch (backupError: Exception) {
                 throw IOException(
-                    "The named drafts and their recovery copy are invalid. Both files were preserved. Primary: \${primaryError?.message ?: "missing"}. Recovery: \${backupError.message}",
+                    "The named drafts and their recovery copy are invalid. Both files were preserved. Primary: " + (primaryError?.message ?: "missing") + ". Recovery: " + backupError.message,
                     backupError
                 )
             }
         }
         throw IOException(
-            "The saved named drafts are invalid and were preserved: \${primaryError?.message ?: "unknown error"}",
+            "The saved named drafts are invalid and were preserved: " + (primaryError?.message ?: "unknown error"),
             primaryError
         )
     }
