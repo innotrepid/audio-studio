@@ -5,7 +5,7 @@
 **Targets:** Android and Windows  
 **Product direction:** A local-first voice recording and narration production studio.
 
-Audio Studio is intended to help a creator move from a script to clean, edited, publish-ready narration using their own voice—even when their recording environment is less than ideal.
+Synvidra is intended to help a creator move from a script to clean, edited, publish-ready narration using their own voice—even when their recording environment is less than ideal.
 
 The product roadmap covers dependable recording, speech cleanup, intelligent retakes, transcript-aware editing, script and teleprompter tools, optional AI narration, captions, and production handoff tools. The first release will focus on a reliable recording foundation rather than a large collection of unfinished features.
 
@@ -41,7 +41,7 @@ This shares the code where sharing is valuable without pretending Android and Wi
 4. **Creator Studio (planned):** projects, scripts, teleprompter, transcript/caption editing, and production markers.
 5. **Advanced workflows (planned):** verified phrase replacement, non-destructive assembly, and optional AI integrations.
 
-See [the roadmap](docs/ROADMAP.md), [hardening backlog](docs/HARDENING_BACKLOG.md), [product requirements](docs/PRODUCT_REQUIREMENTS.md), and [architecture](docs/ARCHITECTURE.md).
+See [the Synvidra product and build naming contract](docs/SYNVIDRA-PRODUCT-AND-BUILD-NAMING.md), [the roadmap](docs/ROADMAP.md), [hardening backlog](docs/HARDENING_BACKLOG.md), [product requirements](docs/PRODUCT_REQUIREMENTS.md), and [architecture](docs/ARCHITECTURE.md).
 
 ## Repository structure
 
