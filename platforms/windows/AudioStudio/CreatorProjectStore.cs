@@ -198,6 +198,37 @@ internal sealed class CreatorProjectStore
         };
     }
 
+    internal string ExportJson(ProjectDocument project)
+    {
+        Validate(project);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(project, JsonOptions);
+        if (bytes.Length > MaxDocumentBytes) throw new InvalidDataException("Project file exceeds the 1 MB safety limit.");
+        return System.Text.Encoding.UTF8.GetString(bytes);
+    }
+
+    internal ProjectDocument ImportJson(string json)
+    {
+        if (System.Text.Encoding.UTF8.GetByteCount(json) > MaxDocumentBytes)
+            throw new InvalidDataException("Project file exceeds the 1 MB safety limit.");
+        var project = JsonSerializer.Deserialize<ProjectDocument>(json, JsonOptions)
+            ?? throw new InvalidDataException("Project document is empty.");
+        Validate(project);
+        return project;
+    }
+
+    internal static string ExportNarration(ScriptDocument script) =>
+        string.Join(Environment.NewLine + Environment.NewLine,
+            script.Sections.OrderBy(section => section.Order).Select(section => section.Text ?? string.Empty));
+
+    internal static string ExportProductionCopy(ScriptDocument script) =>
+        script.Title + Environment.NewLine + Environment.NewLine +
+        string.Join(Environment.NewLine + Environment.NewLine,
+            script.Sections.OrderBy(section => section.Order).Select(section =>
+                section.Title + Environment.NewLine +
+                (section.Cues.Count == 0 ? string.Empty : "[" + string.Join("] [", section.Cues) + "]" + Environment.NewLine) +
+                (string.IsNullOrWhiteSpace(section.Notes) ? string.Empty : "Notes: " + section.Notes + Environment.NewLine) +
+                section.Text));
+
     private static void Validate(ProjectDocument project)
     {
         if (project.SchemaVersion != 1)
