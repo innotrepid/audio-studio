@@ -355,6 +355,28 @@
                         <TextBlock Text="NEXT IN CREATOR" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
                         <TextBlock Text="Integrated teleprompter · countdown and synchronized scroll · transcripts &amp; captions · production notes" TextWrapping="Wrap" Foreground="#AEB9CC" />
                     </StackPanel>
+                    <StackPanel x:Name="CreatorCaptionsWorkspace" Spacing="12" Visibility="Collapsed">
+                        <TextBlock Text="TRANSCRIPT" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
+                        <TextBox x:Name="CreatorTranscriptBox" PlaceholderText="Paste or edit the transcript here…" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="180" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Save transcript" Click="CreatorTranscriptSave_Click" />
+                            <Button Content="Copy selected script" Click="CreatorTranscriptCopyScript_Click" />
+                        </StackPanel>
+                        <TextBlock Text="CAPTION DRAFT" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBox x:Name="CreatorCaptionWordLimitBox" Text="8" PlaceholderText="Words per caption" Width="150" />
+                            <Button Content="Generate estimated captions" Click="CreatorCaptionGenerate_Click" />
+                            <Button Content="Add caption" Click="CreatorCaptionAdd_Click" />
+                        </StackPanel>
+                        <TextBlock Text="Generated timings are estimates from 150 words/minute, not synchronized to recorded audio. Review and edit every time against your recording." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                        <TextBlock x:Name="CreatorCaptionStatusText" Text="Caption timings are stored in milliseconds." TextWrapping="Wrap" Foreground="#AEB9CC" />
+                        <TextBlock Text="CAPTIONS · START / END IN MILLISECONDS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="90" />
+                        <StackPanel x:Name="CreatorCaptionListPanel" Spacing="8" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Export SRT" Click="CreatorCaptionExportSrt_Click" />
+                            <Button Content="Export WebVTT" Click="CreatorCaptionExportVtt_Click" />
+                        </StackPanel>
+                    </StackPanel>
                     <TextBlock x:Name="CreatorSubworkspaceNotice" Visibility="Collapsed" TextWrapping="Wrap" Foreground="#AEB9CC" />
                 </StackPanel>
             </Border>
