@@ -54,4 +54,73 @@ std::unique_ptr<OnnxSileroVadStream> OnnxSileroVadStream::create(
     return nullptr;
 }
 
+bool OnnxSileroVadStream::process_window(const float* mono_pcm_512,
+                                         float& speech_probability) {
+    if (!impl_ || mono_pcm_512 == nullptr) return false;
+    for (std::size_t i = 0; i < kSileroWindowSamples; ++i) {
+        if (!std::isfinite(mono_pcm_512[i])) return false;
+    }
+
+    std::array<float, kSileroContextSamples + kSileroWindowSamples> input{};
+    std::copy(impl_->context.begin(), impl_->context.end(), input.begin());
+    std::copy(mono_pcm_512, mono_pcm_512 + kSileroWindowSamples,
+              input.begin() + kSileroContextSamples);
+
+    const std::array<std::int64_t, 2U> input_shape{{1, 576}};
+    const std::array<std::int64_t, 3U> state_shape{{2, 1, 128}};
+    const std::array<std::int64_t, 1U> rate_shape{{1}};
+    auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    auto audio_tensor = Ort::Value::CreateTensor<float>(
+        memory, input.data(), input.size(), input_shape.data(), input_shape.size());
+    auto state_tensor = Ort::Value::CreateTensor<float>(
+        memory, impl_->state.data(), impl_->state.size(),
+        state_shape.data(), state_shape.size());
+    auto rate_tensor = Ort::Value::CreateTensor<std::int64_t>(
+        memory, impl_->sample_rate.data(), impl_->sample_rate.size(),
+        rate_shape.data(), rate_shape.size());
+
+    const std::array<const char*, 3U> input_names{{
+        impl_->input_name.c_str(), impl_->state_name.c_str(),
+        impl_->sample_rate_name.c_str()}};
+    const std::array<const char*, 2U> output_names{{
+        impl_->output_name.c_str(), impl_->state_output_name.c_str()}};
+    std::array<Ort::Value, 3U> input_values{{
+        std::move(audio_tensor), std::move(state_tensor), std::move(rate_tensor)}};
+
+    try {
+        auto outputs = impl_->session->Run(
+            Ort::RunOptions{nullptr}, input_names.data(), input_values.data(),
+            input_values.size(), output_names.data(), output_names.size());
+        if (outputs.size() != 2U || !outputs[0].IsTensor() ||
+            !outputs[1].IsTensor()) return false;
+        const auto probability_info = outputs[0].GetTensorTypeAndShapeInfo();
+        const auto state_info = outputs[1].GetTensorTypeAndShapeInfo();
+        if (probability_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT ||
+            state_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT ||
+            probability_info.GetElementCount() != 1U ||
+            state_info.GetElementCount() != impl_->state.size()) return false;
+
+        const float probability = outputs[0].GetTensorData<float>()[0];
+        if (!std::isfinite(probability) || probability < 0.0F ||
+            probability > 1.0F) return false;
+        const float* next_state = outputs[1].GetTensorData<float>();
+        for (std::size_t i = 0; i < impl_->state.size(); ++i) {
+            if (!std::isfinite(next_state[i])) return false;
+        }
+        std::copy(next_state, next_state + impl_->state.size(), impl_->state.begin());
+        std::copy(input.end() - kSileroContextSamples, input.end(),
+                  impl_->context.begin());
+        speech_probability = probability;
+        return true;
+    } catch (const Ort::Exception&) {
+        return false;
+    }
+}
+
+void OnnxSileroVadStream::reset() noexcept {
+    if (!impl_) return;
+    impl_->context.fill(0.0F);
+    impl_->state.fill(0.0F);
+}
+
 }  // namespace audio_studio
