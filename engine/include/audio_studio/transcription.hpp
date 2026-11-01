@@ -48,6 +48,9 @@ struct TranscriptionResult {
     }
 };
 
+// Validates request data without filesystem access or initializing Whisper.
+TranscriptionResult validate_transcription_request(const TranscriptionRequest& request);
+
 // Loads the bundled model and performs local inference. No network access is
 // permitted by this API. The implementation owns runtime/context resources.
 TranscriptionResult transcribe(const TranscriptionRequest& request);
