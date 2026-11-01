@@ -97,7 +97,7 @@ jobs:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDIRECTML_LIBRARY="$env:DIRECTML_LIBRARY"
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDIRECTML_LIBRARY="$env:DIRECTML_LIBRARY" -DONNXRUNTIME_ROOT="$env:ONNXRUNTIME_ROOT"
       - name: Build shared core
         run: cmake --build build --config Release --parallel
       - name: Run core tests
@@ -110,9 +110,12 @@ jobs:
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /p:Configuration=Release /p:Platform=x64
       - name: Publish self-contained Windows app
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
-      - name: Include native audio engine
+      - name: Include native audio engine and ONNX Runtime
         shell: pwsh
-        run: Copy-Item build/Release/audio_studio_native.dll platforms/windows/AudioStudio/artifacts/windows-self-contained/audio_studio_native.dll
+        run: |
+          $publish = "platforms/windows/AudioStudio/artifacts/windows-self-contained"
+          Copy-Item build/Release/audio_studio_native.dll "$publish/audio_studio_native.dll"
+          Copy-Item build/Release/onnxruntime.dll "$publish/onnxruntime.dll"
       - name: Upload self-contained Windows application
         uses: actions/upload-artifact@v4
         with:
