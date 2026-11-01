@@ -18,7 +18,8 @@ TranscriptionResult failure(TranscriptionError error, const char* message) {
 }
 }
 
-TranscriptionResult transcribe(const TranscriptionRequest& request) {
+TranscriptionResult validate_transcription_request(const TranscriptionRequest& request) {
+
     if (request.model_path.empty() || request.mono_pcm_16khz.empty()) {
         return failure(TranscriptionError::InvalidRequest,
                        "A local model path and non-empty 16 kHz mono PCM are required.");
@@ -30,6 +31,14 @@ TranscriptionResult transcribe(const TranscriptionRequest& request) {
     }
     if (request.mono_pcm_16khz.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
         return failure(TranscriptionError::InvalidRequest, "PCM input is too large.");
+    }
+    return {};
+}
+
+TranscriptionResult transcribe(const TranscriptionRequest& request) {
+    const TranscriptionResult validation = validate_transcription_request(request);
+    if (!validation) {
+        return validation;
     }
     std::error_code filesystem_error;
     if (!std::filesystem::is_regular_file(request.model_path, filesystem_error)) {
