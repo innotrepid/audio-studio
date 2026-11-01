@@ -64,6 +64,16 @@ endif()
 add_subdirectory(engine)
 
 if(WIN32)
+    if(NOT DEFINED ONNXRUNTIME_ROOT OR NOT EXISTS "${ONNXRUNTIME_ROOT}/build/native/include/onnxruntime_cxx_api.h")
+        message(FATAL_ERROR "Windows Silero VAD requires ONNXRUNTIME_ROOT pointing to the staged ONNX Runtime 1.23.2 NuGet package.")
+    endif()
+    set(ONNXRUNTIME_INCLUDE_DIR "${ONNXRUNTIME_ROOT}/build/native/include")
+    set(ONNXRUNTIME_LIBRARY "${ONNXRUNTIME_ROOT}/runtimes/win-x64/native/onnxruntime.lib")
+    set(ONNXRUNTIME_DLL "${ONNXRUNTIME_ROOT}/runtimes/win-x64/native/onnxruntime.dll")
+    if(NOT EXISTS "${ONNXRUNTIME_LIBRARY}" OR NOT EXISTS "${ONNXRUNTIME_DLL}")
+        message(FATAL_ERROR "ONNX Runtime 1.23.2 x64 import library or runtime DLL is missing.")
+    endif()
+
     add_library(audio_studio_native SHARED
         engine/src/native_api.cpp
         engine/src/audio_types.cpp
@@ -72,13 +82,19 @@ if(WIN32)
         engine/src/wav_recovery.cpp
         engine/src/noise_gate.cpp
         engine/src/dsp_effects.cpp
+        engine/src/silero_onnx.cpp
         engine/src/wav_processing.cpp
         platforms/windows/native/windows_capture.cpp
         platforms/windows/native/windows_processing.cpp
     )
-    target_include_directories(audio_studio_native PRIVATE engine/include platforms/windows/native)
+    target_include_directories(audio_studio_native PRIVATE engine/include platforms/windows/native "${ONNXRUNTIME_INCLUDE_DIR}")
     target_compile_features(audio_studio_native PRIVATE cxx_std_17)
-    target_link_libraries(audio_studio_native PRIVATE dsp_engine_static noise_cancellation_static ole32 uuid propsys ws2_32 userenv bcrypt advapi32 ntdll)
+    target_link_libraries(audio_studio_native PRIVATE dsp_engine_static noise_cancellation_static "${ONNXRUNTIME_LIBRARY}" ole32 uuid propsys ws2_32 userenv bcrypt advapi32 ntdll)
+    add_custom_command(TARGET audio_studio_native POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${ONNXRUNTIME_DLL}"
+            "$<TARGET_FILE_DIR:audio_studio_native>/onnxruntime.dll"
+        VERBATIM)
     if(MSVC)
         target_compile_options(audio_studio_native PRIVATE /W4 /WX)
     else()
