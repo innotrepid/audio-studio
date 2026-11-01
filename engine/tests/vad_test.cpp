@@ -6,6 +6,11 @@
 
 int main() {
     using namespace audio_studio;
+    if (kVadSampleRateHz != 16000U || kSileroWindowSamples != 512U ||
+        kSileroContextSamples != 64U || kSileroWindowDurationMs != 32U) {
+        std::cerr << "Silero stream contract constants changed unexpectedly.\\n";
+        return 4;
+    }
     const std::vector<VadProbabilityFrame> frames{
         {0, 100, 0.1F}, {100, 200, 0.8F}, {200, 300, 0.9F},
         {300, 400, 0.7F}, {400, 500, 0.1F}, {500, 600, 0.1F},
