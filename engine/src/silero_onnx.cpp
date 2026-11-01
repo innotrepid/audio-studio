@@ -5,6 +5,7 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -37,8 +38,14 @@ std::unique_ptr<OnnxSileroVadStream> OnnxSileroVadStream::create(
         impl->options.SetIntraOpNumThreads(1);
         impl->options.SetInterOpNumThreads(1);
         impl->options.SetExecutionMode(ORT_SEQUENTIAL);
+        #if defined(_WIN32)
+        const auto native_model_path = std::filesystem::path(model_path).wstring();
+        impl->session = std::make_unique<Ort::Session>(
+            impl->env, native_model_path.c_str(), impl->options);
+#else
         impl->session = std::make_unique<Ort::Session>(
             impl->env, model_path.c_str(), impl->options);
+#endif
         if (impl->session->GetInputCount() != 3U ||
             impl->session->GetOutputCount() != 2U) {
             error_message = "Silero model must expose three inputs and two outputs";
