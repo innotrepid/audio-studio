@@ -23,6 +23,12 @@ struct VadOptions {
     std::uint64_t padding_ms{80U};
 };
 
+// Silero processes fixed 512-sample windows at 16 kHz with a rolling
+// 64-sample context and recurrent state owned by each independent stream.
+inline constexpr std::uint32_t kSileroWindowSamples = 512U;
+inline constexpr std::uint32_t kSileroContextSamples = 64U;
+inline constexpr std::uint32_t kSileroWindowDurationMs = 32U;
+
 struct SpeechRegion {
     std::uint64_t start_ms{0U};
     std::uint64_t end_ms{0U};
@@ -30,6 +36,16 @@ struct SpeechRegion {
 
 // Converts ordered probability frames into padded speech regions. Invalid
 // options/frames produce an empty result; regions are clamped to frame bounds.
+// Platform ONNX Runtime adapters implement this stateful inference boundary.
+// Call reset() before each independent recording to prevent state leakage.
+class SileroVadStream {
+public:
+    virtual ~SileroVadStream() = default;
+    virtual bool process_window(const float* mono_pcm_512,
+                               float& speech_probability) = 0;
+    virtual void reset() noexcept = 0;
+};
+
 std::vector<SpeechRegion> build_speech_regions(
     const std::vector<VadProbabilityFrame>& frames,
     const VadOptions& options = {});
