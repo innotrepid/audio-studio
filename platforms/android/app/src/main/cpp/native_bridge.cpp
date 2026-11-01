@@ -6,6 +6,7 @@
 #include "audio_studio/wav_writer.hpp"
 #include "audio_studio/wav_processing.hpp"
 #include "audio_studio/wav_recovery.hpp"
+#include "audio_studio/transcription.hpp"
 
 #include <algorithm>
 #include <array>
@@ -594,3 +595,37 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
     return env->NewStringUTF("RECOVERED");
 }
 
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
+    JNIEnv* env, jobject /* thiz */, jstring model_path, jfloatArray pcm,
+    jstring language, jboolean translate_to_english) {
+    if (model_path == nullptr || pcm == nullptr || language == nullptr)
+        return env->NewStringUTF("{\\"error\\":\\"Invalid transcription request\\"}");
+    const char* model_chars = env->GetStringUTFChars(model_path, nullptr);
+    const char* language_chars = env->GetStringUTFChars(language, nullptr);
+    if (model_chars == nullptr || language_chars == nullptr) {
+        if (model_chars != nullptr) env->ReleaseStringUTFChars(model_path, model_chars);
+        if (language_chars != nullptr) env->ReleaseStringUTFChars(language, language_chars);
+        return env->NewStringUTF("{\\"error\\":\\"Could not read transcription parameters\\"}");
+    }
+    audio_studio::TranscriptionRequest request{};
+    request.model_path = model_chars;
+    request.language = language_chars;
+    request.translate_to_english = translate_to_english == JNI_TRUE;
+    env->ReleaseStringUTFChars(model_path, model_chars);
+    env->ReleaseStringUTFChars(language, language_chars);
+    const jsize count = env->GetArrayLength(pcm);
+    if (count <= 0) return env->NewStringUTF("{\\"error\\":\\"Audio is empty\\"}");
+    request.mono_pcm_16khz.resize(static_cast<std::size_t>(count));
+    env->GetFloatArrayRegion(pcm, 0, count, request.mono_pcm_16khz.data());
+    if (env->ExceptionCheck()) return nullptr;
+    const auto result = audio_studio::transcribe(request);
+    if (!result) {
+        const std::string message = "{\\"error\\":\\" + result.error_message + "\\"}";
+        return env->NewStringUTF(message.c_str());
+    }
+    // Keep the JNI boundary intentionally minimal; the UI layer will serialize
+    // structured segments in the next integration task.
+    return env->NewStringUTF(result.text.c_str());
+}
