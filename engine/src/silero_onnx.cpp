@@ -44,6 +44,23 @@ std::unique_ptr<OnnxSileroVadStream> OnnxSileroVadStream::create(
             error_message = "Silero model must expose three inputs and two outputs";
             return nullptr;
         }
+        const std::array<const char*, 3U> expected_inputs{{"input", "state", "sr"}};
+        const std::array<const char*, 2U> expected_outputs{{"output", "stateN"}};
+        Ort::AllocatorWithDefaultOptions allocator;
+        for (std::size_t i = 0; i < expected_inputs.size(); ++i) {
+            auto name = impl->session->GetInputNameAllocated(i, allocator);
+            if (std::string(name.get()) != expected_inputs[i]) {
+                error_message = "Unexpected Silero input tensor name";
+                return nullptr;
+            }
+        }
+        for (std::size_t i = 0; i < expected_outputs.size(); ++i) {
+            auto name = impl->session->GetOutputNameAllocated(i, allocator);
+            if (std::string(name.get()) != expected_outputs[i]) {
+                error_message = "Unexpected Silero output tensor name";
+                return nullptr;
+            }
+        }
         return std::unique_ptr<OnnxSileroVadStream>(
             new OnnxSileroVadStream(std::move(impl)));
     } catch (const Ort::Exception& ex) {
@@ -68,7 +85,7 @@ bool OnnxSileroVadStream::process_window(const float* mono_pcm_512,
 
     const std::array<std::int64_t, 2U> input_shape{{1, 576}};
     const std::array<std::int64_t, 3U> state_shape{{2, 1, 128}};
-    const std::array<std::int64_t, 1U> rate_shape{{1}};
+    const std::array<std::int64_t, 0U> scalar_shape{};
     auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
     auto audio_tensor = Ort::Value::CreateTensor<float>(
         memory, input.data(), input.size(), input_shape.data(), input_shape.size());
@@ -77,7 +94,7 @@ bool OnnxSileroVadStream::process_window(const float* mono_pcm_512,
         state_shape.data(), state_shape.size());
     auto rate_tensor = Ort::Value::CreateTensor<std::int64_t>(
         memory, impl_->sample_rate.data(), impl_->sample_rate.size(),
-        rate_shape.data(), rate_shape.size());
+        scalar_shape.data(), scalar_shape.size());
 
     const std::array<const char*, 3U> input_names{{
         impl_->input_name.c_str(), impl_->state_name.c_str(),
