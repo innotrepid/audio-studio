@@ -61,11 +61,48 @@ std::unique_ptr<OnnxSileroVadStream> OnnxSileroVadStream::create(
                 return nullptr;
             }
         }
-        for (std::size_t i = 0; i < expected_outputs.size(); ++i) {
-            auto name = impl->session->GetOutputNameAllocated(i, allocator);
-            if (std::string(name.get()) != expected_outputs[i]) {
-                error_message = "Unexpected Silero output tensor name";
+        const std::array<ONNXTensorElementDataType, 3U> input_types{{
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64}};
+        const std::array<ONNXTensorElementDataType, 2U> output_types{{
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT,
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT}};
+        const std::array<std::vector<std::int64_t>, 3U> input_shapes{{
+            std::vector<std::int64_t>{1, 576},
+            std::vector<std::int64_t>{2, 1, 128},
+            std::vector<std::int64_t>{}}};
+        const std::array<std::vector<std::int64_t>, 2U> output_shapes{{
+            std::vector<std::int64_t>{1, 1},
+            std::vector<std::int64_t>{2, 1, 128}}};
+        for (std::size_t i = 0; i < input_types.size(); ++i) {
+            const auto info = impl->session->GetInputTypeInfo(i).GetTensorTypeAndShapeInfo();
+            const auto shape = info.GetShape();
+            if (info.GetElementType() != input_types[i] ||
+                shape.size() != input_shapes[i].size()) {
+                error_message = "Silero input tensor type or rank is invalid";
                 return nullptr;
+            }
+            for (std::size_t d = 0; d < shape.size(); ++d) {
+                if (shape[d] >= 0 && shape[d] != input_shapes[i][d]) {
+                    error_message = "Silero input tensor shape is invalid";
+                    return nullptr;
+                }
+            }
+        }
+        for (std::size_t i = 0; i < output_types.size(); ++i) {
+            const auto info = impl->session->GetOutputTypeInfo(i).GetTensorTypeAndShapeInfo();
+            const auto shape = info.GetShape();
+            if (info.GetElementType() != output_types[i] ||
+                shape.size() != output_shapes[i].size()) {
+                error_message = "Silero output tensor type or rank is invalid";
+                return nullptr;
+            }
+            for (std::size_t d = 0; d < shape.size(); ++d) {
+                if (shape[d] >= 0 && shape[d] != output_shapes[i][d]) {
+                    error_message = "Silero output tensor shape is invalid";
+                    return nullptr;
+                }
             }
         }
         return std::unique_ptr<OnnxSileroVadStream>(
@@ -90,7 +127,8 @@ bool OnnxSileroVadStream::process_window(const float* mono_pcm_512,
     std::copy(mono_pcm_512, mono_pcm_512 + kSileroWindowSamples,
               input.begin() + kSileroContextSamples);
 
-    const std::array<std::int64_t, 2U> input_shape{{1, 576}};
+    try {
+        const std::array<std::int64_t, 2U> input_shape{{1, 576}};
     const std::array<std::int64_t, 3U> state_shape{{2, 1, 128}};
     const std::array<std::int64_t, 0U> scalar_shape{};
     auto memory = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
@@ -111,7 +149,6 @@ bool OnnxSileroVadStream::process_window(const float* mono_pcm_512,
     std::array<Ort::Value, 3U> input_values{{
         std::move(audio_tensor), std::move(state_tensor), std::move(rate_tensor)}};
 
-    try {
         auto outputs = impl_->session->Run(
             Ort::RunOptions{nullptr}, input_names.data(), input_values.data(),
             input_values.size(), output_names.data(), output_names.size());
@@ -137,6 +174,8 @@ bool OnnxSileroVadStream::process_window(const float* mono_pcm_512,
         speech_probability = probability;
         return true;
     } catch (const Ort::Exception&) {
+        return false;
+    } catch (const std::exception&) {
         return false;
     }
 }
