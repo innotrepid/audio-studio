@@ -68,6 +68,8 @@ android {
 
 dependencies {
     implementation("com.google.oboe:oboe:1.11.0")
+    // Pinned CPU ONNX Runtime; its native Android libraries are packaged in the APK.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.6.1")
