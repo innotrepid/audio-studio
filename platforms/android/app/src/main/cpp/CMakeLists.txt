@@ -64,12 +64,13 @@ add_library(audio_studio_core STATIC
     ../../../../../../engine/src/noise_gate.cpp
     ../../../../../../engine/src/dsp_effects.cpp
     ../../../../../../engine/src/wav_processing.cpp
+    ../../../../../../engine/src/transcription.cpp
 )
 target_include_directories(audio_studio_core PUBLIC
     ../../../../../../engine/include
 )
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
-target_link_libraries(audio_studio_core PUBLIC dsp_engine_static noise_cancellation_static)
+target_link_libraries(audio_studio_core PUBLIC dsp_engine_static noise_cancellation_static whisper)
 
 find_package(oboe REQUIRED CONFIG)
 
