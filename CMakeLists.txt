@@ -14,7 +14,7 @@ set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(whisper_cpp
     GIT_REPOSITORY https://github.com/ggml-org/whisper.cpp.git
-    GIT_TAG 5359861c739e955e79d9a303bcbc70fb988958b1
+    GIT_TAG 482279b8a18855ba741d7b88c30fcb3874691f59
     GIT_SHALLOW FALSE
 )
 FetchContent_MakeAvailable(whisper_cpp)
