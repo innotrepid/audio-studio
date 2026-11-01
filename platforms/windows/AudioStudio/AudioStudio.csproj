@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250205002" />
+    <!-- Pinned CPU ONNX Runtime for bundled Silero VAD inference. -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
     <Content Include="..\..\..\vendor\noise-cancellation-model\models\enc.onnx" Link="models\enc.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\..\vendor\noise-cancellation-model\models\erb_dec.onnx" Link="models\erb_dec.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\..\vendor\noise-cancellation-model\models\df_dec.onnx" Link="models\df_dec.onnx" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
