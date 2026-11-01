@@ -75,6 +75,22 @@ jobs:
           }
           "DIRECTML_LIBRARY=$($lib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "Using x64 DirectML library: $($lib.FullName)"
+      - name: Stage pinned ONNX Runtime 1.23.2 native package
+        shell: pwsh
+        run: |
+          nuget install Microsoft.ML.OnnxRuntime -Version 1.23.2 -OutputDirectory packages -NonInteractive
+          $root = Join-Path $env:GITHUB_WORKSPACE "packages/Microsoft.ML.OnnxRuntime.1.23.2"
+          $headers = Join-Path $root "build/native/include/onnxruntime_cxx_api.h"
+          $library = Join-Path $root "build/native/lib/x64/onnxruntime.lib"
+          $runtime = Join-Path $root "runtimes/win-x64/native/onnxruntime.dll"
+          $missing = @($headers, $library, $runtime) | Where-Object { -not (Test-Path $_ -PathType Leaf) }
+          if ($missing.Count -gt 0) {
+            Write-Host "Inspected ONNX Runtime package root: $root"
+            Get-ChildItem $root -Recurse -File | Select-Object -ExpandProperty FullName
+            throw "ONNX Runtime 1.23.2 package is missing expected native files: $($missing -join ', ')"
+          }
+          "ONNXRUNTIME_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Verified ONNX Runtime headers, x64 import library, and runtime DLL."
       - name: Build RNNoise and DeepFilterNet3 C ABI
         working-directory: vendor/noise-cancellation-model
         env:
