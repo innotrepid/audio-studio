@@ -62,6 +62,21 @@ class MainActivity : Activity() {
         return modelDirectory.absolutePath
     }
 
+    private external fun nativeTranscribe(modelPath: String, monoPcm16Khz: FloatArray, language: String, translateToEnglish: Boolean): String
+
+    private fun ensureTranscriptionModel(): String {
+        val model = File(filesDir, "models/ggml-tiny.bin")
+        if (model.isFile && model.length() == 77691713L) return model.absolutePath
+        model.parentFile?.let { if (!it.exists() && !it.mkdirs()) throw IOException("Could not create transcription model directory.") }
+        val temporary = File(model.parentFile, "ggml-tiny.bin.tmp")
+        try {
+            assets.open("models/ggml-tiny.bin").use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
+            if (temporary.length() != 77691713L) throw IOException("Bundled Whisper tiny model failed its size check.")
+            if (!temporary.renameTo(model)) throw IOException("Could not install bundled Whisper tiny model.")
+        } finally { if (temporary.exists()) temporary.delete() }
+        return model.absolutePath
+    }
+
     private external fun nativeEngineStatus(): String
     private external fun nativeStartRecording(outputPath: String): Boolean
     private external fun nativePauseRecording(): Boolean
