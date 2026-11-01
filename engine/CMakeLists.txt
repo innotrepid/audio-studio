@@ -1,4 +1,4 @@
-add_library(audio_studio_core
+add_library(audio_studio_core STATIC
     src/audio_types.cpp
     src/wav_writer.cpp
     src/wav_reader.cpp
