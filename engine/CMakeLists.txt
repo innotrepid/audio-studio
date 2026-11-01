@@ -7,6 +7,7 @@ add_library(audio_studio_core STATIC
     src/noise_gate.cpp
     src/dsp_effects.cpp
     src/wav_processing.cpp
+    src/transcription.cpp
 )
 
 target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
@@ -62,7 +63,7 @@ if(BUILD_TESTING)
 
     add_executable(audio_studio_wav_recovery_tests tests/wav_recovery_test.cpp)
     target_link_libraries(audio_studio_wav_recovery_tests PRIVATE audio_studio_core)
-    target_compile_features(audio_studio_wav_recovery_tests PRIVATE cxx_std_17)
+    target_compile_features(audio_studio_wav_recovery_tests PUBLIC cxx_std_17)
     if(MSVC)
         target_compile_options(audio_studio_wav_recovery_tests PRIVATE /W4 /WX)
     else()
