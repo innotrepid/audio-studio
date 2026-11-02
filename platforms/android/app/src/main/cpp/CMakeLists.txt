@@ -65,6 +65,8 @@ add_library(audio_studio_core STATIC
     ../../../../../../engine/src/dsp_effects.cpp
     ../../../../../../engine/src/wav_processing.cpp
     ../../../../../../engine/src/transcription.cpp
+    ../../../../../../engine/src/audio_resampler.cpp
+    ../../../../../../engine/src/wav_audio_reader.cpp
     ../../../../../../engine/src/vad.cpp
 )
 target_include_directories(audio_studio_core PUBLIC
