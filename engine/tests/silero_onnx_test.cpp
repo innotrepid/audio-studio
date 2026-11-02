@@ -90,10 +90,37 @@ int main(int argc, char** argv) {
         audio_studio_vad_destroy(handle);
         return 12;
     }
-    if (!audio_studio_vad_reset(handle)) {
-        std::cerr << "C ABI reset failed: " << audio_studio_vad_last_error() << "\n";
+    // Repeated flush is idempotent after all output has been delivered.
+    written = 99;
+    if (!audio_studio_vad_flush(handle, nullptr, 0, &written) || written != 0) {
+        std::cerr << "Repeated empty flush should succeed: "
+                  << audio_studio_vad_last_error() << "\n";
         audio_studio_vad_destroy(handle);
         return 13;
+    }
+
+    // Reset after flush reopens the handle for a fresh stream.
+    if (!audio_studio_vad_reset(handle)) {
+        std::cerr << "C ABI reset after flush failed: "
+                  << audio_studio_vad_last_error() << "\n";
+        audio_studio_vad_destroy(handle);
+        return 14;
+    }
+    written = 99;
+    if (!audio_studio_vad_push_audio(handle, silent_chunk.data(), silent_chunk.size(),
+                                     nullptr, 0, &written) || written != 0) {
+        std::cerr << "Push after reset should succeed: "
+                  << audio_studio_vad_last_error() << "\n";
+        audio_studio_vad_destroy(handle);
+        return 15;
+    }
+    if (!audio_studio_vad_flush(handle, nullptr, 0, &written) || written != 0) {
+        std::cerr << "Fresh stream flush after reset failed: "
+                  << audio_studio_vad_last_error() << "\n";
+        audio_studio_vad_destroy(handle);
+        return 16;
+    }
+    audio_studio_vad_destroy(handle);        return 13;
     }
     audio_studio_vad_destroy(handle);
 
