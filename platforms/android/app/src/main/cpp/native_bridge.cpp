@@ -663,17 +663,4 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
     }
     payload += "]}";
     return env->NewStringUTF(payload.c_str());
-    }
-    std::string payload = "{\\"text\\":\\"" + json_escape(result.text) +
-        "\\",\\"detectedLanguage\\":\\"" + json_escape(result.detected_language) +
-        "\\",\\"segments\\":[";
-    for (std::size_t i = 0; i < result.segments.size(); ++i) {
-        if (i != 0U) payload += ",";
-        const auto& segment = result.segments[i];
-        payload += "{\\"startMs\\":" + std::to_string(segment.start_ms) +
-            ",\\"endMs\\":" + std::to_string(segment.end_ms) +
-            ",\\"text\\":\\"" + json_escape(segment.text) + "\\"}";
-    }
-    payload += "]}";
-    return env->NewStringUTF(payload.c_str());
 }
