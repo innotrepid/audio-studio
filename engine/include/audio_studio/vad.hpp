@@ -46,6 +46,40 @@ public:
     virtual void reset() noexcept = 0;
 };
 
+
+// Incremental coordinator over a caller-owned inference stream. push_audio()
+// emits only regions whose trailing silence has been confirmed; flush() closes
+// any remaining region and analyzes a final partial window padded with zeros.
+// Call reset() between independent recordings.
+class StreamingVadSession {
+public:
+    explicit StreamingVadSession(SileroVadStream& stream,
+                                VadOptions options = {});
+    bool push_audio(const float* mono_pcm, std::size_t sample_count,
+                    std::vector<SpeechRegion>& completed_regions);
+    bool flush(std::vector<SpeechRegion>& completed_regions);
+    void reset() noexcept;
+    std::uint64_t audio_duration_ms() const noexcept;
+
+private:
+    bool analyze_window(std::size_t valid_samples,
+                        std::vector<SpeechRegion>& completed_regions);
+    void consume_probability(float probability, std::uint64_t start_ms,
+                             std::uint64_t end_ms,
+                             std::vector<SpeechRegion>& completed_regions);
+    void finalize_region(std::uint64_t observed_end_ms,
+                         std::vector<SpeechRegion>& completed_regions);
+
+    SileroVadStream& stream_;
+    VadOptions options_;
+    std::vector<float> pending_;
+    std::uint64_t samples_seen_{0U};
+    bool active_{false};
+    std::uint64_t speech_start_ms_{0U};
+    std::uint64_t last_speech_end_ms_{0U};
+    bool flushed_{false};
+};
+
 std::vector<SpeechRegion> build_speech_regions(
     const std::vector<VadProbabilityFrame>& frames,
     const VadOptions& options = {});
