@@ -83,6 +83,9 @@ if(WIN32)
         engine/src/noise_gate.cpp
         engine/src/dsp_effects.cpp
         engine/src/silero_onnx.cpp
+        engine/src/native_vad_session.cpp
+        engine/src/audio_resampler.cpp
+        engine/src/vad.cpp
         engine/src/wav_processing.cpp
         platforms/windows/native/windows_capture.cpp
         platforms/windows/native/windows_processing.cpp
