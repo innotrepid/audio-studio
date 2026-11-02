@@ -2527,6 +2527,20 @@ class MainActivity : Activity() {
                                 clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Transcript", transcript))
                                 transcriptionStatus.text = "Transcript copied to clipboard."
                             }
+                            .setNegativeButton("Save TXT") { _, _ ->
+                                val exportText = "Synvidra Offline Transcript\\nDetected language: $detected\\n\\n$display"
+                                transcriptionStatus.text = "Saving transcript…"
+                                Thread {
+                                    try {
+                                        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                                        val name = "Synvidra_Transcript_$timestamp.txt"
+                                        publishTextExport(exportText.toByteArray(Charsets.UTF_8), name, "Transcripts", "text/plain")
+                                        mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Transcript saved and verified · Music/Synvidra/Transcripts/$name" }
+                                    } catch (error: Exception) {
+                                        mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Transcript export failed: ${error.message ?: "unknown error"}" }
+                                    }
+                                }.start()
+                            }
                             .show()
                     }
                 }
