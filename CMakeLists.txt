@@ -84,6 +84,7 @@ if(WIN32)
         engine/src/dsp_effects.cpp
         engine/src/silero_onnx.cpp
         engine/src/native_vad_session.cpp
+        engine/src/native_vad_api.cpp
         engine/src/audio_resampler.cpp
         engine/src/vad.cpp
         engine/src/wav_processing.cpp
