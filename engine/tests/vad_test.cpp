@@ -92,7 +92,9 @@ int main() {
 
     // A short final speech window is analyzed on flush and bounded by observed audio.
     FakeStream partial_fake;
-    StreamingVadSession partial_session(partial_fake, streaming_options);
+    VadOptions partial_options = streaming_options;
+    partial_options.minimum_speech_ms = 1U;
+    StreamingVadSession partial_session(partial_fake, partial_options);
     std::vector<float> partial_audio(256U, 0.0F);
     if (!partial_session.push_audio(partial_audio.data(), partial_audio.size(), emitted) ||
         !emitted.empty() || !partial_session.flush(emitted) ||
