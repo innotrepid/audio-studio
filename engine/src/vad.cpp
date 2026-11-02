@@ -1,7 +1,8 @@
 #include "audio_studio/vad.hpp"
 
 #include <algorithm>
-#include <cmath>\n#include <limits>
+#include <cmath>
+#include <limits>
 
 namespace audio_studio {
 namespace {
@@ -117,7 +118,9 @@ void StreamingVadSession::finalize_region(std::uint64_t observed,
     if (active_ && last_speech_end_ms_-speech_start_ms_>=options_.minimum_speech_ms) {
         const auto start=speech_start_ms_>options_.padding_ms
             ? speech_start_ms_-options_.padding_ms : 0U;
-        const auto padded_end = last_speech_end_ms_ > std::numeric_limits<std::uint64_t>::max() - options_.padding_ms\n            ? std::numeric_limits<std::uint64_t>::max() : last_speech_end_ms_ + options_.padding_ms;\n        const auto end=std::min(observed,padded_end);
+        const auto padded_end = last_speech_end_ms_ > std::numeric_limits<std::uint64_t>::max() - options_.padding_ms
+            ? std::numeric_limits<std::uint64_t>::max() : last_speech_end_ms_ + options_.padding_ms;
+        const auto end=std::min(observed,padded_end);
         if (end>start) out.push_back({start,end});
     }
     active_=false; speech_start_ms_=0U; last_speech_end_ms_=0U;
