@@ -7,6 +7,7 @@
 #include "audio_studio/wav_processing.hpp"
 #include "audio_studio/wav_recovery.hpp"
 #include "audio_studio/transcription.hpp"
+#include "audio_studio/wav_audio_reader.hpp"
 
 #include <algorithm>
 #include <array>
@@ -16,6 +17,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <limits>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -663,4 +665,34 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
     }
     payload += "]}";
     return env->NewStringUTF(payload.c_str());
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeDecodeWavForTranscription(
+    JNIEnv* env, jobject /* thiz */, jstring input_path) {
+    if (input_path == nullptr) return nullptr;
+    const char* chars = env->GetStringUTFChars(input_path, nullptr);
+    if (chars == nullptr) return nullptr;
+    const std::string path(chars);
+    env->ReleaseStringUTFChars(input_path, chars);
+    std::vector<float> mono;
+    std::string error;
+    // Keep mobile allocations bounded: two hours at 16 kHz is ~460 MiB.
+    constexpr std::uint64_t kMaxSamples = 2ULL * 60ULL * 60ULL * 16000ULL;
+    if (!audio_studio::load_wav_for_transcription(path, mono, &error, kMaxSamples)) {
+        const std::string message = "WAV transcription decode failed: " + error;
+        jclass exception_class = env->FindClass("java/lang/IllegalArgumentException");
+        if (exception_class != nullptr) env->ThrowNew(exception_class, message.c_str());
+        return nullptr;
+    }
+    if (mono.size() > static_cast<std::size_t>(std::numeric_limits<jsize>::max())) {
+        jclass exception_class = env->FindClass("java/lang/IllegalArgumentException");
+        if (exception_class != nullptr) env->ThrowNew(exception_class, "Decoded WAV exceeds Android array limits.");
+        return nullptr;
+    }
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(mono.size()));
+    if (result != nullptr && !mono.empty()) {
+        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(mono.size()), mono.data());
+    }
+    return result;
 }
