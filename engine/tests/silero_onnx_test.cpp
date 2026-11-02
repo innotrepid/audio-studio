@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     // Exercise the public streaming C ABI lifecycle with the pinned model.
     AudioStudioVadHandle* handle = audio_studio_vad_create(
         std::filesystem::path(argv[1]).wstring().c_str(), 16000, 1,
-        0.5F, 0, 100, 0);
+        0.5F, 1, 100, 0);
     if (!handle) {
         std::cerr << "C ABI VAD creation failed: " << audio_studio_vad_last_error() << "\n";
         return 10;
