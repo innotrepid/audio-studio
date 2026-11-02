@@ -22,6 +22,8 @@ thread_local std::string vad_error;
 void clear_error() { vad_error.clear(); }
 void set_error(const char* message) { vad_error = message ? message : "VAD operation failed."; }
 
+// Pure delivery helper: does not mutate the queued regions. This makes the
+// required-capacity/retry contract deterministic to test without model audio.
 int copy_regions(const std::vector<audio_studio::SpeechRegion>& regions,
                  AudioStudioSpeechRegion* output, size_t capacity,
                  size_t* written) {
