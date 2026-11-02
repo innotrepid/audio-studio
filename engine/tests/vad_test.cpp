@@ -79,6 +79,33 @@ int main() {
         return 7;
     }
 
+    // Invalid chunks must fail without advancing the session timeline.
+    session.reset();
+    const auto duration_before_invalid = session.audio_duration_ms();
+    const float invalid_sample = std::numeric_limits<float>::infinity();
+    if (session.push_audio(&invalid_sample, 1U, emitted) ||
+        session.audio_duration_ms() != duration_before_invalid ||
+        !session.push_audio(nullptr, 0U, emitted)) {
+        std::cerr << "Invalid or empty chunks must preserve session state.\\n";
+        return 8;
+    }
+
+    // A short final speech window is analyzed on flush and bounded by observed audio.
+    FakeStream partial_fake;
+    StreamingVadSession partial_session(partial_fake, streaming_options);
+    std::vector<float> partial_audio(256U, 0.0F);
+    if (!partial_session.push_audio(partial_audio.data(), partial_audio.size(), emitted) ||
+        !emitted.empty() || !partial_session.flush(emitted) ||
+        emitted.size() != 1U || emitted[0].start_ms != 0U ||
+        emitted[0].end_ms != 16U || partial_session.audio_duration_ms() != 16U) {
+        std::cerr << "Flush should analyze and clamp a final partial window.\\n";
+        return 9;
+    }
+    if (partial_session.push_audio(partial_audio.data(), partial_audio.size(), emitted)) {
+        std::cerr << "Push after flush must be rejected.\\n";
+        return 10;
+    }
+
     std::cout << "VAD region tests passed.\n";
     return 0;
 }
