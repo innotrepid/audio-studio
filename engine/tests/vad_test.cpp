@@ -9,11 +9,13 @@ namespace {
 class FakeStream final : public audio_studio::SileroVadStream {
 public:
     bool process_window(const float*, float& p) override {
+        if (fail_next) { fail_next = false; return false; }
         p = index++ < 3 ? 0.9F : 0.1F;
         return true;
     }
-    void reset() noexcept override { index=0; }
+    void reset() noexcept override { index=0; fail_next=false; }
     std::size_t index{0};
+    bool fail_next{false};
 };
 }
 
