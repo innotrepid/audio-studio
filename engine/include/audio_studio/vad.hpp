@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstddef>\n#include <cstdint>
+#include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace audio_studio {
