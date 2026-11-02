@@ -120,8 +120,6 @@ int main(int argc, char** argv) {
         audio_studio_vad_destroy(handle);
         return 16;
     }
-    audio_studio_vad_destroy(handle);        return 13;
-    }
     audio_studio_vad_destroy(handle);
 
     std::cout << "Silero ONNX adapter validation tests passed.\n";
