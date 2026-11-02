@@ -10,6 +10,7 @@ add_library(audio_studio_core STATIC
     src/transcription.cpp
     src/audio_resampler.cpp
     src/vad.cpp
+    src/speech_region_delivery.cpp
 )
 target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
@@ -121,6 +122,16 @@ if(BUILD_TESTING)
         target_compile_options(audio_studio_resampler_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME audio_studio_resampler_tests COMMAND audio_studio_resampler_tests)
+
+    add_executable(audio_studio_speech_region_delivery_tests tests/speech_region_delivery_test.cpp src/speech_region_delivery.cpp)
+    target_include_directories(audio_studio_speech_region_delivery_tests PRIVATE include)
+    target_compile_features(audio_studio_speech_region_delivery_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_speech_region_delivery_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_speech_region_delivery_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_speech_region_delivery_tests COMMAND audio_studio_speech_region_delivery_tests)
 
     add_executable(audio_studio_vad_tests tests/vad_test.cpp)
     target_link_libraries(audio_studio_vad_tests PRIVATE audio_studio_core)
