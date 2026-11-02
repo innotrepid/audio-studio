@@ -9,6 +9,7 @@ add_library(audio_studio_core STATIC
     src/wav_processing.cpp
     src/transcription.cpp
     src/audio_resampler.cpp
+    src/wav_audio_reader.cpp
     src/vad.cpp
     src/speech_region_delivery.cpp
 )
@@ -112,6 +113,16 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio_studio_transcription_tests COMMAND audio_studio_transcription_tests)
     set_tests_properties(audio_studio_transcription_tests PROPERTIES TIMEOUT 60)
+
+    add_executable(audio_studio_wav_audio_reader_tests tests/wav_audio_reader_test.cpp)
+    target_link_libraries(audio_studio_wav_audio_reader_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_audio_reader_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_audio_reader_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_audio_reader_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_audio_reader_tests COMMAND audio_studio_wav_audio_reader_tests)
 
     add_executable(audio_studio_resampler_tests tests/audio_resampler_test.cpp)
     target_link_libraries(audio_studio_resampler_tests PRIVATE audio_studio_core)
