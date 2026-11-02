@@ -324,6 +324,32 @@ private:
     std::string final_status_{"Ready to record."};
 };
 
+std::string json_escape(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size() + 8U);
+    for (const unsigned char ch : value) {
+        switch (ch) {
+        case '\\"': escaped += "\\\\\\\""; break;
+        case '\\\\': escaped += "\\\\\\\\"; break;
+        case '\\b': escaped += "\\\\b"; break;
+        case '\\f': escaped += "\\\\f"; break;
+        case '\\n': escaped += "\\\\n"; break;
+        case '\\r': escaped += "\\\\r"; break;
+        case '\\t': escaped += "\\\\t"; break;
+        default:
+            if (ch < 0x20U) {
+                constexpr char hex[] = "0123456789abcdef";
+                escaped += "\\\\u00";
+                escaped += hex[(ch >> 4U) & 0x0fU];
+                escaped += hex[ch & 0x0fU];
+            } else {
+                escaped += static_cast<char>(ch);
+            }
+        }
+    }
+    return escaped;
+}
+
 std::mutex g_recorder_mutex;
 std::unique_ptr<AndroidRecorder> g_recorder;
 std::atomic<bool> g_cancel_noise_gate{false};
@@ -622,10 +648,19 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
     if (env->ExceptionCheck()) return nullptr;
     const auto result = audio_studio::transcribe(request);
     if (!result) {
-        const std::string message = std::string("Transcription failed: ") + result.error_message;
-        return env->NewStringUTF(message.c_str());
+        const std::string payload = "{\\"error\\":\\"" + json_escape(result.error_message) + "\\"}";
+        return env->NewStringUTF(payload.c_str());
     }
-    // Keep the JNI boundary intentionally minimal; the UI layer will serialize
-    // structured segments in the next integration task.
-    return env->NewStringUTF(result.text.c_str());
+    std::string payload = "{\\"text\\":\\"" + json_escape(result.text) +
+        "\\",\\"detectedLanguage\\":\\"" + json_escape(result.detected_language) +
+        "\\",\\"segments\\":[";
+    for (std::size_t i = 0; i < result.segments.size(); ++i) {
+        if (i != 0U) payload += ",";
+        const auto& segment = result.segments[i];
+        payload += "{\\"startMs\\":" + std::to_string(segment.start_ms) +
+            ",\\"endMs\\":" + std::to_string(segment.end_ms) +
+            ",\\"text\\":\\"" + json_escape(segment.text) + "\\"}";
+    }
+    payload += "]}";
+    return env->NewStringUTF(payload.c_str());
 }
