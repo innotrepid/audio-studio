@@ -157,6 +157,9 @@ class MainActivity : Activity() {
     private lateinit var processButton: Button
     private val processingPresetButtons = linkedMapOf<String, Button>()
     private lateinit var waveformButton: Button
+    private lateinit var transcribeWavButton: Button
+    private lateinit var transcriptionStatus: TextView
+    @Volatile private var transcribing = false
     private lateinit var waveformStatus: TextView
     private lateinit var waveformView: WaveformView
     private lateinit var trimStartLabel: TextView
@@ -425,6 +428,17 @@ class MainActivity : Activity() {
             text = "Load WAV waveform"
             setOnClickListener { chooseWavWaveform() }
         }
+        transcriptionStatus = TextView(this).apply {
+            text = "Offline transcription · Whisper tiny multilingual"
+            textSize = 13f
+            setTextColor(Color.rgb(190, 198, 214))
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        transcribeWavButton = Button(this).apply {
+            text = "Transcribe WAV offline"
+            setOnClickListener { chooseWavForTranscription() }
+        }
         recoverButton = Button(this).apply {
             text = "Check for interrupted recordings"
             setOnClickListener { showInterruptedRecordings() }
@@ -651,6 +665,8 @@ class MainActivity : Activity() {
 
         val editSection = makeSection("Editor", "Shape the exact range you need. Inspect the waveform, set precise in and out points, preview the selection, then export a separate WAV. Your source recording is never overwritten.")
         editSection.addView(waveformButton, matchWidth())
+        editSection.addView(transcribeWavButton, matchWidth())
+        editSection.addView(transcriptionStatus, matchWidth())
         editSection.addView(waveformView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(224)))
         editSection.addView(TextView(this).apply {
             text = "Drag the gold IN and red OUT handles on the waveform, or use the sliders and exact timecodes below."
@@ -2440,6 +2456,95 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun chooseWavForTranscription() {
+        if (recording || processing || transcribing || wavPickerActive || startAfterPermission) {
+            transcriptionStatus.text = "Finish the current operation before starting transcription."
+            return
+        }
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+        }
+        wavPickerActive = true
+        transcribeWavButton.isEnabled = false
+        try { startActivityForResult(picker, REQUEST_TRANSCRIPTION_WAV) }
+        catch (exception: Exception) {
+            wavPickerActive = false
+            transcribeWavButton.isEnabled = true
+            transcriptionStatus.text = "Could not open audio picker: ${exception.message ?: "unknown error"}"
+        }
+    }
+
+    private fun transcribeSelectedWav(uri: Uri) {
+        transcribing = true
+        transcriptionStatus.text = "Copying selected audio into app-private storage…"
+        Thread {
+            var staged: File? = null
+            try {
+                val file = File(filesDir, uniqueWavName("transcription-source"))
+                staged = file
+                contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) { val count = input.read(buffer); if (count < 0) break; output.write(buffer, 0, count) }
+                    }
+                } ?: throw IOException("Could not open the selected audio file.")
+                mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Decoding and resampling audio to mono 16 kHz…"}
+                val pcm = nativeDecodeWavForTranscription(file.absolutePath)
+                if (pcm.isEmpty()) throw IOException("The selected WAV contains no audio samples.")
+                mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Loading Whisper tiny and transcribing ${pcm.size / 16000 / 60} min of audio…"}
+                val modelPath = ensureTranscriptionModel()
+                val payload = nativeTranscribe(modelPath, pcm, "auto", false)
+                val json = JSONObject(payload)
+                if (json.has("error")) throw IOException(json.optString("error", "Transcription failed."))
+                val transcript = json.optString("text", "").trim()
+                if (transcript.isEmpty()) throw IOException("Whisper returned an empty transcript.")
+                val detected = json.optString("detectedLanguage", "unknown")
+                val segments = json.optJSONArray("segments")
+                val display = buildString {
+                    append("Detected language: ").append(detected).append("\\n\\n")
+                    if (segments != null && segments.length() > 0) {
+                        for (i in 0 until segments.length()) {
+                            val segment = segments.optJSONObject(i) ?: continue
+                            val start = segment.optLong("startMs", 0L)
+                            val end = segment.optLong("endMs", start)
+                            append("[%02d:%02d.%03d – %02d:%02d.%03d] ".format(
+                                start / 60000, (start / 1000) % 60, start % 1000,
+                                end / 60000, (end / 1000) % 60, end % 1000))
+                            append(segment.optString("text", "").trim()).append("\\n")
+                        }
+                    } else append(transcript)
+                }
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) {
+                        transcriptionStatus.text = "Transcription complete · $detected · ${transcript.length} characters"
+                        AlertDialog.Builder(this)
+                            .setTitle("Offline transcription")
+                            .setMessage(display)
+                            .setPositiveButton("Close", null)
+                            .setNeutralButton("Copy transcript") { _, _ ->
+                                val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Transcript", transcript))
+                                transcriptionStatus.text = "Transcript copied to clipboard."
+                            }
+                            .show()
+                    }
+                }
+            } catch (exception: Exception) {
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) transcriptionStatus.text =
+                        "Transcription failed: ${exception.message ?: "unknown error"}"
+                }
+            } finally {
+                staged?.delete()
+                transcribing = false
+                mainHandler.post {
+                    if (!isFinishing && !isDestroyed) transcribeWavButton.isEnabled = !recording && !processing && !wavPickerActive
+                }
+            }
+        }.start()
+    }
+
     private fun analyzeSelectedWaveform(uri: Uri, onLoaded: (() -> Unit)? = null) {
         diagnosticsCapture.record("waveform_load", "started", mapOf("source_uri_authority" to (uri.authority ?: "unknown")))
         waveformStatus.text = "Analyzing WAV in bounded memory…"
@@ -2827,6 +2932,16 @@ class MainActivity : Activity() {
         }
 
 
+        if (requestCode == REQUEST_TRANSCRIPTION_WAV) {
+            wavPickerActive = false
+            if (resultCode == RESULT_OK && data?.data != null) {
+                transcribeSelectedWav(data.data!!)
+            } else {
+                transcriptionStatus.text = "Transcription cancelled. No audio was changed."
+                transcribeWavButton.isEnabled = !recording && !processing
+            }
+            return
+        }
         if (requestCode == REQUEST_WAVEFORM) {
             wavPickerActive = false
             diagnosticsCapture.record("waveform_picker", if (resultCode == RESULT_OK && data?.data != null) "selected" else "cancelled",
@@ -3376,6 +3491,7 @@ class MainActivity : Activity() {
         private const val REQUEST_RECORD_AUDIO = 1001
         private const val REQUEST_PROCESS_WAV = 1002
         private const val REQUEST_WAVEFORM = 1003
+        private const val REQUEST_TRANSCRIPTION_WAV = 1009
         private const val REQUEST_TRIM_OUTPUT = 1004
         private const val REQUEST_DIAGNOSTICS_EXPORT = 1005
         private const val REQUEST_LIBRARY_AUDIO = 1006
