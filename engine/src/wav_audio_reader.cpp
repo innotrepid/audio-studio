@@ -18,7 +18,8 @@ bool load_wav_for_transcription(const std::string& path, std::vector<float>& out
     kTranscriptionSampleRateHz/fmt.sample_rate_hz;
   if(estimate>static_cast<long double>(max_samples) ||
      estimate>static_cast<long double>(std::numeric_limits<std::size_t>::max())) {
-    if(error)*error="Audio exceeds the configured transcription duration limit."; return false;
+    if (error) *error = "Audio exceeds the configured transcription duration limit.";
+    return false;
   }
   output.reserve(static_cast<std::size_t>(estimate));
   constexpr std::size_t block=4096;
