@@ -62,6 +62,7 @@ class MainActivity : Activity() {
         return modelDirectory.absolutePath
     }
 
+    private external fun nativeDecodeWavForTranscription(inputPath: String): FloatArray
     private external fun nativeTranscribe(modelPath: String, monoPcm16Khz: FloatArray, language: String, translateToEnglish: Boolean): String
 
     private fun ensureTranscriptionModel(): String {
