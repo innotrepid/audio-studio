@@ -329,17 +329,17 @@ std::string json_escape(const std::string& value) {
     escaped.reserve(value.size() + 8U);
     for (const unsigned char ch : value) {
         switch (ch) {
-        case '\\"': escaped += "\\\\\\\""; break;
-        case '\\\\': escaped += "\\\\\\\\"; break;
-        case '\\b': escaped += "\\\\b"; break;
-        case '\\f': escaped += "\\\\f"; break;
-        case '\\n': escaped += "\\\\n"; break;
-        case '\\r': escaped += "\\\\r"; break;
-        case '\\t': escaped += "\\\\t"; break;
+        case '"': escaped += "\\\""; break;
+        case '\\': escaped += "\\\\"; break;
+        case '\b': escaped += "\\b"; break;
+        case '\f': escaped += "\\f"; break;
+        case '\n': escaped += "\\n"; break;
+        case '\r': escaped += "\\r"; break;
+        case '\t': escaped += "\\t"; break;
         default:
             if (ch < 0x20U) {
                 constexpr char hex[] = "0123456789abcdef";
-                escaped += "\\\\u00";
+                escaped += "\\u00";
                 escaped += hex[(ch >> 4U) & 0x0fU];
                 escaped += hex[ch & 0x0fU];
             } else {
@@ -648,8 +648,21 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
     if (env->ExceptionCheck()) return nullptr;
     const auto result = audio_studio::transcribe(request);
     if (!result) {
-        const std::string payload = "{\\"error\\":\\"" + json_escape(result.error_message) + "\\"}";
+        const std::string payload = R"json({"error":")json" + json_escape(result.error_message) + R"json("})json";
         return env->NewStringUTF(payload.c_str());
+    }
+    std::string payload = R"json({"text":")json" + json_escape(result.text) +
+        R"json(","detectedLanguage":")json" + json_escape(result.detected_language) +
+        R"json(","segments":[)json";
+    for (std::size_t i = 0; i < result.segments.size(); ++i) {
+        if (i != 0U) payload += ",";
+        const auto& segment = result.segments[i];
+        payload += R"json({"startMs":)json" + std::to_string(segment.start_ms) +
+            R"json(,"endMs":)json" + std::to_string(segment.end_ms) +
+            R"json(,"text":")json" + json_escape(segment.text) + R"json("})json";
+    }
+    payload += "]}";
+    return env->NewStringUTF(payload.c_str());
     }
     std::string payload = "{\\"text\\":\\"" + json_escape(result.text) +
         "\\",\\"detectedLanguage\\":\\"" + json_escape(result.detected_language) +
