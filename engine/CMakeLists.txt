@@ -9,6 +9,7 @@ add_library(audio_studio_core STATIC
     src/wav_processing.cpp
     src/transcription.cpp
     src/audio_resampler.cpp
+    src/native_vad_session.cpp
     src/vad.cpp
 )
 target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
