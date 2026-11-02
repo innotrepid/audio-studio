@@ -67,6 +67,34 @@ int main(int argc, char** argv) {
 
     stream->reset();
     stream->reset();
+
+    // Exercise the public streaming C ABI lifecycle with the pinned model.
+    AudioStudioVadHandle* handle = audio_studio_vad_create(
+        std::filesystem::path(argv[1]).wstring().c_str(), 16000, 1,
+        0.5F, 0, 100, 0);
+    if (!handle) {
+        std::cerr << "C ABI VAD creation failed: " << audio_studio_vad_last_error() << "\n";
+        return 10;
+    }
+    written = 99;
+    if (!audio_studio_vad_push_audio(handle, nullptr, 0, nullptr, 0, &written) ||
+        written != 0) {
+        std::cerr << "Empty C ABI push should succeed without output.\n";
+        audio_studio_vad_destroy(handle);
+        return 11;
+    }
+    if (!audio_studio_vad_flush(handle, nullptr, 0, &written)) {
+        std::cerr << "C ABI flush failed: " << audio_studio_vad_last_error() << "\n";
+        audio_studio_vad_destroy(handle);
+        return 12;
+    }
+    if (!audio_studio_vad_reset(handle)) {
+        std::cerr << "C ABI reset failed: " << audio_studio_vad_last_error() << "\n";
+        audio_studio_vad_destroy(handle);
+        return 13;
+    }
+    audio_studio_vad_destroy(handle);
+
     std::cout << "Silero ONNX adapter validation tests passed.\n";
     return 0;
 }
