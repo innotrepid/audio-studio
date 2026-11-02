@@ -79,6 +79,7 @@ private:
     std::uint64_t speech_start_ms_{0U};
     std::uint64_t last_speech_end_ms_{0U};
     bool flushed_{false};
+    bool failed_{false};
 };
 
 std::vector<SpeechRegion> build_speech_regions(
