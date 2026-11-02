@@ -82,11 +82,16 @@ StreamingVadSession::StreamingVadSession(SileroVadStream& stream, VadOptions opt
 bool StreamingVadSession::push_audio(const float* pcm, std::size_t count,
                                      std::vector<SpeechRegion>& out) {
     out.clear();
-    if (flushed_ || (count && !pcm)) return false;
+    if (flushed_ || failed_ || (count && !pcm)) return false;
     for (std::size_t i=0;i<count;++i) if (!std::isfinite(pcm[i])) return false;
     if (count > 0U) pending_.insert(pending_.end(), pcm, pcm+count);
-    while (pending_.size() >= kSileroWindowSamples)
-        if (!analyze_window(kSileroWindowSamples,out)) return false;
+    while (pending_.size() >= kSileroWindowSamples) {
+        if (!analyze_window(kSileroWindowSamples,out)) {
+            failed_ = true;
+            out.clear();
+            return false;
+        }
+    }
     return true;
 }
 bool StreamingVadSession::analyze_window(std::size_t valid,
@@ -127,15 +132,19 @@ void StreamingVadSession::finalize_region(std::uint64_t observed,
 }
 bool StreamingVadSession::flush(std::vector<SpeechRegion>& out) {
     out.clear();
-    if (flushed_) return false;
-    if (!pending_.empty() && !analyze_window(pending_.size(),out)) return false;
+    if (flushed_ || failed_) return false;
+    if (!pending_.empty() && !analyze_window(pending_.size(),out)) {
+        failed_ = true;
+        out.clear();
+        return false;
+    }
     finalize_region(audio_duration_ms(),out);
     flushed_=true;
     return true;
 }
 void StreamingVadSession::reset() noexcept {
     pending_.clear(); samples_seen_=0U; active_=false;
-    speech_start_ms_=0U; last_speech_end_ms_=0U; flushed_=false; stream_.reset();
+    speech_start_ms_=0U; last_speech_end_ms_=0U; flushed_=false; failed_=false; stream_.reset();
 }
 std::uint64_t StreamingVadSession::audio_duration_ms() const noexcept {
     return samples_seen_*1000U/kVadSampleRateHz;
