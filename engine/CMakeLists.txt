@@ -8,6 +8,7 @@ add_library(audio_studio_core STATIC
     src/dsp_effects.cpp
     src/wav_processing.cpp
     src/transcription.cpp
+    src/audio_resampler.cpp
     src/vad.cpp
 )
 target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
@@ -110,6 +111,16 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio_studio_transcription_tests COMMAND audio_studio_transcription_tests)
     set_tests_properties(audio_studio_transcription_tests PROPERTIES TIMEOUT 60)
+
+    add_executable(audio_studio_resampler_tests tests/audio_resampler_test.cpp)
+    target_link_libraries(audio_studio_resampler_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_resampler_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_resampler_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_resampler_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_resampler_tests COMMAND audio_studio_resampler_tests)
 
     add_executable(audio_studio_vad_tests tests/vad_test.cpp)
     target_link_libraries(audio_studio_vad_tests PRIVATE audio_studio_core)
