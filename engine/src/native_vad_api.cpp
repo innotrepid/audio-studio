@@ -12,6 +12,8 @@
 
 struct AudioStudioVadHandle {
     std::unique_ptr<audio_studio::NativeVadSession> session;
+    std::vector<audio_studio::SpeechRegion> pending_regions;
+    bool flushed{false};
 };
 
 namespace {
@@ -104,7 +106,10 @@ int audio_studio_vad_push_audio(
             if (written) *written = 0;
             return 0;
         }
-        return copy_regions(regions, output, capacity, written);
+        handle->pending_regions.insert(handle->pending_regions.end(), regions.begin(), regions.end());
+        if (!copy_regions(handle->pending_regions, output, capacity, written)) return 0;
+        handle->pending_regions.clear();
+        return 1;
     } catch (const std::exception& e) {
         set_error(e.what());
     } catch (...) {
@@ -124,13 +129,19 @@ int audio_studio_vad_flush(
         return 0;
     }
     try {
-        std::vector<audio_studio::SpeechRegion> regions;
-        if (!handle->session->flush(regions)) {
-            set_error("VAD final flush failed; reset the session before retrying.");
-            if (written) *written = 0;
-            return 0;
+        if (!handle->flushed) {
+            std::vector<audio_studio::SpeechRegion> regions;
+            if (!handle->session->flush(regions)) {
+                set_error("VAD final flush failed; reset the session before retrying.");
+                if (written) *written = 0;
+                return 0;
+            }
+            handle->pending_regions.insert(handle->pending_regions.end(), regions.begin(), regions.end());
+            handle->flushed = true;
         }
-        return copy_regions(regions, output, capacity, written);
+        if (!copy_regions(handle->pending_regions, output, capacity, written)) return 0;
+        handle->pending_regions.clear();
+        return 1;
     } catch (const std::exception& e) {
         set_error(e.what());
     } catch (...) {
@@ -147,6 +158,8 @@ int audio_studio_vad_reset(AudioStudioVadHandle* handle) {
         return 0;
     }
     handle->session->reset();
+    handle->pending_regions.clear();
+    handle->flushed = false;
     return 1;
 }
 
