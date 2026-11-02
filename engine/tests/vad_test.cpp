@@ -3,6 +3,20 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+#include <cstddef>
+
+namespace {
+class FakeStream final : public audio_studio::SileroVadStream {
+public:
+    bool process_window(const float*, float& p) override {
+        p = index++ < 3 ? 0.9F : 0.1F;
+        return true;
+    }
+    void reset() noexcept override { index=0; }
+    std::size_t index{0};
+};
+}
+
 
 int main() {
     using namespace audio_studio;
@@ -38,6 +52,31 @@ int main() {
     if (!build_speech_regions(frames, options).empty()) {
         std::cerr << "Invalid options must be rejected.\n";
         return 3;
+    }
+
+
+    FakeStream fake;
+    VadOptions streaming_options;
+    streaming_options.minimum_speech_ms = 64;
+    streaming_options.minimum_silence_ms = 64;
+    streaming_options.padding_ms = 16;
+    StreamingVadSession session(fake, streaming_options);
+    std::vector<SpeechRegion> emitted;
+    std::vector<float> audio(512U * 5U, 0.0F);
+    if (!session.push_audio(audio.data(), 777U, emitted) || !emitted.empty() ||
+        !session.push_audio(audio.data()+777U, audio.size()-777U, emitted) ||
+        emitted.size()!=1U || emitted[0].start_ms!=0U || emitted[0].end_ms!=112U) {
+        std::cerr << "Incremental VAD should emit a completed padded region.\n";
+        return 5;
+    }
+    if (!session.flush(emitted) || !emitted.empty() || session.flush(emitted)) {
+        std::cerr << "Flush should succeed once and reject repeated flush.\n";
+        return 6;
+    }
+    session.reset();
+    if (session.audio_duration_ms()!=0U) {
+        std::cerr << "Reset should clear streaming timestamps.\n";
+        return 7;
     }
 
     std::cout << "VAD region tests passed.\n";
