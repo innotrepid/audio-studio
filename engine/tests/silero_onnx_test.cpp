@@ -1,6 +1,8 @@
 #include "audio_studio/silero_onnx.hpp"
+#include "audio_studio/native_api.h"
 
 #include <cmath>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <string>
