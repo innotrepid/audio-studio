@@ -117,7 +117,7 @@ if(WIN32)
         endif()
         add_test(NAME audio_studio_silero_onnx_tests
             COMMAND audio_studio_silero_onnx_tests
-                "${CMAKE_SOURCE_DIR}/build/transcription-models/silero_vad.onnx")
+                "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx")
         set_tests_properties(audio_studio_silero_onnx_tests PROPERTIES
             TIMEOUT 20
             ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
