@@ -108,7 +108,11 @@ if(WIN32)
     if(BUILD_TESTING)
         add_executable(audio_studio_silero_onnx_tests
             engine/tests/silero_onnx_test.cpp
+            engine/src/native_vad_api.cpp
+            engine/src/native_vad_session.cpp
             engine/src/silero_onnx.cpp
+            engine/src/audio_resampler.cpp
+            engine/src/vad.cpp
         )
         target_include_directories(audio_studio_silero_onnx_tests PRIVATE
             engine/include "${ONNXRUNTIME_INCLUDE_DIR}")
