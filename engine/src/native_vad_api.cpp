@@ -44,6 +44,11 @@ int copy_regions(const std::vector<audio_studio::SpeechRegion>& regions,
 
 extern "C" {
 
+// Creates an independent VAD stream. On Windows, model_path is a NUL-terminated
+// UTF-16 path. Audio is normalized float32 PCM interleaved by channel; frame_count
+// counts frames, not individual channel samples. Calls on a handle must be
+// serialized by the caller. Returns nullptr on failure; query the thread-local
+// error immediately with audio_studio_vad_last_error().
 AudioStudioVadHandle* audio_studio_vad_create(
     const wchar_t* model_path, uint32_t sample_rate, uint32_t channels,
     float speech_threshold, uint64_t minimum_speech_ms,
@@ -90,6 +95,9 @@ void audio_studio_vad_destroy(AudioStudioVadHandle* handle) {
     delete handle;
 }
 
+// Returns 1 on success, 0 on failure. On output-capacity failure, *written
+// reports the required region count and queued regions remain retained. Retry
+// with a larger output buffer; do not replay the same audio chunk.
 int audio_studio_vad_push_audio(
     AudioStudioVadHandle* handle, const float* interleaved, size_t frame_count,
     AudioStudioSpeechRegion* output, size_t capacity, size_t* written) {
@@ -119,6 +127,8 @@ int audio_studio_vad_push_audio(
     return 0;
 }
 
+// Finalizes the stream once. If output capacity is insufficient, final regions
+// remain queued; a subsequent flush retries delivery without re-finalizing.
 int audio_studio_vad_flush(
     AudioStudioVadHandle* handle, AudioStudioSpeechRegion* output,
     size_t capacity, size_t* written) {
@@ -151,6 +161,7 @@ int audio_studio_vad_flush(
     return 0;
 }
 
+// Starts a fresh stream and discards queued, not-yet-delivered regions.
 int audio_studio_vad_reset(AudioStudioVadHandle* handle) {
     clear_error();
     if (!handle || !handle->session) {
@@ -163,6 +174,8 @@ int audio_studio_vad_reset(AudioStudioVadHandle* handle) {
     return 1;
 }
 
+// Error text is thread-local and remains valid until the next VAD API call on
+// the same thread. Copy it if it must outlive that call.
 const char* audio_studio_vad_last_error(void) {
     return vad_error.c_str();
 }
