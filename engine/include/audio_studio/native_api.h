@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
 #if defined(_WIN32)
 #define AUDIO_STUDIO_API __declspec(dllexport)
 #else
@@ -9,6 +12,27 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Opaque handle for an independent streaming Silero VAD session.
+typedef struct AudioStudioVadHandle AudioStudioVadHandle;
+typedef struct AudioStudioSpeechRegion {
+    uint64_t start_ms;
+    uint64_t end_ms;
+} AudioStudioSpeechRegion;
+
+AUDIO_STUDIO_API AudioStudioVadHandle* audio_studio_vad_create(
+    const wchar_t* model_path, uint32_t sample_rate, uint32_t channels,
+    float speech_threshold, uint64_t minimum_speech_ms,
+    uint64_t minimum_silence_ms, uint64_t padding_ms);
+AUDIO_STUDIO_API void audio_studio_vad_destroy(AudioStudioVadHandle* handle);
+AUDIO_STUDIO_API int audio_studio_vad_push_audio(
+    AudioStudioVadHandle* handle, const float* interleaved, size_t frame_count,
+    AudioStudioSpeechRegion* output, size_t capacity, size_t* written);
+AUDIO_STUDIO_API int audio_studio_vad_flush(
+    AudioStudioVadHandle* handle, AudioStudioSpeechRegion* output,
+    size_t capacity, size_t* written);
+AUDIO_STUDIO_API int audio_studio_vad_reset(AudioStudioVadHandle* handle);
+AUDIO_STUDIO_API const char* audio_studio_vad_last_error(void);
 
 // Stable C ABI for thin native UI bindings. The returned string has static
 // storage duration and must not be freed by the caller.
