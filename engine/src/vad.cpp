@@ -83,7 +83,7 @@ bool StreamingVadSession::push_audio(const float* pcm, std::size_t count,
     out.clear();
     if (flushed_ || (count && !pcm)) return false;
     for (std::size_t i=0;i<count;++i) if (!std::isfinite(pcm[i])) return false;
-    pending_.insert(pending_.end(), pcm, pcm+count);
+    if (count > 0U) pending_.insert(pending_.end(), pcm, pcm+count);
     while (pending_.size() >= kSileroWindowSamples)
         if (!analyze_window(kSileroWindowSamples,out)) return false;
     return true;
