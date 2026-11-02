@@ -76,10 +76,12 @@ int main(int argc, char** argv) {
         std::cerr << "C ABI VAD creation failed: " << audio_studio_vad_last_error() << "\n";
         return 10;
     }
+    std::vector<float> silent_chunk(512, 0.0F);
     written = 99;
-    if (!audio_studio_vad_push_audio(handle, nullptr, 0, nullptr, 0, &written) ||
-        written != 0) {
-        std::cerr << "Empty C ABI push should succeed without output.\n";
+    if (!audio_studio_vad_push_audio(handle, silent_chunk.data(), silent_chunk.size(),
+                                     nullptr, 0, &written) || written != 0) {
+        std::cerr << "Silent C ABI push should succeed without output: "
+                  << audio_studio_vad_last_error() << "\n";
         audio_studio_vad_destroy(handle);
         return 11;
     }
