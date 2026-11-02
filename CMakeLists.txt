@@ -100,4 +100,26 @@ if(WIN32)
     else()
         target_compile_options(audio_studio_native PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
+
+    if(BUILD_TESTING)
+        add_executable(audio_studio_silero_onnx_tests
+            engine/tests/silero_onnx_test.cpp
+            engine/src/silero_onnx.cpp
+        )
+        target_include_directories(audio_studio_silero_onnx_tests PRIVATE
+            engine/include "${ONNXRUNTIME_INCLUDE_DIR}")
+        target_compile_features(audio_studio_silero_onnx_tests PRIVATE cxx_std_17)
+        target_link_libraries(audio_studio_silero_onnx_tests PRIVATE "${ONNXRUNTIME_LIBRARY}")
+        if(MSVC)
+            target_compile_options(audio_studio_silero_onnx_tests PRIVATE /W4 /WX)
+        else()
+            target_compile_options(audio_studio_silero_onnx_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+        endif()
+        add_test(NAME audio_studio_silero_onnx_tests
+            COMMAND audio_studio_silero_onnx_tests
+                "${CMAKE_SOURCE_DIR}/build/transcription-models/silero_vad.onnx")
+        set_tests_properties(audio_studio_silero_onnx_tests PROPERTIES
+            TIMEOUT 20
+            ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
+    endif()
 endif()
