@@ -10,7 +10,7 @@ import urllib.request
 
 URL = "https://raw.githubusercontent.com/snakers4/silero-vad/60b7ffa243625ebdc1070275a29f18c87843786a/tests/data/test.wav"
 EXPECTED_SIZE = 1_920_044
-EXPECTED_BLOB_SHA1 = "0b1b64ecd9b316445e06cfd5b6b709b0e5fcf18f"
+EXPECTED_BLOB_SHA1 = "40c4da7435c725fe4e5353d9fe52f8c9f818f220"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
