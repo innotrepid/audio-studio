@@ -24,19 +24,24 @@ struct VadOptions {
     std::uint64_t padding_ms{80U};
 };
 
-// Silero processes fixed 512-sample windows at 16 kHz with a rolling
+// Silero processes fixed 512-sample *new* windows at 16 kHz with a rolling
 // 64-sample context and recurrent state owned by each independent stream.
+// The ONNX model input tensor is therefore [1, 576] = 64 context + 512 new.
 inline constexpr std::uint32_t kSileroWindowSamples = 512U;
 inline constexpr std::uint32_t kSileroContextSamples = 64U;
 inline constexpr std::uint32_t kSileroWindowDurationMs = 32U;
 
+// Timestamps are milliseconds on the 16 kHz mono timeline after any capture
+// resampling. They are wall-clock aligned with the source duration but are not
+// original-device frame indices. Prefer seeking by time, not by capture-rate frames.
 struct SpeechRegion {
     std::uint64_t start_ms{0U};
     std::uint64_t end_ms{0U};
 };
 
 // Converts ordered probability frames into padded speech regions. Invalid
-// options/frames produce an empty result; regions are clamped to frame bounds.
+// options/frames produce an empty result; region ends are clamped to the last
+// observed frame end so padding cannot extend past the stream.
 // Platform ONNX Runtime adapters implement this stateful inference boundary.
 // Call reset() before each independent recording to prevent state leakage.
 class SileroVadStream {
