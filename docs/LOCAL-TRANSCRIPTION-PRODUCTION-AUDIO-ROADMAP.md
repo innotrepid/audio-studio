@@ -76,6 +76,19 @@ Evaluate and integrate Silero Voice Activity Detection for speech/silence region
 - Use measured input/output latency compensation and explicit calibration metadata.
 - Align takes to verified audio frame/time anchors, not word indices alone.
 
+## Current native VAD implementation status
+
+The current branch includes the ONNX-independent streaming coordinator, native-rate/channel normalization into 16 kHz mono, the Silero ONNX stream adapter, the native session wrapper, and a serialized C ABI with retained-region capacity retries. Deterministic tests exercise inference, irregular capture-like chunks, region finalization, flush, reset, and error recovery.
+
+**The application capture-to-VAD path is not yet wired.** Android Oboe and Windows WASAPI capture currently write recording audio to WAV through their existing capture workers; they do not yet own a VAD session or deliver finalized speech regions to an application consumer. Therefore, the native VAD engine and C ABI must not be represented as an end-user recording/transcription feature until the following integration work is complete:
+
+- Define an explicit per-recording VAD lifecycle owned by the capture worker/controller, with model path and options resolved before capture starts.
+- Feed the same captured PCM frames to recording and VAD without blocking or allocating in real-time audio callbacks; perform inference/resampling on a worker.
+- Handle pause/resume, stop/flush, capture errors, overflow, cancellation, and model-load failures with deterministic reset/destroy behavior.
+- Consume finalized regions through a bounded delivery mechanism and surface dropped-region/backpressure errors rather than silently losing them.
+- Add platform integration tests or injectable capture-worker tests for start/stop, pause/resume, error cleanup, and exact-once region delivery.
+- Confirm packaged Silero model path and offline availability on both platforms before enabling the integration in production UI.
+
 ## Remaining feature-completion gate before audio engine work
 
 Finish and test the existing Creator/Production foundations first:
