@@ -27,9 +27,6 @@ jobs:
           python-version: "3.x"
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
-      - name: Fetch and verify pinned Silero recorded-speech fixture
-        if: runner.os == 'Windows'
-        run: python scripts/fetch_silero_test_fixture.py --output build/test-data
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Check out pinned noise cancellation engine
@@ -57,6 +54,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Fetch and verify pinned Silero recorded-speech fixture
+        if: runner.os == 'Windows'
+        run: python scripts/fetch_silero_test_fixture.py --output build/test-data
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
