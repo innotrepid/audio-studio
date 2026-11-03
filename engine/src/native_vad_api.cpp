@@ -124,6 +124,10 @@ int audio_studio_vad_push_audio(
         return 0;
     }
     try {
+        if (handle->flushed) {
+            set_error("VAD stream has been flushed; reset before pushing more audio.");
+            return 0;
+        }
         if (handle->push_retry_pending) {
             if (!copy_regions(handle->pending_regions, output, capacity, written)) return 0;
             handle->pending_regions.clear();
@@ -169,6 +173,10 @@ int audio_studio_vad_flush(
         return 0;
     }
     try {
+        if (handle->push_retry_pending) {
+            set_error("A push delivery retry is pending; retry push_audio before flushing.");
+            return 0;
+        }
         if (!handle->flushed) {
             std::vector<audio_studio::SpeechRegion> regions;
             if (!handle->session->flush(regions)) {
