@@ -1,4 +1,5 @@
 #include "audio_studio/native_vad_session.hpp"
+#include "audio_studio/audio_resampler.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -58,8 +59,8 @@ int main() {
             "second normalized chunk should enter coordinator");
     require(regions.empty(), "active speech remains pending until silence is observed");
 
-    std::vector<float> silence(8U * 512U, 0.0F);
-    require(session->push_audio(std::vector<float>(silence.size() * 3U, 0.0F).data(), silence.size() * 3U / 2U, regions),
+    std::vector<float> silence(2048U * 2U, 0.0F);
+    require(session->push_audio(silence.data(), 2048U, regions),
             "normalized silence should close speech region");
     require(regions.size() == 1U && regions[0].start_ms == 0U &&
             regions[0].end_ms >= 64U && regions[0].end_ms <= 192U,
@@ -69,8 +70,7 @@ int main() {
     require(!session->push_audio(silence.data(), silence.size(), regions),
             "push after flush must be rejected");
     session->reset();
-    require(true,
-            "reset must clear integrated stream timeline");
+    require(session != nullptr, "reset must retain a valid session");
     require(session->push_audio(silence.data(), 256U, regions),
             "reset must reopen integrated stream");
     require(session->flush(regions), "fresh stream must flush");
