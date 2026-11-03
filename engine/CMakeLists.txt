@@ -146,7 +146,7 @@ if(BUILD_TESTING)
 
     add_executable(audio_studio_native_vad_api_tests tests/native_vad_api_test.cpp src/native_vad_api.cpp)
     target_include_directories(audio_studio_native_vad_api_tests PRIVATE include tests)
-    target_compile_definitions(audio_studio_native_vad_api_tests PRIVATE AUDIO_STUDIO_NATIVE_VAD_TESTING)
+    target_compile_definitions(audio_studio_native_vad_api_tests PRIVATE AUDIO_STUDIO_NATIVE_VAD_TESTING $<$<CONFIG:Release>:_USE_ASSERTS=1> $<$<CONFIG:RelWithDebInfo>:_USE_ASSERTS=1>)
     target_link_libraries(audio_studio_native_vad_api_tests PRIVATE audio_studio_core)
     target_compile_features(audio_studio_native_vad_api_tests PRIVATE cxx_std_17)
     if(MSVC)
