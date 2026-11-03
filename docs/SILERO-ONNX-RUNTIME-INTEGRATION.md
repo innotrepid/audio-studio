@@ -38,3 +38,25 @@ The shared engine should expose a result-based operation taking a model path, mo
 - ONNX Runtime 1.23.2 Android artifact: https://central.sonatype.com/artifact/com.microsoft.onnxruntime/onnxruntime-android/1.23.2
 - ONNX Runtime 1.23.2 Windows native NuGet package: https://www.nuget.org/packages/Microsoft.ML.OnnxRuntime/1.23.2
 - Silero upstream ONNX wrapper and recurrent-state handling: https://github.com/snakers4/silero-vad/blob/60b7ffa243625ebdc1070275a29f18c87843786a/src/silero_vad/utils_vad.py
+
+
+## Current validation status
+
+The Windows ONNX-backed test target now exercises the pinned model with real inference:
+
+- Loads the manifest-pinned model and validates adapter initialization.
+- Rejects null and non-finite inference windows without overwriting the caller's probability output.
+- Runs 20 exact 512-sample windows of digital silence and requires each probability to remain at or below 0.1.
+- Resets recurrent state, runs 60 windows of a deterministic voiced harmonic signal, and requires peak probability to reach at least 0.5.
+- Resets state again and exercises the public C API push, flush, repeated-flush, and reset lifecycle.
+
+The test is part of the Windows C++ core CI. Latest verified run for commit `b6dc19e12552d30743c29d0ee2cde73eb89b8efc` passed Windows C++ core, Linux C++ core, and Android native shell/APK jobs.
+
+### Still required before claiming recorded-audio accuracy
+
+- Add a small, license-compatible recorded speech fixture with a pinned source and checksum.
+- Define expected speech intervals and acceptable timestamp tolerances from a reproducible reference.
+- Run the streaming VAD over the fixture and assert detection coverage, false-positive behavior on nonspeech spans, and boundary tolerance.
+- Expand ONNX-backed execution beyond Windows when the production ONNX Runtime targets are enabled on Linux/Android.
+
+Synthetic inference validates that the pinned model executes and responds plausibly; it is not a substitute for recorded-speech accuracy benchmarking.
