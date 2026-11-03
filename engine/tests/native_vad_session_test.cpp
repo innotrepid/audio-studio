@@ -15,11 +15,15 @@ class FakeStream final : public audio_studio::SileroVadStream {
 public:
     bool process_window(const float* pcm, float& probability) override {
         require(pcm != nullptr, "native session must supply normalized windows");
-        probability = calls++ < 4 ? 0.95F : 0.05F;
+        ++calls;
+        if (fail_next) { fail_next = false; return false; }
+        probability = calls <= 4 ? 0.95F : 0.05F;
         return true;
     }
-    void reset() noexcept override { calls = 0; }
+    void reset() noexcept override { calls = 0; ++resets; }
+    bool fail_next{false};
     std::size_t calls{0};
+    std::size_t resets{0};
 };
 }
 
@@ -68,7 +72,11 @@ int main() {
             regions[0].end_ms >= 64U && regions[0].end_ms <= 192U,
             "integrated pipeline should emit one bounded padded region");
 
+    require(session->push_audio(silence.data(), 512U, regions),
+            "continued silence should be accepted after region finalization");
+    require(regions.empty(), "finalized regions must not be emitted more than once");
     require(session->flush(regions), "flush should complete");
+    require(!session->flush(regions), "a second flush must not finalize the stream twice");
     require(!session->push_audio(silence.data(), silence.size(), regions),
             "push after flush must be rejected");
     session->reset();
@@ -76,5 +84,23 @@ int main() {
     require(session->push_audio(silence.data(), 256U, regions),
             "reset must reopen integrated stream");
     require(session->flush(regions), "fresh stream must flush");
+
+    auto failing_model = std::make_unique<FakeStream>();
+    FakeStream* failing_model_ptr = failing_model.get();
+    failing_model_ptr->fail_next = true;
+    auto failing_session = NativeVadSession::create_for_testing(16000, 1,
+        std::move(failing_model), options);
+    require(failing_session != nullptr, "failure test session should construct");
+    std::vector<float> one_window(kSileroWindowSamples, 0.0F);
+    require(!failing_session->push_audio(one_window.data(), one_window.size(), regions),
+            "inference failure must propagate through NativeVadSession");
+    require(!failing_session->push_audio(one_window.data(), one_window.size(), regions),
+            "failed coordinator must reject further audio until reset");
+    failing_session->reset();
+    require(failing_model_ptr->resets == 1U,
+            "reset must reset the injected inference stream");
+    require(failing_session->push_audio(one_window.data(), one_window.size(), regions),
+            "reset must recover the inference pipeline after model failure");
+    require(failing_session->flush(regions), "recovered stream should flush");
     return 0;
 }
