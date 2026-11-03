@@ -8,7 +8,7 @@ CaptureVadWorker::CaptureVadWorker(std::unique_ptr<NativeVadSessionInterface> se
     : session_(std::move(session)), max_queued_frames_(max_queued_frames) {}
 
 CaptureVadWorker::Status CaptureVadWorker::submit_audio(const float* pcm, std::size_t frames) {
-    if (!session_ || finished_ || failed_ || (frames != 0 && pcm == nullptr))
+    if (!session_ || channels_ == 0 || finished_ || failed_ || (frames != 0 && pcm == nullptr))
         return Status::invalid;
     if (frames > max_queued_frames_ - queued_frames_)
         return Status::backpressure;
@@ -17,7 +17,7 @@ CaptureVadWorker::Status CaptureVadWorker::submit_audio(const float* pcm, std::s
     // capture adapter supplies frame-aligned interleaved samples.
     Chunk chunk;
     chunk.frames = frames;
-    chunk.pcm.assign(pcm, pcm + frames);
+    if (frames > std::numeric_limits<std::size_t>::max() / channels_) return Status::invalid;\n    chunk.pcm.assign(pcm, pcm + frames * channels_);
     queue_.push_back(std::move(chunk));
     queued_frames_ += frames;
     return Status::ready;
