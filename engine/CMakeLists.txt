@@ -158,7 +158,6 @@ if(BUILD_TESTING)
 
     add_executable(audio_studio_native_vad_session_tests
         tests/native_vad_session_test.cpp
-        src/native_vad_session.cpp
         src/audio_resampler.cpp
         src/vad.cpp
     )
