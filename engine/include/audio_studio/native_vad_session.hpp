@@ -21,6 +21,10 @@ public:
   std::uint32_t input_sample_rate,std::uint32_t input_channels,
   VadOptions options,std::string& error_message);
  ~NativeVadSession() override;
+#ifdef AUDIO_STUDIO_NATIVE_VAD_TESTING
+ static std::unique_ptr<NativeVadSession> create_for_testing(std::uint32_t input_sample_rate,
+  std::uint32_t input_channels,std::unique_ptr<SileroVadStream> stream,VadOptions options = {});
+#endif
  NativeVadSession(const NativeVadSession&)=delete;
  NativeVadSession& operator=(const NativeVadSession&)=delete;
  bool push_audio(const float* interleaved,std::size_t frame_count,
