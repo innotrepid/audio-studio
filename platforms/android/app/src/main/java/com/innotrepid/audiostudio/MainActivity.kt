@@ -2502,7 +2502,7 @@ class MainActivity : Activity() {
                 val detected = json.optString("detectedLanguage", "unknown")
                 val segments = json.optJSONArray("segments")
                 val display = buildString {
-                    append("Detected language: ").append(detected).append("\\n\\n")
+                    append("Detected language: ").append(detected).append("\n\n")
                     if (segments != null && segments.length() > 0) {
                         for (i in 0 until segments.length()) {
                             val segment = segments.optJSONObject(i) ?: continue
@@ -2511,7 +2511,7 @@ class MainActivity : Activity() {
                             append("[%02d:%02d.%03d – %02d:%02d.%03d] ".format(
                                 start / 60000, (start / 1000) % 60, start % 1000,
                                 end / 60000, (end / 1000) % 60, end % 1000))
-                            append(segment.optString("text", "").trim()).append("\\n")
+                            append(segment.optString("text", "").trim()).append("\n")
                         }
                     } else append(transcript)
                 }
