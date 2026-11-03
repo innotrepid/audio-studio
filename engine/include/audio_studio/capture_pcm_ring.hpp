@@ -18,11 +18,10 @@ private:
  std::vector<float> samples_;
  const std::size_t capacity_frames_;
  const std::size_t channels_;
- // Keep producer and consumer counters cache-line separated without aligning
- // the containing class (MSVC /W4 emits C4324 for padded class layouts).
- struct alignas(64) Counter { std::atomic<std::size_t> value{0}; };
- Counter write_frame_;
- Counter read_frame_;
+ // Atomics remain naturally aligned; avoid explicit cache-line alignment
+ // because MSVC /W4 treats its padding warning as an error in this project.
+ std::atomic<std::size_t> write_frame_{0};
+ std::atomic<std::size_t> read_frame_{0};
  std::atomic<bool> closed_{false};
 };
 }
