@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -163,6 +165,118 @@ int main(int argc, char** argv) {
     }
     audio_studio_vad_destroy(handle);
 
-    std::cout << "Silero ONNX adapter validation tests passed.\n";
+    // Load the pinned upstream fixture (RIFF/WAVE PCM16 mono 16 kHz).
+    std::ifstream wav(argv[2], std::ios::binary);
+    auto read_u16 = [](std::istream& input, uint16_t& value) {
+        unsigned char b[2]{};
+        if (!input.read(reinterpret_cast<char*>(b), 2)) return false;
+        value = static_cast<uint16_t>(b[0] | (static_cast<uint16_t>(b[1]) << 8));
+        return true;
+    };
+    auto read_u32 = [](std::istream& input, uint32_t& value) {
+        unsigned char b[4]{};
+        if (!input.read(reinterpret_cast<char*>(b), 4)) return false;
+        value = static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8) |
+            (static_cast<uint32_t>(b[2]) << 16) | (static_cast<uint32_t>(b[3]) << 24);
+        return true;
+    };
+    char riff[4]{}, wave[4]{};
+    uint32_t riff_size = 0;
+    if (!wav || !wav.read(riff, 4) || !read_u32(wav, riff_size) ||
+        !wav.read(wave, 4) || std::string(riff, 4) != "RIFF" ||
+        std::string(wave, 4) != "WAVE") {
+        std::cerr << "Pinned fixture is not a valid RIFF/WAVE file.\n";
+        return 20;
+    }
+    uint16_t format = 0, channels = 0, bits = 0, block_align = 0;
+    uint32_t sample_rate = 0;
+    std::vector<unsigned char> pcm;
+    while (wav && !wav.eof()) {
+        char chunk_id[4]{};
+        uint32_t chunk_size = 0;
+        if (!wav.read(chunk_id, 4) || !read_u32(wav, chunk_size)) break;
+        const auto chunk_start = wav.tellg();
+        if (std::string(chunk_id, 4) == "fmt ") {
+            uint32_t byte_rate = 0;
+            if (!read_u16(wav, format) || !read_u16(wav, channels) ||
+                !read_u32(wav, sample_rate) || !read_u32(wav, byte_rate) ||
+                !read_u16(wav, block_align) || !read_u16(wav, bits)) {
+                std::cerr << "Truncated WAV format chunk.\n";
+                return 21;
+            }
+        } else if (std::string(chunk_id, 4) == "data") {
+            pcm.resize(chunk_size);
+            if (!wav.read(reinterpret_cast<char*>(pcm.data()), static_cast<std::streamsize>(pcm.size()))) {
+                std::cerr << "Truncated WAV data chunk.\n";
+                return 22;
+            }
+            break;
+        }
+        wav.seekg(chunk_start + static_cast<std::streamoff>(chunk_size + (chunk_size & 1U)));
+    }
+    if (format != 1 || channels != 1 || sample_rate != 16000 ||
+        bits != 16 || block_align != 2 || pcm.empty() || pcm.size() % 2 != 0) {
+        std::cerr << "Fixture must be mono 16 kHz PCM16; got format=" << format
+                  << ", channels=" << channels << ", rate=" << sample_rate
+                  << ", bits=" << bits << ".\n";
+        return 23;
+    }
+    std::vector<float> recorded(pcm.size() / 2);
+    for (size_t i = 0; i < recorded.size(); ++i) {
+        const uint16_t raw = static_cast<uint16_t>(pcm[2 * i]) |
+            (static_cast<uint16_t>(pcm[2 * i + 1]) << 8);
+        recorded[i] = static_cast<float>(static_cast<int16_t>(raw) / 32768.0);
+    }
+
+    // Feed irregular chunk boundaries to exercise streaming state across pushes.
+    handle = audio_studio_vad_create(std::filesystem::path(argv[1]).wstring().c_str(),
+        16000, 1, 0.5F, 100, 100, 30);
+    if (!handle) {
+        std::cerr << "Could not create VAD for recorded fixture: "
+                  << audio_studio_vad_last_error() << "\n";
+        return 24;
+    }
+    std::vector<AudioStudioSpeechRegion> regions;
+    const size_t chunk_pattern[] = {137, 509, 1024, 73, 2048, 311};
+    size_t offset = 0, chunk_index = 0;
+    while (offset < recorded.size()) {
+        const size_t count = std::min(chunk_pattern[chunk_index++ % 6], recorded.size() - offset);
+        AudioStudioSpeechRegion output[128]{};
+        written = 0;
+        if (!audio_studio_vad_push_audio(handle, recorded.data() + offset, count,
+                output, 128, &written)) {
+            std::cerr << "Recorded-speech push failed: " << audio_studio_vad_last_error() << "\n";
+            audio_studio_vad_destroy(handle);
+            return 25;
+        }
+        regions.insert(regions.end(), output, output + written);
+        offset += count;
+    }
+    AudioStudioSpeechRegion final_regions[128]{};
+    written = 0;
+    if (!audio_studio_vad_flush(handle, final_regions, 128, &written)) {
+        std::cerr << "Recorded-speech flush failed: " << audio_studio_vad_last_error() << "\n";
+        audio_studio_vad_destroy(handle);
+        return 26;
+    }
+    regions.insert(regions.end(), final_regions, final_regions + written);
+    audio_studio_vad_destroy(handle);
+
+    const uint64_t duration_ms = static_cast<uint64_t>(recorded.size()) * 1000 / 16000;
+    if (regions.empty()) {
+        std::cerr << "Silero returned no speech regions for the recorded fixture.\n";
+        return 27;
+    }
+    uint64_t previous_end = 0;
+    for (const auto& region : regions) {
+        if (region.start_ms >= region.end_ms || region.end_ms > duration_ms ||
+            region.start_ms < previous_end) {
+            std::cerr << "Recorded-speech regions are unordered or outside fixture duration.\n";
+            return 28;
+        }
+        previous_end = region.end_ms;
+    }
+
+    std::cout << "Silero ONNX adapter and recorded-speech streaming validation passed.\n";
     return 0;
 }
