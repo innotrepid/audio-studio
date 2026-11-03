@@ -31,6 +31,21 @@ bool valid_frames(const std::vector<VadProbabilityFrame>& frames) {
     return true;
 }
 
+// Clamp padded region ends to the last observed frame end so offline postprocessing
+// matches StreamingVadSession::finalize_region.
+void push_padded_region(std::vector<SpeechRegion>& regions, std::uint64_t start,
+                        std::uint64_t last_speech_end, std::uint64_t stream_end_ms,
+                        std::uint64_t padding_ms) {
+    const auto padded_start = start > padding_ms ? start - padding_ms : 0U;
+    const auto padded_end = last_speech_end > std::numeric_limits<std::uint64_t>::max() - padding_ms
+        ? std::numeric_limits<std::uint64_t>::max()
+        : last_speech_end + padding_ms;
+    const auto end = std::min(stream_end_ms, padded_end);
+    if (end > padded_start) {
+        regions.push_back({padded_start, end});
+    }
+}
+
 }  // namespace
 
 std::vector<SpeechRegion> build_speech_regions(
@@ -41,6 +56,7 @@ std::vector<SpeechRegion> build_speech_regions(
         return regions;
     }
 
+    const std::uint64_t stream_end_ms = frames.back().end_ms;
     bool active = false;
     std::uint64_t start = 0U;
     std::uint64_t last_speech_end = 0U;
@@ -57,18 +73,16 @@ std::vector<SpeechRegion> build_speech_regions(
 
         if (active && frame.end_ms - last_speech_end >= options.minimum_silence_ms) {
             if (last_speech_end - start >= options.minimum_speech_ms) {
-                const auto padded_start = start > options.padding_ms
-                    ? start - options.padding_ms : 0U;
-                regions.push_back({padded_start, last_speech_end + options.padding_ms});
+                push_padded_region(regions, start, last_speech_end, stream_end_ms,
+                                   options.padding_ms);
             }
             active = false;
         }
     }
 
     if (active && last_speech_end - start >= options.minimum_speech_ms) {
-        const auto padded_start = start > options.padding_ms
-            ? start - options.padding_ms : 0U;
-        regions.push_back({padded_start, last_speech_end + options.padding_ms});
+        push_padded_region(regions, start, last_speech_end, stream_end_ms,
+                           options.padding_ms);
     }
 
     return regions;
