@@ -4,11 +4,14 @@
 
 namespace audio_studio {
 CaptureVadWorker::CaptureVadWorker(std::unique_ptr<NativeVadSessionInterface> session,
-                                   std::size_t max_queued_frames, std::size_t channels)
-    : session_(std::move(session)), max_queued_frames_(max_queued_frames), channels_(channels) {}
+                                   std::size_t max_queued_frames, std::size_t channels,
+                                   std::size_t max_pending_regions)
+    : session_(std::move(session)), max_queued_frames_(max_queued_frames), channels_(channels),
+      max_pending_regions_(max_pending_regions) {}
 
 CaptureVadWorker::Status CaptureVadWorker::submit_audio(const float* pcm, std::size_t frames) {
-    if (!session_ || channels_ == 0 || finished_ || failed_ || (frames != 0 && pcm == nullptr))
+    if (!session_ || channels_ == 0 || max_queued_frames_ == 0 || max_pending_regions_ == 0 ||
+        finished_ || failed_ || (frames != 0 && pcm == nullptr))
         return Status::invalid;
     if (frames > max_queued_frames_ - queued_frames_)
         return Status::backpressure;
@@ -37,6 +40,12 @@ CaptureVadWorker::Status CaptureVadWorker::process_one() {
         queued_frames_ = 0;
         return Status::processing_failed;
     }
+    if (completed.size() > max_pending_regions_ - regions_.size()) {
+        failed_ = true;
+        queue_.clear();
+        queued_frames_ = 0;
+        return Status::processing_failed;
+    }
     for (const auto& region : completed) regions_.push_back(region);
     return Status::ready;
 }
@@ -47,6 +56,10 @@ CaptureVadWorker::Status CaptureVadWorker::finish() {
     if (finished_) return Status::finished;
     std::vector<SpeechRegion> completed;
     if (!session_->flush(completed)) {
+        failed_ = true;
+        return Status::processing_failed;
+    }
+    if (completed.size() > max_pending_regions_ - regions_.size()) {
         failed_ = true;
         return Status::processing_failed;
     }
