@@ -113,6 +113,11 @@ int audio_studio_vad_push_audio(
     AudioStudioVadHandle* handle, const float* interleaved, size_t frame_count,
     AudioStudioSpeechRegion* output, size_t capacity, size_t* written) {
     clear_error();
+    if (!written) {
+        set_error("The written-count pointer is required.");
+        return 0;
+    }
+    *written = 0;
     if (!handle || !handle->session || (!interleaved && frame_count != 0)) {
         set_error("Invalid VAD handle or audio buffer.");
         if (written) *written = 0;
@@ -153,6 +158,11 @@ int audio_studio_vad_flush(
     AudioStudioVadHandle* handle, AudioStudioSpeechRegion* output,
     size_t capacity, size_t* written) {
     clear_error();
+    if (!written) {
+        set_error("The written-count pointer is required.");
+        return 0;
+    }
+    *written = 0;
     if (!handle || !handle->session) {
         set_error("Invalid VAD handle.");
         if (written) *written = 0;
