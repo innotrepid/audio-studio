@@ -24,6 +24,9 @@ int main() {
  check(worker.submit_audio(pcm,2)==CaptureVadWorker::Status::backpressure);
  check(worker.process_one()==CaptureVadWorker::Status::ready);
  check(worker.queued_frames()==0);
+ check(worker.submit_audio(pcm,1)==CaptureVadWorker::Status::ready);
+ check(worker.process_one()==CaptureVadWorker::Status::ready);
+ check(worker.queued_frames()==0);
  SpeechRegion region{};
  check(worker.pop_region(region) && region.start_ms==10 && region.end_ms==40);
  check(worker.finish()==CaptureVadWorker::Status::finished);
