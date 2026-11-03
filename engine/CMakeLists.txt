@@ -11,7 +11,7 @@ add_library(audio_studio_core STATIC
     src/audio_resampler.cpp
     src/wav_audio_reader.cpp
     src/vad.cpp
-    src/speech_region_delivery.cpp
+    src/speech_region_delivery.cpp\n    src/capture_vad_worker.cpp
 )
 target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
