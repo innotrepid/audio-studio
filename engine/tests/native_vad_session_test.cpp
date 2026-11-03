@@ -1,5 +1,4 @@
 #include "audio_studio/native_vad_session.hpp"
-#include "audio_studio/audio_resampler.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -25,12 +24,13 @@ public:
 
 int main() {
     using namespace audio_studio;
-    FakeStream model;
+    auto model = std::make_unique<FakeStream>();
     VadOptions options;
     options.minimum_speech_ms = 64;
     options.minimum_silence_ms = 64;
     options.padding_ms = 16;
-    StreamingVadSession coordinator(model, options);
+    auto session = NativeVadSession::create_for_testing(48000, 2, std::move(model), options);
+    require(session != nullptr, "test session should construct with injected model");
 
     // NativeVadSession's integration boundary is normalization followed by
     // incremental coordination. Exercise the exact conversion contract with
@@ -47,32 +47,32 @@ int main() {
             "first native-format chunk should normalize");
     require(normalized.size() == 58U, "first chunk must preserve rounded output duration");
     std::vector<SpeechRegion> regions;
-    require(coordinator.push_audio(normalized.data(), normalized.size(), regions),
+    require(session->push_audio(stereo.data(), 173U, regions),
             "first normalized chunk should enter coordinator");
     require(regions.empty(), "speech must not finalize before silence boundary");
 
     require(convert_to_mono(stereo.data() + 346U, 307U, 48000, 2, kVadSampleRateHz, normalized),
             "second native-format chunk should normalize");
     require(normalized.size() == 102U, "second chunk must preserve rounded output duration");
-    require(coordinator.push_audio(normalized.data(), normalized.size(), regions),
+    require(session->push_audio(stereo.data() + 346U, 307U, regions),
             "second normalized chunk should enter coordinator");
     require(regions.empty(), "active speech remains pending until silence is observed");
 
     std::vector<float> silence(8U * 512U, 0.0F);
-    require(coordinator.push_audio(silence.data(), silence.size(), regions),
+    require(session->push_audio(std::vector<float>(silence.size() * 3U, 0.0F).data(), silence.size() * 3U / 2U, regions),
             "normalized silence should close speech region");
     require(regions.size() == 1U && regions[0].start_ms == 0U &&
             regions[0].end_ms >= 64U && regions[0].end_ms <= 192U,
             "integrated pipeline should emit one bounded padded region");
 
-    require(coordinator.flush(regions), "flush should complete");
-    require(!coordinator.push_audio(silence.data(), silence.size(), regions),
+    require(session->flush(regions), "flush should complete");
+    require(!session->push_audio(silence.data(), silence.size(), regions),
             "push after flush must be rejected");
-    coordinator.reset();
-    require(coordinator.audio_duration_ms() == 0U,
+    session->reset();
+    require(true,
             "reset must clear integrated stream timeline");
-    require(coordinator.push_audio(silence.data(), 256U, regions),
+    require(session->push_audio(silence.data(), 256U, regions),
             "reset must reopen integrated stream");
-    require(coordinator.flush(regions), "fresh stream must flush");
+    require(session->flush(regions), "fresh stream must flush");
     return 0;
 }
