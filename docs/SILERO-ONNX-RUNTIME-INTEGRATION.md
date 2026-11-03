@@ -4,11 +4,12 @@
 
 - Silero model revision: `60b7ffa243625ebdc1070275a29f18c87843786a`
 - Model file: `silero_vad.onnx`, MIT, SHA-256 `1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3`
-- Input audio: mono float32 PCM, 16,000 Hz, exact 512-sample inference windows (32 ms).
-- Inputs: `input` float32 [1, 512], `state` float32 [2, 1, 128], `sr` int64 scalar (16000).
+- Input audio: mono float32 PCM, 16,000 Hz, exact **512 new samples** per hop (32 ms).
+- Model input tensor: `input` float32 **[1, 576]** = 64 samples of prior context + 512 new samples. Context is not counted as newly analyzed time.
+- Other inputs: `state` float32 [2, 1, 128], `sr` int64 scalar (16000).
 - Outputs: `output` float32 [1, 1] probability, `stateN` float32 [2, 1, 128].
 - Initialize recurrent state to zeros at each independent stream; feed `stateN` back as `state` for each subsequent window. Reset on stream end, sample-rate change, or explicit reset.
-- Use 64 samples of prior context at 16 kHz as required by upstream Silero wrapper; therefore model input buffer is 576 samples (64 context + 512 new samples). Do not count context samples as newly analyzed time.
+- Speech region timestamps are milliseconds on the **16 kHz mono timeline** after capture resampling. They align with source duration but are not original device frame indices.
 
 ## Dependency strategy
 
@@ -22,10 +23,15 @@ Pin ONNX Runtime to **1.23.2** for the first integration pass:
 
 The shared engine should expose a result-based operation taking a model path, mono 16 kHz samples, and VAD options, returning validated speech regions plus a structured error. ONNX session ownership and recurrent state belong to a per-stream runtime object, not global mutable state. The existing `build_speech_regions` function remains pure postprocessing and stays independently testable without loading ONNX Runtime.
 
+### Platform availability (current)
+
+- **Windows:** production `audio_studio_vad_create` loads the pinned Silero ONNX model and is covered by the Windows C++ core CI with real inference.
+- **Android / Linux:** shared coordinator, resampler, and pure region postprocessing are available; production ONNX Runtime packaging for the public C VAD create path is still gated. Do not claim live Silero VAD on those targets until the packaging gates below are green.
+
 ## Validation gates
 
 1. Compile ONNX Runtime adapter on Linux, Windows, and Android supported ABIs.
-2. Smoke-test session creation and tensor names/shapes against the pinned model.
+2. Smoke-test session creation and tensor names/shapes against the pinned model (input rank/shape must match **[1, 576]**).
 3. Test zero-input inference, finite probability in [0,1], state propagation, reset isolation, and invalid request handling.
 4. Confirm APK contains ABI-matched ONNX Runtime libraries and the verified Silero model.
 5. Confirm Windows self-contained artifact contains `onnxruntime.dll` and the verified Silero model.
