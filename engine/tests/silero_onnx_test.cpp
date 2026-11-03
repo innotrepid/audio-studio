@@ -1,6 +1,7 @@
 #include "audio_studio/silero_onnx.hpp"
 #include "audio_studio/native_api.h"
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -66,6 +67,46 @@ int main(int argc, char** argv) {
     }
 
     stream->reset();
+    stream->reset();
+
+    // Real-model inference smoke test: silence should remain low-confidence,
+    // while a deterministic voiced harmonic signal should produce speech-like
+    // confidence. Keep one stream per sequence so recurrent state is explicit.
+    std::vector<float> silence(kSileroWindowSamples, 0.0F);
+    float silence_probability = 1.0F;
+    for (int i = 0; i < 20; ++i) {
+        if (!stream->process_window(silence.data(), silence_probability) ||
+            silence_probability > 0.1F) {
+            std::cerr << "Silero should classify sustained digital silence as low probability.\\n";
+            return 17;
+        }
+    }
+    stream->reset();
+    float peak_voiced_probability = 0.0F;
+    std::vector<float> voiced(kSileroWindowSamples);
+    constexpr double pi = 3.14159265358979323846;
+    for (int window = 0; window < 60; ++window) {
+        for (std::size_t i = 0; i < voiced.size(); ++i) {
+            const double t = static_cast<double>(window * voiced.size() + i) / 16000.0;
+            const double syllabic = 0.35 + 0.65 * (0.5 + 0.5 * std::sin(2.0 * pi * 3.2 * t));
+            const double carrier = std::sin(2.0 * pi * 125.0 * t) +
+                0.45 * std::sin(2.0 * pi * 250.0 * t) +
+                0.2 * std::sin(2.0 * pi * 375.0 * t) +
+                0.1 * std::sin(2.0 * pi * 500.0 * t);
+            voiced[i] = static_cast<float>(0.22 * syllabic * carrier);
+        }
+        float p = 0.0F;
+        if (!stream->process_window(voiced.data(), p)) {
+            std::cerr << "Silero rejected valid voiced test audio.\\n";
+            return 18;
+        }
+        peak_voiced_probability = std::max(peak_voiced_probability, p);
+    }
+    if (peak_voiced_probability < 0.5F) {
+        std::cerr << "Silero did not reach speech confidence on voiced test signal: "
+                  << peak_voiced_probability << "\\n";
+        return 19;
+    }
     stream->reset();
 
     // Exercise the public streaming C ABI lifecycle with the pinned model.
