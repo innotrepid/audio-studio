@@ -18,8 +18,11 @@ private:
  std::vector<float> samples_;
  const std::size_t capacity_frames_;
  const std::size_t channels_;
- alignas(64) std::atomic<std::size_t> write_frame_{0};
- alignas(64) std::atomic<std::size_t> read_frame_{0};
+ // Keep producer and consumer counters cache-line separated without aligning
+ // the containing class (MSVC /W4 emits C4324 for padded class layouts).
+ struct alignas(64) Counter { std::atomic<std::size_t> value{0}; };
+ Counter write_frame_;
+ Counter read_frame_;
  std::atomic<bool> closed_{false};
 };
 }
