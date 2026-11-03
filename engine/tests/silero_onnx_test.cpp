@@ -11,8 +11,8 @@
 
 int main(int argc, char** argv) {
     using namespace audio_studio;
-    if (argc != 2) {
-        std::cerr << "Expected path to the pinned Silero ONNX model.\n";
+    if (argc != 3) {
+        std::cerr << "Expected paths to the pinned Silero ONNX model and WAV fixture.\n";
         return 1;
     }
 
