@@ -59,8 +59,10 @@ int main() {
             "second normalized chunk should enter coordinator");
     require(regions.empty(), "active speech remains pending until silence is observed");
 
-    std::vector<float> silence(2048U * 2U, 0.0F);
-    require(session->push_audio(silence.data(), 2048U, regions),
+    // 12,288 capture frames at 48 kHz produce eight 512-sample VAD windows
+    // at 16 kHz, enough for the fake model's speech-to-silence transition.
+    std::vector<float> silence(12288U * 2U, 0.0F);
+    require(session->push_audio(silence.data(), 12288U, regions),
             "normalized silence should close speech region");
     require(regions.size() == 1U && regions[0].start_ms == 0U &&
             regions[0].end_ms >= 64U && regions[0].end_ms <= 192U,
