@@ -89,4 +89,26 @@ static void c_api_rejects_invalid_arguments_before_session_use() {
  assert(counts.pushes==baseline.pushes && counts.flushes==baseline.flushes && counts.resets==baseline.resets);
  audio_studio_vad_destroy(h);
 }
-int main(){push_capacity_retry_does_not_reprocess_pcm();flush_capacity_retry_does_not_finalize_twice();reset_clears_pending_push_retry();c_api_rejects_invalid_arguments_before_session_use();}
+static void flush_requires_pending_push_delivery_and_stream_reset_after_flush() {
+ Counts counts; auto* h=make_handle(counts); assert(h);
+ const float pcm[4]={0,0,0,0}; AudioStudioSpeechRegion out[2]{}; size_t written=0;
+ assert(audio_studio_vad_push_audio(h,pcm,4,out,1,&written)==0);
+ assert(written==2 && counts.pushes==1);
+ assert(audio_studio_vad_flush(h,out,2,&written)==0);
+ assert(counts.flushes==0);
+ assert(std::string(audio_studio_vad_last_error()).find("retry push_audio")!=std::string::npos);
+ assert(audio_studio_vad_push_audio(h,pcm,4,out,2,&written)==1);
+ assert(written==2 && counts.pushes==1);
+ assert(audio_studio_vad_flush(h,out,2,&written)==1);
+ assert(written==2 && counts.flushes==1);
+ assert(audio_studio_vad_flush(h,out,2,&written)==1);
+ assert(written==0 && counts.flushes==1);
+ assert(audio_studio_vad_push_audio(h,pcm,4,out,2,&written)==0);
+ assert(counts.pushes==1);
+ assert(std::string(audio_studio_vad_last_error()).find("reset before pushing")!=std::string::npos);
+ assert(audio_studio_vad_reset(h)==1);
+ assert(audio_studio_vad_push_audio(h,pcm,4,out,2,&written)==1);
+ assert(counts.pushes==2);
+ audio_studio_vad_destroy(h);
+}
+int main(){push_capacity_retry_does_not_reprocess_pcm();flush_capacity_retry_does_not_finalize_twice();reset_clears_pending_push_retry();flush_requires_pending_push_delivery_and_stream_reset_after_flush();c_api_rejects_invalid_arguments_before_session_use();}
