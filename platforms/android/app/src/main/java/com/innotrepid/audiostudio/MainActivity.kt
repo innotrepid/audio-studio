@@ -2527,19 +2527,51 @@ class MainActivity : Activity() {
                                 clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Transcript", transcript))
                                 transcriptionStatus.text = "Transcript copied to clipboard."
                             }
-                            .setNegativeButton("Save TXT") { _, _ ->
-                                val exportText = "Synvidra Offline Transcript\\nDetected language: $detected\\n\\n$display"
-                                transcriptionStatus.text = "Saving transcript…"
-                                Thread {
-                                    try {
-                                        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-                                        val name = "Synvidra_Transcript_$timestamp.txt"
-                                        publishTextExport(exportText.toByteArray(Charsets.UTF_8), name, "Transcripts", "text/plain")
-                                        mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Transcript saved and verified · Music/Synvidra/Transcripts/$name" }
-                                    } catch (error: Exception) {
-                                        mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Transcript export failed: ${error.message ?: "unknown error"}" }
+                            .setNegativeButton("Export…") { _, _ ->
+                                AlertDialog.Builder(this)
+                                    .setTitle("Export transcription")
+                                    .setItems(arrayOf("Plain text (.txt)", "Subtitles (.srt)")) { _, choice ->
+                                        val isSrt = choice == 1
+                                        val exportText = if (isSrt) {
+                                            buildString {
+                                                if (segments != null) {
+                                                    var cue = 1
+                                                    for (i in 0 until segments.length()) {
+                                                        val segment = segments.optJSONObject(i) ?: continue
+                                                        val text = segment.optString("text", "").trim()
+                                                        if (text.isEmpty()) continue
+                                                        val start = segment.optLong("startMs", 0L).coerceAtLeast(0L)
+                                                        val end = segment.optLong("endMs", start).coerceAtLeast(start)
+                                                        fun srtTime(ms: Long): String {
+                                                            val hours = ms / 3_600_000
+                                                            val minutes = (ms / 60_000) % 60
+                                                            val seconds = (ms / 1_000) % 60
+                                                            val millis = ms % 1_000
+                                                            return "%02d:%02d:%02d,%03d".format(hours, minutes, seconds, millis)
+                                                        }
+                                                        append(cue++).append("\n")
+                                                        append(srtTime(start)).append(" --> ").append(srtTime(end)).append("\n")
+                                                        append(text).append("\n\n")
+                                                    }
+                                                }
+                                            }
+                                        } else "Synvidra Offline Transcript\nDetected language: $detected\n\n$display"
+                                        transcriptionStatus.text = "Exporting ${if (isSrt) "subtitles" else "transcript"}…"
+                                        Thread {
+                                            try {
+                                                val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                                                val extension = if (isSrt) "srt" else "txt"
+                                                val name = "Synvidra_Transcript_$timestamp.$extension"
+                                                val mime = if (isSrt) "application/x-subrip" else "text/plain"
+                                                publishTextExport(exportText.toByteArray(Charsets.UTF_8), name, "Transcripts", mime)
+                                                mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Export saved and verified · Music/Synvidra/Transcripts/$name" }
+                                            } catch (error: Exception) {
+                                                mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Transcript export failed: ${error.message ?: "unknown error"}" }
+                                            }
+                                        }.start()
                                     }
-                                }.start()
+                                    .setNegativeButton("Cancel", null)
+                                    .show()
                             }
                             .show()
                     }
