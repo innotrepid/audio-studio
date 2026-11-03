@@ -65,16 +65,54 @@ class MainActivity : Activity() {
     private external fun nativeDecodeWavForTranscription(inputPath: String): FloatArray
     private external fun nativeTranscribe(modelPath: String, monoPcm16Khz: FloatArray, language: String, translateToEnglish: Boolean): String
 
+    private fun transcriptionModelSha256(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        FileInputStream(file).use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (count > 0) digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { byte ->
+            "%02x".format(java.util.Locale.ROOT, byte.toInt() and 0xff)
+        }
+    }
+
     private fun ensureTranscriptionModel(): String {
         val model = File(filesDir, "models/ggml-tiny.bin")
-        if (model.isFile && model.length() == 77691713L) return model.absolutePath
-        model.parentFile?.let { if (!it.exists() && !it.mkdirs()) throw IOException("Could not create transcription model directory.") }
+        val expectedSize = 77691713L
+        val expectedSha256 = "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21"
+        if (model.isFile && model.length() == expectedSize &&
+            transcriptionModelSha256(model) == expectedSha256
+        ) return model.absolutePath
+
+        model.parentFile?.let {
+            if (!it.exists() && !it.mkdirs()) throw IOException("Could not create transcription model directory.")
+        }
         val temporary = File(model.parentFile, "ggml-tiny.bin.tmp")
         try {
-            assets.open("models/ggml-tiny.bin").use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
-            if (temporary.length() != 77691713L) throw IOException("Bundled Whisper tiny model failed its size check.")
-            if (!temporary.renameTo(model)) throw IOException("Could not install bundled Whisper tiny model.")
-        } finally { if (temporary.exists()) temporary.delete() }
+            assets.open("models/ggml-tiny.bin").use { input ->
+                temporary.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (temporary.length() != expectedSize) {
+                throw IOException("Bundled Whisper tiny model failed its size check.")
+            }
+            if (transcriptionModelSha256(temporary) != expectedSha256) {
+                throw IOException("Bundled Whisper tiny model failed its SHA-256 integrity check.")
+            }
+
+            // Replace an invalid cached model only after the staged asset is fully verified.
+            if (model.exists() && !model.delete()) {
+                throw IOException("Could not remove the invalid cached Whisper model.")
+            }
+            if (!temporary.renameTo(model)) {
+                throw IOException("Could not install the verified bundled Whisper tiny model.")
+            }
+        } finally {
+            if (temporary.exists()) temporary.delete()
+        }
         return model.absolutePath
     }
 
