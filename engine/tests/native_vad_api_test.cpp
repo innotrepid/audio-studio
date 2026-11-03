@@ -68,6 +68,7 @@ static void reset_clears_pending_push_retry() {
 }
 static void c_api_rejects_invalid_arguments_before_session_use() {
  Counts counts; auto* h=make_handle(counts); assert(h);
+ const Counts baseline=counts;
  size_t written=99;
  const float pcm[1]={0};
  AudioStudioSpeechRegion out[2]{};
@@ -76,14 +77,14 @@ static void c_api_rejects_invalid_arguments_before_session_use() {
  assert(audio_studio_vad_push_audio(h,nullptr,1,out,2,&written)==0);
  assert(written==0);
  assert(audio_studio_vad_push_audio(h,pcm,1,out,2,nullptr)==0);
- assert(counts.pushes==0);
+ assert(counts.pushes==baseline.pushes);
  assert(audio_studio_vad_flush(nullptr,out,2,&written)==0);
  assert(written==0);
  assert(audio_studio_vad_reset(nullptr)==0);
  assert(audio_studio_vad_create(nullptr,16000,1,0.5F,100,200,30)==nullptr);
  assert(audio_studio_vad_create(L"fake-model",16000,1,-0.1F,100,200,30)==nullptr);
  assert(audio_studio_vad_create(L"fake-model",16000,1,1.1F,100,200,30)==nullptr);
- assert(counts.pushes==0 && counts.flushes==0 && counts.resets==0);
+ assert(counts.pushes==baseline.pushes && counts.flushes==baseline.flushes && counts.resets==baseline.resets);
  audio_studio_vad_destroy(h);
 }
 int main(){push_capacity_retry_does_not_reprocess_pcm();flush_capacity_retry_does_not_finalize_twice();reset_clears_pending_push_retry();c_api_rejects_invalid_arguments_before_session_use();}
