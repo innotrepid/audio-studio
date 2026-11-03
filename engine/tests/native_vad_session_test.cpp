@@ -66,6 +66,13 @@ int main() {
             "integrated pipeline should emit one bounded padded region");
 
     require(coordinator.flush(regions), "flush should complete");
-    require(coordinator.reset, ""); // placeholder
+    require(!coordinator.push_audio(silence.data(), silence.size(), regions),
+            "push after flush must be rejected");
+    coordinator.reset();
+    require(coordinator.audio_duration_ms() == 0U,
+            "reset must clear integrated stream timeline");
+    require(coordinator.push_audio(silence.data(), 256U, regions),
+            "reset must reopen integrated stream");
+    require(coordinator.flush(regions), "fresh stream must flush");
     return 0;
 }
