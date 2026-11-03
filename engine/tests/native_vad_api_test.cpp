@@ -54,4 +54,16 @@ static void flush_capacity_retry_does_not_finalize_twice() {
  assert(counts.flushes==1);
  audio_studio_vad_destroy(h);
 }
-int main(){push_capacity_retry_does_not_reprocess_pcm();flush_capacity_retry_does_not_finalize_twice();}
+static void reset_clears_pending_push_retry() {
+ Counts counts; auto* h=make_handle(counts); assert(h);
+ const float pcm[4]={0,0,0,0}; AudioStudioSpeechRegion out[2]={{11,12},{13,14}}; size_t written=0;
+ assert(audio_studio_vad_push_audio(h,pcm,4,out,1,&written)==0);
+ assert(written==2 && counts.pushes==1);
+ assert(audio_studio_vad_reset(h)==1);
+ assert(counts.resets==1);
+ assert(audio_studio_vad_push_audio(h,pcm,4,out,2,&written)==1);
+ assert(written==2 && counts.pushes==2);
+ assert(out[0].start_ms==120 && out[1].end_ms==760);
+ audio_studio_vad_destroy(h);
+}
+int main(){push_capacity_retry_does_not_reprocess_pcm();flush_capacity_retry_does_not_finalize_twice();reset_clears_pending_push_retry();}
