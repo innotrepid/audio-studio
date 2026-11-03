@@ -11,7 +11,8 @@ add_library(audio_studio_core STATIC
     src/audio_resampler.cpp
     src/wav_audio_reader.cpp
     src/vad.cpp
-    src/speech_region_delivery.cpp\n    src/capture_vad_worker.cpp
+    src/speech_region_delivery.cpp
+    src/capture_vad_worker.cpp
 )
 target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
@@ -172,7 +173,17 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio_studio_native_vad_session_tests COMMAND audio_studio_native_vad_session_tests)
 
-    add_executable(audio_studio_capture_vad_worker_tests tests/capture_vad_worker_test.cpp src/capture_vad_worker.cpp)\n    target_include_directories(audio_studio_capture_vad_worker_tests PRIVATE include)\n    target_compile_features(audio_studio_capture_vad_worker_tests PRIVATE cxx_std_17)\n    if(MSVC)\n        target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE /W4 /WX /UNDEBUG)\n    else()\n        target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)\n    endif()\n    add_test(NAME audio_studio_capture_vad_worker_tests COMMAND audio_studio_capture_vad_worker_tests)\n\n    add_executable(audio_studio_vad_tests tests/vad_test.cpp)
+    add_executable(audio_studio_capture_vad_worker_tests tests/capture_vad_worker_test.cpp src/capture_vad_worker.cpp)
+    target_include_directories(audio_studio_capture_vad_worker_tests PRIVATE include)
+    target_compile_features(audio_studio_capture_vad_worker_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME audio_studio_capture_vad_worker_tests COMMAND audio_studio_capture_vad_worker_tests)
+
+    add_executable(audio_studio_vad_tests tests/vad_test.cpp)
     target_link_libraries(audio_studio_vad_tests PRIVATE audio_studio_core)
     target_compile_features(audio_studio_vad_tests PRIVATE cxx_std_17)
     if(MSVC)
