@@ -5,15 +5,19 @@
 #include <memory>
 #include <string>
 #include <vector>
+#ifdef AUDIO_STUDIO_NATIVE_VAD_TESTING
+#include "native_vad_api_test_seam.hpp"
+#endif
 
 #ifdef _WIN32
 #include <filesystem>
 #endif
 
 struct AudioStudioVadHandle {
-    std::unique_ptr<audio_studio::NativeVadSession> session;
+    std::unique_ptr<audio_studio::NativeVadSessionInterface> session;
     std::vector<audio_studio::SpeechRegion> pending_regions;
     bool flushed{false};
+    bool push_retry_pending{false};
 };
 
 namespace {
@@ -75,8 +79,11 @@ AudioStudioVadHandle* audio_studio_vad_create(
         options.minimum_silence_ms = minimum_silence_ms;
         options.padding_ms = padding_ms;
         std::string error;
-        auto session = audio_studio::NativeVadSession::create(
-            path, sample_rate, channels, options, error);
+#ifdef AUDIO_STUDIO_NATIVE_VAD_TESTING
+        auto session = audio_studio::native_vad_test::create_session(path, sample_rate, channels, options, error);
+#else
+        auto session = audio_studio::NativeVadSession::create(path, sample_rate, channels, options, error);
+#endif
         if (!session) {
             set_error(error.c_str());
             return nullptr;
@@ -110,6 +117,12 @@ int audio_studio_vad_push_audio(
         return 0;
     }
     try {
+        if (handle->push_retry_pending) {
+            if (!copy_regions(handle->pending_regions, output, capacity, written)) return 0;
+            handle->pending_regions.clear();
+            handle->push_retry_pending = false;
+            return 1;
+        }
         std::vector<audio_studio::SpeechRegion> regions;
         if (!handle->session->push_audio(interleaved, frame_count, regions)) {
             set_error("VAD audio processing failed; reset the session before retrying.");
@@ -117,7 +130,10 @@ int audio_studio_vad_push_audio(
             return 0;
         }
         handle->pending_regions.insert(handle->pending_regions.end(), regions.begin(), regions.end());
-        if (!copy_regions(handle->pending_regions, output, capacity, written)) return 0;
+        if (!copy_regions(handle->pending_regions, output, capacity, written)) {
+            handle->push_retry_pending = true;
+            return 0;
+        }
         handle->pending_regions.clear();
         return 1;
     } catch (const std::exception& e) {
@@ -173,6 +189,7 @@ int audio_studio_vad_reset(AudioStudioVadHandle* handle) {
     handle->session->reset();
     handle->pending_regions.clear();
     handle->flushed = false;
+    handle->push_retry_pending = false;
     return 1;
 }
 
