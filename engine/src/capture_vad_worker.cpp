@@ -4,8 +4,8 @@
 
 namespace audio_studio {
 CaptureVadWorker::CaptureVadWorker(std::unique_ptr<NativeVadSessionInterface> session,
-                                   std::size_t max_queued_frames)
-    : session_(std::move(session)), max_queued_frames_(max_queued_frames) {}
+                                   std::size_t max_queued_frames, std::size_t channels)
+    : session_(std::move(session)), max_queued_frames_(max_queued_frames), channels_(channels) {}
 
 CaptureVadWorker::Status CaptureVadWorker::submit_audio(const float* pcm, std::size_t frames) {
     if (!session_ || channels_ == 0 || finished_ || failed_ || (frames != 0 && pcm == nullptr))
