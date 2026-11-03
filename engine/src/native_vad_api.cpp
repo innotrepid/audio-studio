@@ -67,7 +67,9 @@ AudioStudioVadHandle* audio_studio_vad_create(
     }
     try {
         std::string path;
-#ifdef _WIN32
+#if defined(AUDIO_STUDIO_NATIVE_VAD_TESTING)
+        path = "test-session";
+#elif defined(_WIN32)
         path = std::filesystem::path(model_path).u8string();
 #else
         set_error("Native Silero VAD is supported only by the Windows native build.");
