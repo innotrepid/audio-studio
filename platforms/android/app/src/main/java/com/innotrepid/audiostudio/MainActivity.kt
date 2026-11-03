@@ -2560,8 +2560,6 @@ class MainActivity : Activity() {
                                                         }
                                                         val saved = store.save(current.copy(transcript = transcript, captions = importedCaptions))
                                                         activeCreatorProject = saved
-                                                        transcriptInput.setText(saved.transcript)
-                                                        refreshCaptionList()
                                                         transcriptionStatus.text = "Imported into Creator · transcript and ${importedCaptions.size} caption(s) saved. Open Creator → Captions to review."
                                                     } catch (error: Exception) {
                                                         transcriptionStatus.text = "Creator import failed: ${error.message ?: "unknown error"}"
