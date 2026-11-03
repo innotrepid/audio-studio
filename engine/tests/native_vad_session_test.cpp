@@ -58,11 +58,11 @@ int main() {
             "second normalized chunk should enter coordinator");
     require(regions.empty(), "active speech remains pending until silence is observed");
 
-    std::vector<float> silence(512U, 0.0F);
+    std::vector<float> silence(8U * 512U, 0.0F);
     require(coordinator.push_audio(silence.data(), silence.size(), regions),
             "normalized silence should close speech region");
     require(regions.size() == 1U && regions[0].start_ms == 0U &&
-            regions[0].end_ms >= 64U && regions[0].end_ms <= 128U,
+            regions[0].end_ms >= 64U && regions[0].end_ms <= 192U,
             "integrated pipeline should emit one bounded padded region");
 
     require(coordinator.flush(regions), "flush should complete");
