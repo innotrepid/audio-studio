@@ -2527,11 +2527,50 @@ class MainActivity : Activity() {
                                 clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Transcript", transcript))
                                 transcriptionStatus.text = "Transcript copied to clipboard."
                             }
-                            .setNegativeButton("Export…") { _, _ ->
+                            .setNegativeButton("Actions…") { _, _ ->
                                 AlertDialog.Builder(this)
-                                    .setTitle("Export transcription")
-                                    .setItems(arrayOf("Plain text (.txt)", "Subtitles (.srt)")) { _, choice ->
-                                        val isSrt = choice == 1
+                                    .setTitle("Transcription actions")
+                                    .setItems(arrayOf("Export TXT or SRT", "Send transcript and captions to Creator")) { _, action ->
+                                        if (action == 1) {
+                                            AlertDialog.Builder(this)
+                                                .setTitle("Import into Creator?")
+                                                .setMessage("This will replace the Creator project's transcript and generated captions with this transcription. Scripts, takes, and production markers will be preserved.")
+                                                .setNegativeButton("Cancel", null)
+                                                .setPositiveButton("Import") { _, _ ->
+                                                    try {
+                                                        val store = creatorProjectStore ?: CreatorProjectStore(this).also { creatorProjectStore = it }
+                                                        val current = activeCreatorProject ?: store.loadOrCreate()
+                                                        val importedCaptions = buildList {
+                                                            if (segments != null) {
+                                                                for (segmentIndex in 0 until segments.length()) {
+                                                                    val segment = segments.optJSONObject(segmentIndex) ?: continue
+                                                                    val text = segment.optString("text", "").trim()
+                                                                    if (text.isEmpty()) continue
+                                                                    val start = segment.optLong("startMs", 0L).coerceAtLeast(0L)
+                                                                    val end = segment.optLong("endMs", start).coerceAtLeast(start)
+                                                                    if (end <= start) continue
+                                                                    add(CreatorProjectStore.Caption(
+                                                                        captionId = java.util.UUID.randomUUID().toString(),
+                                                                        startMs = start,
+                                                                        endMs = end,
+                                                                        text = text
+                                                                    ))
+                                                                }
+                                                            }
+                                                        }
+                                                        val saved = store.save(current.copy(transcript = transcript, captions = importedCaptions))
+                                                        activeCreatorProject = saved
+                                                        transcriptionStatus.text = "Imported into Creator · transcript and ${importedCaptions.size} caption(s) saved. Open Creator to review."
+                                                    } catch (error: Exception) {
+                                                        transcriptionStatus.text = "Creator import failed: ${error.message ?: "unknown error"}"
+                                                    }
+                                                }
+                                                .show()
+                                        } else {
+                                            AlertDialog.Builder(this)
+                                                .setTitle("Export transcription")
+                                                .setItems(arrayOf("Plain text (.txt)", "Subtitles (.srt)")) { _, choice ->
+                                                    val isSrt = choice == 1
                                         val exportText = if (isSrt) {
                                             buildString {
                                                 if (segments != null) {
@@ -2569,6 +2608,10 @@ class MainActivity : Activity() {
                                                 mainHandler.post { if (!isFinishing && !isDestroyed) transcriptionStatus.text = "Transcript export failed: ${error.message ?: "unknown error"}" }
                                             }
                                         }.start()
+                                                }
+                                                .setNegativeButton("Cancel", null)
+                                                .show()
+                                        }
                                     }
                                     .setNegativeButton("Cancel", null)
                                     .show()
