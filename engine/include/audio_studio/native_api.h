@@ -25,12 +25,23 @@ AUDIO_STUDIO_API AudioStudioVadHandle* audio_studio_vad_create(
     float speech_threshold, uint64_t minimum_speech_ms,
     uint64_t minimum_silence_ms, uint64_t padding_ms);
 AUDIO_STUDIO_API void audio_studio_vad_destroy(AudioStudioVadHandle* handle);
+// Pushes normalized float32 interleaved PCM; frame_count counts frames, not samples.
+// Returns 1 on success, 0 on failure. On output-capacity failure, *written reports
+// the required region count and no output regions are copied. The regions remain
+// queued. Retry with a sufficiently large output buffer and do not replay the same
+// PCM chunk: a pending retry only delivers retained regions and does not process
+// the PCM arguments. Calls on one handle must be serialized by the caller.
 AUDIO_STUDIO_API int audio_studio_vad_push_audio(
     AudioStudioVadHandle* handle, const float* interleaved, size_t frame_count,
     AudioStudioSpeechRegion* output, size_t capacity, size_t* written);
+// Finalizes the stream once. On output-capacity failure, *written reports the
+// required region count and final regions remain queued. Retry flush with a larger
+// buffer; the session is not finalized a second time.
 AUDIO_STUDIO_API int audio_studio_vad_flush(
     AudioStudioVadHandle* handle, AudioStudioSpeechRegion* output,
     size_t capacity, size_t* written);
+// Discards queued, not-yet-delivered regions and starts a fresh stream, including
+// clearing any pending push/flush capacity retry.
 AUDIO_STUDIO_API int audio_studio_vad_reset(AudioStudioVadHandle* handle);
 AUDIO_STUDIO_API const char* audio_studio_vad_last_error(void);
 
