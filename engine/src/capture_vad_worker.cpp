@@ -17,7 +17,8 @@ CaptureVadWorker::Status CaptureVadWorker::submit_audio(const float* pcm, std::s
     // capture adapter supplies frame-aligned interleaved samples.
     Chunk chunk;
     chunk.frames = frames;
-    if (frames > std::numeric_limits<std::size_t>::max() / channels_) return Status::invalid;\n    chunk.pcm.assign(pcm, pcm + frames * channels_);
+    if (frames > std::numeric_limits<std::size_t>::max() / channels_) return Status::invalid;
+    chunk.pcm.assign(pcm, pcm + frames * channels_);
     queue_.push_back(std::move(chunk));
     queued_frames_ += frames;
     return Status::ready;
