@@ -25,7 +25,8 @@ private:
     std::unique_ptr<NativeVadSessionInterface> session_;
     std::deque<Chunk> queue_;
     std::deque<SpeechRegion> regions_;
-    std::size_t max_queued_frames_;\n    std::size_t channels_;
+    std::size_t max_queued_frames_;
+    std::size_t channels_;
     std::size_t queued_frames_{0};
     bool failed_{false};
     bool finished_{false};
