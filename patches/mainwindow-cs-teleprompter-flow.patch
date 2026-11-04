@@ -1,1 +1,18 @@
-See agent artifacts / regenerate from MainWindow.xaml.cs diff against Redesign tip.
+--- a/platforms/windows/AudioStudio/MainWindow.xaml.cs
++++ b/platforms/windows/AudioStudio/MainWindow.xaml.cs
+@@ -209,6 +209,16 @@
+             TeleprompterScriptText.LineHeight = TeleprompterScriptText.FontSize * spacing;
+             TeleprompterLineSpacingText.Text = $"Line spacing · {spacing:0.0}×";
+         };
++
++        // Creator → Teleprompter owns settings; mirror into Record studio teleprompter.
++        if (CreatorTeleprompterSpeedSlider != null)
++            CreatorTeleprompterSpeedSlider.ValueChanged += (_, _) => SyncStudioTeleprompterFromCreator();
++        if (CreatorTeleprompterFontSizeSlider != null)
++            CreatorTeleprompterFontSizeSlider.ValueChanged += (_, _) => SyncStudioTeleprompterFromCreator();
++        if (CreatorTeleprompterLineSpacingSlider != null)
++            CreatorTeleprompterLineSpacingSlider.ValueChanged += (_, _) => SyncStudioTeleprompterFromCreator();
++        if (CreatorTeleprompterCountdownComboBox != null)
++            CreatorTeleprompterCountdownComboBox.SelectionChanged += (_, _) => SyncStudioTeleprompterFromCreator();
+ 
+         // Creator sub-navigation
