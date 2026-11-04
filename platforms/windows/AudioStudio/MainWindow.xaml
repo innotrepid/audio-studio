@@ -1,1 +1,12 @@
-See downloadable artifact - content too large for this intermediate step
+<Window
+    x:Class="AudioStudio.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Synvidra"
+    Width="1280"
+    Height="800">
+    <Grid>
+        <TextBlock Text="UI file was truncated during an automated push. Replace with the full MainWindow.xaml from the PR artifacts or Redesign tip."
+                   Margin="24" TextWrapping="Wrap"/>
+    </Grid>
+</Window>
