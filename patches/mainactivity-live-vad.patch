@@ -1,0 +1,103 @@
+--- a/platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt
++++ b/platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt
+@@ -118,6 +118,9 @@
+ 
+     private external fun nativeEngineStatus(): String
+     private external fun nativeStartRecording(outputPath: String): Boolean
++    private external fun nativeStartRecordingWithVad(outputPath: String, sileroModelPath: String?): Boolean
++    private external fun nativePendingVadRegions(): Int
++    private external fun nativePopVadRegion(outPair: LongArray): Boolean
+     private external fun nativePauseRecording(): Boolean
+     private external fun nativeResumeRecording(): Boolean
+     private external fun nativeRecoverPartialWav(partialPath: String, outputPath: String): String
+@@ -132,6 +135,27 @@
+     private external fun nativePrepareNoiseGateProcessing()
+ 
+     private lateinit var diagnosticsCapture: DiagnosticsCapture
++    private val liveVadRegions = ArrayList<Pair<Long, Long>>()
++    private val liveVadRegionPair = LongArray(2)
++    private val liveVadPollClock = object : Runnable {
++        override fun run() {
++            if (!recording) return
++            try {
++                while (nativePendingVadRegions() > 0) {
++                    if (!nativePopVadRegion(liveVadRegionPair)) break
++                    liveVadRegions.add(liveVadRegionPair[0] to liveVadRegionPair[1])
++                }
++                if (liveVadRegions.isNotEmpty()) {
++                    val last = liveVadRegions.last()
++                    val seconds = last.second / 1000.0
++                    statusText.text = "Recording · VAD regions ${liveVadRegions.size} · last ends ${"%.1f".format(seconds)}s"
++                }
++            } catch (_: Exception) {
++                // Soft-fail region UI only; recording continues.
++            }
++            mainHandler.postDelayed(this, 250L)
++        }
++    }
+     private var libraryRefreshAction: (() -> Unit)? = null
+     private var libraryStatusView: TextView? = null
+     private lateinit var statusText: TextView
+@@ -2160,15 +2184,32 @@
+ 
+         val output = File(recordingDirectory, uniqueWavName("recording"))
+         diagnosticsCapture.record("recording_start", "started", mapOf("staging_name" to output.name))
++        liveVadRegions.clear()
++        val (models, modelError) = BundledModelStore.tryResolve(this)
++        val sileroPath = models?.sileroVadPath
+         val started = try {
+-            nativeStartRecording(output.absolutePath)
++            if (sileroPath != null) {
++                nativeStartRecordingWithVad(output.absolutePath, sileroPath)
++            } else {
++                // Fall back to recording-only when offline models are missing.
++                nativeStartRecording(output.absolutePath)
++            }
+         } catch (exception: Exception) {
+             diagnosticsCapture.record("recording_start", "failure", mapOf("staging_name" to output.name), exception)
+             statusText.text = "Could not start recording: ${exception.message ?: "unknown error"}"
+             false
+         }
+-        diagnosticsCapture.record("recording_start", if (started) "success" else "failure",
+-            mapOf("staging_name" to output.name, "staging_exists" to output.exists(), "staging_bytes" to output.length()))
++        diagnosticsCapture.record(
++            "recording_start",
++            if (started) "success" else "failure",
++            mapOf(
++                "staging_name" to output.name,
++                "staging_exists" to output.exists(),
++                "staging_bytes" to output.length(),
++                "live_vad" to (sileroPath != null),
++                "model_error" to (modelError ?: ""),
++            ),
++        )
+ 
+         recording = started
+         currentRecordingFile = if (started) output else null
+@@ -2187,9 +2228,17 @@
+             recordingPausedAtMs = 0L
+             recordingPausedTotalMs = 0L
+             recordingTimerText.text = "00:00"
+-            statusText.text = "Recording in progress · audio is being captured"
++            statusText.text = if (sileroPath != null) {
++                "Recording in progress · live Silero VAD enabled"
++            } else {
++                "Recording in progress · audio is being captured"
++            }
+             mainHandler.removeCallbacks(recordingClock)
+             mainHandler.removeCallbacks(recordingMeterClock)
++            mainHandler.removeCallbacks(liveVadPollClock)
++            if (sileroPath != null) {
++                mainHandler.post(liveVadPollClock)
++            }
+             inputMeter.progress = 0
+             inputMeterLabel.text = "Input level starting…"
+             inputMeterLabel.setTextColor(Color.rgb(190, 220, 200))
+@@ -2321,6 +2370,7 @@
+     private fun stopRecording(interrupted: Boolean = false) {
+         if (!recording) return
+         recording = false
++        mainHandler.removeCallbacks(liveVadPollClock)
+         stopTeleprompterScroll()
+         val now = SystemClock.elapsedRealtime()
+         val pausedNow = if (teleprompterPaused) now - recordingPausedAtMs else 0L
