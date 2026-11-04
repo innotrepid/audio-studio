@@ -18,11 +18,14 @@ Goal: after installing Synvidra on Android or Windows, Whisper (speech-to-text) 
 
 ## Still required before product claims
 
-### Capture wiring (both platforms)
-1. Own a per-recording VAD lifecycle in the capture worker (model path + options before start).
-2. Capture callback only writes to `CapturePcmRing`; a non-RT thread runs `CaptureVadController`.
-3. Pause/resume/stop/flush/error/reset with bounded region delivery (no silent drops).
-4. Surface regions to UI without blocking audio callbacks.
+### Capture wiring
+**Android (merged):** Oboe dual-submit into `LiveCaptureVad`; Kotlin starts with bundled `silero_vad.onnx` via `BundledModelStore`, polls regions on the main thread.
+1. ~~Own a per-recording VAD lifecycle~~ — `nativeStartRecordingWithVad` + soft-fail backpressure.
+2. ~~Capture callback only writes to ring~~ — RT `submit_audio` only.
+3. Pause/resume/stop/flush path finishes the worker; region delivery is bounded.
+4. Kotlin drains `nativePopVadRegion` without blocking Oboe.
+
+**Windows (still open):** WASAPI capture dual-submit into the same engine path.
 
 ### Whisper UI entry points
 1. Decode → resample 16 kHz mono → `transcribe()` on a background thread.
