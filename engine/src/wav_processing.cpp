@@ -128,8 +128,6 @@ bool parse_wav_header(std::ifstream& stream, std::uint64_t file_size,
             const std::uint32_t byte_rate = read_u32_le(fmt.data() + 8U);
             block_align = read_u16_le(fmt.data() + 12U);
             bits_per_sample = read_u16_le(fmt.data() + 14U);
-            // WAVE_FORMAT_EXTENSIBLE wraps the actual subformat in a GUID.
-            // Resolve only the canonical PCM/IEEE-float GUIDs; do not guess codecs.
             if (encoding == 0xfffeU) {
                 if (chunk_size < 40U) {
                     return fail(error, "WAVE_FORMAT_EXTENSIBLE format chunk is too short.");
@@ -340,7 +338,6 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     input.seekg(static_cast<std::streamoff>(data_offset), std::ios::beg);
     if (!input) {
         writer.abort();
-
         return fail(error, "Could not seek to WAV audio data.");
     }
 
@@ -352,7 +349,6 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     while (frames_remaining > 0U) {
         if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
             writer.abort();
-
             return fail(error, "Processing cancelled by user.");
         }
         const std::size_t frames = static_cast<std::size_t>(
@@ -361,7 +357,6 @@ bool process_wav_with_noise_gate(const std::string& input_path,
         const std::size_t bytes_to_read = frames * bytes_per_frame;
         if (!read_exact(input, raw.data(), bytes_to_read)) {
             writer.abort();
-
             return fail(error, "Could not read the complete WAV audio data.");
         }
 
@@ -394,7 +389,6 @@ bool process_wav_with_noise_gate(const std::string& input_path,
         if (!writer.write_frames(block.samples.data(), frames)) {
             const std::string message = "Could not write processed WAV: " + writer.last_error();
             writer.abort();
-
             return fail(error, message);
         }
         frames_remaining -= frames;
@@ -406,7 +400,6 @@ bool process_wav_with_noise_gate(const std::string& input_path,
 
     if (cancel_requested != nullptr && cancel_requested->load(std::memory_order_acquire)) {
         writer.abort();
-
         return fail(error, "Processing cancelled by user.");
     }
     if (denoiser) {
@@ -425,8 +418,21 @@ bool process_wav_with_noise_gate(const std::string& input_path,
                     nc_status_string(status));
             }
             if (tail_frames == 0U) break;
-            if (tail_frames > kFramesPerBlock ||
-                !writer.write_frames(tail.data(), tail_frames)) {
+            if (tail_frames > kFramesPerBlock) {
+                writer.abort();
+                return fail(error, engine == ProcessingEngine::Rnnoise
+                    ? "RNNoise tail flush returned an invalid frame count."
+                    : "DeepFilterNet3 (BETA) tail flush returned an invalid frame count.");
+            }
+            // Match the main-loop path: gain/HPF must apply to residual frames too.
+            AudioBuffer tail_block;
+            tail_block.format = format;
+            tail_block.samples.assign(tail.data(), tail.data() + tail_frames * channels);
+            if (!dsp_effects.process(tail_block, error)) {
+                writer.abort();
+                return false;
+            }
+            if (!writer.write_frames(tail_block.samples.data(), tail_frames)) {
                 const std::string message = (engine == ProcessingEngine::Rnnoise ? "Could not write RNNoise tail: " : "Could not write DeepFilterNet3 (BETA) tail: ") + writer.last_error();
                 writer.abort();
                 return fail(error, message);
@@ -436,12 +442,10 @@ bool process_wav_with_noise_gate(const std::string& input_path,
     if (!writer.finalize()) {
         const std::string message = "Could not finalize processed WAV: " + writer.last_error();
         writer.abort();
-
         return fail(error, message);
     }
     return true;
 }
-
 
 bool analyze_wav_waveform(const std::string& input_path,
                           std::size_t bucket_count,

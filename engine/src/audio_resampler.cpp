@@ -10,12 +10,19 @@ bool convert_to_mono(const float* input,std::size_t frames,std::uint32_t in_rate
  output.clear();
  if(!valid_rate(in_rate)||!valid_rate(out_rate)||channels==0||channels>32||
  (frames&&input==nullptr)||frames>std::numeric_limits<std::size_t>::max()/channels) return false;
+ // Reject non-finite samples; clamp slight overs so capture peaks near full-scale
+ // do not fail an entire VAD session.
  for(std::size_t i=0;i<frames*channels;++i)
-  if(!std::isfinite(input[i])||input[i]<-1.0f||input[i]>1.0f) return false;
+  if(!std::isfinite(input[i])) return false;
  if(!frames) return true;
  try {
   std::vector<double> mono(frames);
-  for(std::size_t f=0;f<frames;++f){ double sum=0; for(std::uint32_t c=0;c<channels;++c) sum+=input[f*channels+c]; mono[f]=sum/channels; }
+  for(std::size_t f=0;f<frames;++f){
+   double sum=0;
+   for(std::uint32_t c=0;c<channels;++c)
+    sum+=std::clamp(static_cast<double>(input[f*channels+c]), -1.0, 1.0);
+   mono[f]=sum/channels;
+  }
   long double exact=static_cast<long double>(frames)*out_rate/in_rate;
   if(exact>static_cast<long double>(std::numeric_limits<std::size_t>::max())) return false;
   auto count=static_cast<std::size_t>(std::llround(exact)); output.reserve(count);

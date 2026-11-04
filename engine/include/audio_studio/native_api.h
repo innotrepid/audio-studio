@@ -14,6 +14,12 @@ extern "C" {
 #endif
 
 // Opaque handle for an independent streaming Silero VAD session.
+// Region timestamps (start_ms / end_ms) are milliseconds on the internal 16 kHz
+// mono timeline after capture resampling. They match source duration but are not
+// original device frame indices.
+// Production create is currently implemented for the Windows native build; other
+// targets should treat create failures as "not packaged yet" until ONNX Runtime
+// is shipped for those ABIs.
 typedef struct AudioStudioVadHandle AudioStudioVadHandle;
 typedef struct AudioStudioSpeechRegion {
     uint64_t start_ms;
