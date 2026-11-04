@@ -1,6 +1,7 @@
 #include "audio_studio/native_api.h"
 #include "audio_studio/wav_writer.hpp"
 #include "audio_studio/wav_recovery.hpp"
+#include "audio_studio/live_capture_vad.hpp"
 
 #include <windows.h>
 #include <audioclient.h>
@@ -72,7 +73,7 @@ std::vector<CaptureDeviceInfo>& capture_device_cache() {
 
 class WindowsCapture final {
 public:
-    int start(const wchar_t* path) {
+    int start(const wchar_t* path, const wchar_t* silero_model_path = nullptr) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (worker_.joinable()) {
             if (active_.load()) {
@@ -88,6 +89,12 @@ public:
             return 0;
         }
         output_path_ = path;
+        silero_model_path_.clear();
+        if (silero_model_path != nullptr && silero_model_path[0] != L'\0') {
+            silero_model_path_ = silero_model_path;
+        }
+        live_vad_.reset();
+        vad_soft_failed_.store(false);
         peak_.store(0.0F);
         clipping_.store(false);
         stop_requested_.store(false);
@@ -252,9 +259,31 @@ private:
             } else {
                 hr = client->Start();
                 if (SUCCEEDED(hr)) {
+                    if (!silero_model_path_.empty()) {
+                        std::string model_utf8;
+                        const int needed = WideCharToMultiByte(
+                            CP_UTF8, 0, silero_model_path_.c_str(), -1, nullptr, 0, nullptr, nullptr);
+                        if (needed > 1) {
+                            model_utf8.resize(static_cast<std::size_t>(needed - 1));
+                            WideCharToMultiByte(CP_UTF8, 0, silero_model_path_.c_str(), -1,
+                                model_utf8.data(), needed, nullptr, nullptr);
+                        }
+                        std::string vad_error;
+                        audio_studio::LiveCaptureVad::Options options;
+                        live_vad_ = audio_studio::LiveCaptureVad::create(
+                            model_utf8, sample_rate, channels, options, vad_error);
+                        if (!live_vad_) {
+                            // Soft-fail: recording continues without live VAD.
+                            vad_soft_failed_.store(true, std::memory_order_release);
+                        }
+                    }
                     publish_startup(true, selected_device_id.empty()
-                        ? L"Recording from the Windows default microphone…"
-                        : L"Recording from the selected microphone…");
+                        ? (live_vad_
+                            ? L"Recording from the Windows default microphone… (live Silero VAD)"
+                            : L"Recording from the Windows default microphone…")
+                        : (live_vad_
+                            ? L"Recording from the selected microphone… (live Silero VAD)"
+                            : L"Recording from the selected microphone…"));
                     std::vector<float> converted;
                     HRESULT capture_result = S_OK;
                     bool capture_paused = false;
@@ -320,6 +349,14 @@ private:
                             }
                             peak_.store(packet_peak);
                             const bool wrote = writer.write_frames(converted.data(), frames);
+                            if (wrote && live_vad_) {
+                                const auto vad_status = live_vad_->submit_audio(
+                                    converted.data(), static_cast<std::size_t>(frames));
+                                if (vad_status == audio_studio::CapturePcmRing::Status::backpressure ||
+                                    vad_status == audio_studio::CapturePcmRing::Status::invalid) {
+                                    vad_soft_failed_.store(true, std::memory_order_release);
+                                }
+                            }
                             const HRESULT release_hr = capture->ReleaseBuffer(frames);
                             if (!wrote || FAILED(release_hr)) {
                                 capture_result = E_FAIL;
@@ -379,7 +416,22 @@ private:
             }
             publish_startup(false, message);
         }
+        if (live_vad_) {
+            live_vad_->finish();
+            live_vad_.reset();
+        }
+        silero_model_path_.clear();
         active_.store(false);
+    }
+
+    std::size_t pending_vad_regions() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return live_vad_ ? live_vad_->pending_region_count() : 0U;
+    }
+
+    bool pop_vad_region(audio_studio::SpeechRegion& region) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return live_vad_ && live_vad_->pop_region(region);
     }
 
     mutable std::mutex mutex_;
@@ -398,6 +450,9 @@ private:
     HANDLE audio_event_{nullptr};
     std::filesystem::path output_path_;
     std::wstring selected_device_id_;
+    std::wstring silero_model_path_;
+    std::unique_ptr<audio_studio::LiveCaptureVad> live_vad_;
+    std::atomic<bool> vad_soft_failed_{false};
     std::wstring status_{L"Ready."};
 };
 
@@ -429,7 +484,23 @@ extern "C" AUDIO_STUDIO_API int audio_studio_capture_device_select(const wchar_t
     return capture_instance().select_device(device_id);
 }
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_start(const wchar_t* output_path) {
-    return capture_instance().start(output_path);
+    return capture_instance().start(output_path, nullptr);
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_recording_start_with_vad(
+    const wchar_t* output_path, const wchar_t* silero_model_path) {
+    return capture_instance().start(output_path, silero_model_path);
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_recording_pending_vad_regions(void) {
+    return static_cast<int>(capture_instance().pending_vad_regions());
+}
+extern "C" AUDIO_STUDIO_API int audio_studio_recording_pop_vad_region(
+    uint64_t* start_ms, uint64_t* end_ms) {
+    if (start_ms == nullptr || end_ms == nullptr) return 0;
+    audio_studio::SpeechRegion region{};
+    if (!capture_instance().pop_vad_region(region)) return 0;
+    *start_ms = region.start_ms;
+    *end_ms = region.end_ms;
+    return 1;
 }
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_stop(void) {
     return capture_instance().stop();
