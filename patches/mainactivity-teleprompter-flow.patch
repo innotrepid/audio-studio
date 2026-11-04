@@ -1,0 +1,136 @@
+--- a/platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt
++++ b/platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt
+@@ -886,6 +886,10 @@
+         val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
++        val creatorTeleprompterPanel = LinearLayout(this).apply {
++            orientation = LinearLayout.VERTICAL
++            visibility = ViewGroup.GONE
++        }
+         val creatorWorkspaceContent = LinearLayout(this).apply {
+             orientation = LinearLayout.VERTICAL
+         }
+@@ -964,18 +968,28 @@
+                     val scriptsSelected = workspace == "Scripts"
++                    val teleprompterSelected = workspace == "Teleprompter"
+                     val captionsSelected = workspace == "Captions"
+                     val productionSelected = workspace == "Production"
+                     creatorScriptsPanel.visibility = if (scriptsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
++                    creatorTeleprompterPanel.visibility = if (teleprompterSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                     creatorCaptionsPanel.visibility = if (captionsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                     creatorWorkspaceContent.getChildAt(creatorWorkspaceContent.childCount - 1)?.visibility = if (productionSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+-                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
++                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || teleprompterSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                     if (productionSelected) creatorWorkspaceContent.getChildAt(creatorWorkspaceContent.childCount - 1)?.tag = "refresh-markers"
+                     if (captionsSelected) {
+                         transcriptInput.setText(activeCreatorProject?.transcript.orEmpty())
+                         refreshCaptionList()
+                     }
++                    if (teleprompterSelected) {
++                        val text = creatorBodyInput.text?.toString().orEmpty().ifBlank {
++                            "Write a script under Scripts to preview it here."
++                        }
++                        creatorTeleprompterPreview.text = text
++                        teleprompterScriptView?.text = text
++                    }
+                     creatorSubworkspaceNotice.text = when (workspace) {
+-                        "Teleprompter" -> "TELEPROMPTER\nIntegrated recording teleprompter with countdown and synchronized scroll. Your scripts remain saved in Scripts."
+                         "Production" -> "PRODUCTION\nProduction markers, retake notes, and take review linked to your project."
+                         else -> ""
+                     }
+@@ -1154,17 +1168,21 @@
+-        // Attach teleprompter views only after their local declarations are initialized.
+-        recordSection.addView(teleprompterHeading, matchWidth())
+-        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(
+-            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)
+-        ))
+-        recordSection.addView(teleprompterCountdown, matchWidth())
+-        recordSection.addView(teleprompterSpeedLabel, matchWidth())
+-        recordSection.addView(teleprompterSpeed, matchWidth())
+-        recordSection.addView(teleprompterFontSizeLabel, matchWidth())
+-        recordSection.addView(teleprompterFontSize, matchWidth())
+-        recordSection.addView(teleprompterLineSpacingLabel, matchWidth())
+-        recordSection.addView(teleprompterLineSpacing, matchWidth())
+-        recordSection.addView(teleprompterControls, matchWidth())
+-        recordSection.addView(teleprompterCountdownStatus, matchWidth())
++        // Studio teleprompter: maximize height; settings live under Creator → Teleprompter.
++        teleprompterHeading.text = "STUDIO TELEPROMPTER"
++        val studioTeleprompterHeight = (resources.displayMetrics.heightPixels * 0.52f).toInt().coerceAtLeast(dp(280))
++        recordSection.addView(teleprompterHeading, matchWidth())
++        recordSection.addView(TextView(this).apply {
++            text = "Script and settings come from Creator → Teleprompter."
++            textSize = 11f
++            setTextColor(Color.rgb(174, 185, 204))
++            setPadding(0, 0, 0, dp(6))
++        }, matchWidth())
++        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(
++            ViewGroup.LayoutParams.MATCH_PARENT, studioTeleprompterHeight
++        ))
++        recordSection.addView(teleprompterCountdown, matchWidth())
++        teleprompterStart.text = "Pre-roll + record"
++        teleprompterPause.text = "Pause"
++        recordSection.addView(teleprompterControls, matchWidth())
++        recordSection.addView(teleprompterCountdownStatus, matchWidth())
+@@ -1173,6 +1191,48 @@
+         recordSection.addView(openLatestTakeButton, matchWidth())
++
++        creatorTeleprompterPanel.addView(TextView(this).apply {
++            text = "TELEPROMPTER"
++            textSize = 11f
++            letterSpacing = 0.1f
++            setTypeface(null, android.graphics.Typeface.BOLD)
++            setTextColor(Color.rgb(79, 125, 255))
++            setPadding(0, dp(8), 0, dp(6))
++        }, matchWidth())
++        creatorTeleprompterPanel.addView(TextView(this).apply {
++            text = "Script text mirrors Creator → Scripts. Settings drive the Record studio teleprompter."
++            textSize = 12f
++            setTextColor(Color.rgb(174, 185, 204))
++            setPadding(0, 0, 0, dp(8))
++        }, matchWidth())
++        val creatorTeleprompterPreview = TextView(this).apply {
++            text = "Write a script under Scripts to preview it here."
++            textSize = 18f
++            setTextColor(Color.WHITE)
++            setPadding(dp(12), dp(12), dp(12), dp(12))
++            setBackgroundColor(Color.rgb(13, 17, 25))
++            minHeight = dp(120)
++        }
++        creatorTeleprompterPanel.addView(creatorTeleprompterPreview, matchWidth())
++        creatorTeleprompterPanel.addView(teleprompterSpeedLabel, matchWidth())
++        creatorTeleprompterPanel.addView(teleprompterSpeed, matchWidth())
++        creatorTeleprompterPanel.addView(teleprompterFontSizeLabel, matchWidth())
++        creatorTeleprompterPanel.addView(teleprompterFontSize, matchWidth())
++        creatorTeleprompterPanel.addView(teleprompterLineSpacingLabel, matchWidth())
++        creatorTeleprompterPanel.addView(teleprompterLineSpacing, matchWidth())
++        creatorBodyInput.addTextChangedListener(object : android.text.TextWatcher {
++            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
++            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
++            override fun afterTextChanged(s: android.text.Editable?) {
++                val text = s?.toString().orEmpty().ifBlank {
++                    "Write a script under Scripts to preview it here."
++                }
++                creatorTeleprompterPreview.text = text
++                teleprompterScriptView?.text = text
++            }
++        })
+@@ -1695,6 +1755,7 @@
+         creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())
++        creatorWorkspaceContent.addView(creatorTeleprompterPanel, matchWidth())
+         creatorWorkspaceContent.addView(creatorCaptionsPanel, matchWidth())
+@@ -1930,6 +1991,7 @@
+                     recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
++                    screenScroll.setOnTouchListener { _, _ -> target === recordSection }
+@@ -2220,12 +2282,11 @@
+-            val startTeleprompter = teleprompterStartRequested
+             teleprompterStartRequested = false
+             teleprompterStartButton?.isEnabled = false
+-            teleprompterStartButton?.text = if (startTeleprompter) "Studio take recording…" else "Recording active"
+-            teleprompterPauseButton?.isEnabled = startTeleprompter
+-            teleprompterCountdownText?.text = if (startTeleprompter) "Recording and script scroll are synchronized." else "Ready for your next take."
++            teleprompterStartButton?.text = "Recording active"
++            teleprompterPauseButton?.isEnabled = true
++            teleprompterPauseButton?.text = "Pause"
++            teleprompterCountdownText?.text = "Recording and teleprompter scroll are synchronized."
+@@ -2247,7 +2308,7 @@
+-            if (startTeleprompter) startTeleprompterScroll()
++            startTeleprompterScroll()

@@ -1,0 +1,59 @@
+// Paste this method block into MainWindow.xaml.cs immediately before RefreshCreatorProductionMarkers().
+
+    /// <summary>
+    /// Scripts → Teleprompter mirror → Record studio teleprompter.
+    /// Settings are owned by Creator → Teleprompter controls.
+    /// </summary>
+    private void SyncStudioTeleprompterFromCreator()
+    {
+        var scriptText = CreatorScriptBodyBox?.Text;
+        if (string.IsNullOrWhiteSpace(scriptText))
+        {
+            scriptText = SelectedCreatorScript?.Sections?
+                .OrderBy(section => section.Order)
+                .Select(section => section.Text)
+                .FirstOrDefault(text => !string.IsNullOrWhiteSpace(text));
+        }
+        scriptText = string.IsNullOrWhiteSpace(scriptText)
+            ? "Write a script under Creator → Scripts. It appears here and on Record automatically."
+            : scriptText;
+
+        if (CreatorTeleprompterPreviewText != null)
+            CreatorTeleprompterPreviewText.Text = scriptText;
+        if (TeleprompterScriptText != null)
+            TeleprompterScriptText.Text = scriptText;
+
+        if (CreatorTeleprompterSpeedSlider != null && TeleprompterSpeedSlider != null)
+            TeleprompterSpeedSlider.Value = CreatorTeleprompterSpeedSlider.Value;
+        if (CreatorTeleprompterFontSizeSlider != null && TeleprompterFontSizeSlider != null)
+            TeleprompterFontSizeSlider.Value = CreatorTeleprompterFontSizeSlider.Value;
+        if (CreatorTeleprompterLineSpacingSlider != null && TeleprompterLineSpacingSlider != null)
+            TeleprompterLineSpacingSlider.Value = CreatorTeleprompterLineSpacingSlider.Value;
+        if (CreatorTeleprompterCountdownComboBox != null && TeleprompterCountdownComboBox != null
+            && CreatorTeleprompterCountdownComboBox.SelectedIndex >= 0)
+            TeleprompterCountdownComboBox.SelectedIndex = CreatorTeleprompterCountdownComboBox.SelectedIndex;
+
+        ApplyStudioTeleprompterTypography();
+        if (CreatorTeleprompterStatusText != null)
+            CreatorTeleprompterStatusText.Text = "Mirrored to Record studio teleprompter.";
+    }
+
+    private void ApplyStudioTeleprompterTypography()
+    {
+        if (TeleprompterScriptText == null || TeleprompterFontSizeSlider == null || TeleprompterLineSpacingSlider == null)
+            return;
+        var size = TeleprompterFontSizeSlider.Value;
+        TeleprompterScriptText.FontSize = size;
+        TeleprompterScriptText.LineHeight = size * TeleprompterLineSpacingSlider.Value;
+        if (CreatorTeleprompterPreviewText != null)
+        {
+            CreatorTeleprompterPreviewText.FontSize = size;
+            CreatorTeleprompterPreviewText.LineHeight = size * TeleprompterLineSpacingSlider.Value;
+        }
+        if (CreatorTeleprompterSpeedText != null && CreatorTeleprompterSpeedSlider != null)
+            CreatorTeleprompterSpeedText.Text = $"Scroll speed · {CreatorTeleprompterSpeedSlider.Value:0} px/s";
+        if (CreatorTeleprompterFontSizeText != null)
+            CreatorTeleprompterFontSizeText.Text = $"Text size · {size:0} px";
+        if (CreatorTeleprompterLineSpacingText != null && CreatorTeleprompterLineSpacingSlider != null)
+            CreatorTeleprompterLineSpacingText.Text = $"Line spacing · {CreatorTeleprompterLineSpacingSlider.Value:0.0}×";
+    }
