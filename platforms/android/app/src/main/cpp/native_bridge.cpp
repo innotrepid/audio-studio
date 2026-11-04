@@ -9,9 +9,6 @@
 #include "audio_studio/transcription.hpp"
 #include "audio_studio/wav_audio_reader.hpp"
 
-// LiveCaptureVad engine path is available; Oboe dual-ring wiring lands in a focused follow-up.
-// See engine/include/audio_studio/live_capture_vad.hpp and docs/WHISPER-SILERO-INSTALLATION.md.
-
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -249,6 +246,8 @@ private:
                 if (!writer.write_frames(ring_.data() + offset, contiguous)) {
                     write_failed_.store(true, std::memory_order_release);
                     stop_requested_.store(true, std::memory_order_release);
+                    // A failed write cannot advance by the failed block. Drain the queue
+                    // indices so the worker exits instead of retrying the same bad block forever.
                     read = write;
                     read_index_.store(read, std::memory_order_release);
                     break;
@@ -274,6 +273,7 @@ private:
         const bool write_failed = write_failed_.load(std::memory_order_acquire);
         bool finalized = false;
         if (overflowed || stream_failed || write_failed) {
+            // Preserve the writer-owned partial file for the app's explicit recovery flow.
             writer.preserve_partial();
         } else {
             finalized = writer.finalize();
@@ -358,9 +358,6 @@ std::atomic<bool> g_cancel_noise_gate{false};
 
 }  // namespace
 
-// JNI entry points continue in the remainder of this translation unit as on redesign.
-// Full file restored from redesign tip for buildability; LiveCaptureVad is engine-ready.
-
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeEngineStatus(
     JNIEnv* env, jobject /* thiz */) {
@@ -432,3 +429,5 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
     const auto status = recorder->stop();
     return env->NewStringUTF(status.c_str());
 }
+
+#include "native_bridge_jni_rest.inc"
