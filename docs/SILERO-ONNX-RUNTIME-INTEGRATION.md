@@ -14,19 +14,23 @@
 ## Dependency strategy
 
 Pin ONNX Runtime to **1.23.2** for the first integration pass:
-- Android: use the official Maven Central `com.microsoft.onnxruntime:onnxruntime-android:1.23.2` AAR, extract its headers and ABI-matched `libonnxruntime.so` for native C++ CMake linking, and package the matching shared library in the APK.
+- Android: use the official Maven Central `com.microsoft.onnxruntime:onnxruntime-android:1.23.2` AAR. Gradle extracts headers and ABI-matched `libonnxruntime.so` for native C++ CMake linking and packages the matching shared library in the APK.
 - Windows x64: use the official `Microsoft.ML.OnnxRuntime` NuGet package version `1.23.2` as the source of the C/C++ headers, import library, and `onnxruntime.dll`; copy the DLL beside the self-contained Synvidra executable.
 - Keep dependency version pinned and make CI fail if the expected headers/native library are absent. Preserve the ONNX Runtime MIT license and notices in distribution artifacts.
 - Keep inference CPU-only initially. Do not introduce GPU execution providers or runtime downloads.
 
 ## Shared API
 
-The shared engine should expose a result-based operation taking a model path, mono 16 kHz samples, and VAD options, returning validated speech regions plus a structured error. ONNX session ownership and recurrent state belong to a per-stream runtime object, not global mutable state. The existing `build_speech_regions` function remains pure postprocessing and stays independently testable without loading ONNX Runtime.
+- `audio_studio_vad_create` — Windows UTF-16 model path.
+- `audio_studio_vad_create_utf8` — cross-platform UTF-8 filesystem path (preferred on Android).
+
+ONNX session ownership and recurrent state belong to a per-stream runtime object, not global mutable state. The existing `build_speech_regions` function remains pure postprocessing and stays independently testable without loading ONNX Runtime.
 
 ### Platform availability (current)
 
-- **Windows:** production `audio_studio_vad_create` loads the pinned Silero ONNX model and is covered by the Windows C++ core CI with real inference.
-- **Android / Linux:** shared coordinator, resampler, and pure region postprocessing are available; production ONNX Runtime packaging for the public C VAD create path is still gated. Do not claim live Silero VAD on those targets until the packaging gates below are green.
+- **Windows:** production create loads the pinned Silero ONNX model; covered by Windows C++ core CI with real inference.
+- **Android:** NDK links `silero_onnx.cpp` against extracted ORT 1.23.2; Kotlin `SileroVadSession` opens the bundled model via UTF-8 create. Capture-thread wiring into Oboe is still a follow-up.
+- **Linux:** pure coordinator/tests without production ORT packaging in the app shells.
 
 ## Validation gates
 
@@ -48,21 +52,13 @@ The shared engine should expose a result-based operation taking a model path, mo
 
 ## Current validation status
 
-The Windows ONNX-backed test target now exercises the pinned model with real inference:
-
-- Loads the manifest-pinned model and validates adapter initialization.
-- Rejects null and non-finite inference windows without overwriting the caller's probability output.
-- Runs 20 exact 512-sample windows of digital silence and requires each probability to remain at or below 0.1.
-- Resets recurrent state, runs 60 windows of a deterministic voiced harmonic signal, and requires peak probability to reach at least 0.5.
-- Resets state again and exercises the public C API push, flush, repeated-flush, and reset lifecycle.
-
-The test is part of the Windows C++ core CI. Latest verified run for commit `b6dc19e12552d30743c29d0ee2cde73eb89b8efc` passed Windows C++ core, Linux C++ core, and Android native shell/APK jobs.
+The Windows ONNX-backed test target exercises the pinned model with real inference (silence/voiced windows, C API lifecycle). Android packaging and NDK link steps are required in CI before claiming device parity.
 
 ### Still required before claiming recorded-audio accuracy
 
 - Add a small, license-compatible recorded speech fixture with a pinned source and checksum.
 - Define expected speech intervals and acceptable timestamp tolerances from a reproducible reference.
 - Run the streaming VAD over the fixture and assert detection coverage, false-positive behavior on nonspeech spans, and boundary tolerance.
-- Expand ONNX-backed execution beyond Windows when the production ONNX Runtime targets are enabled on Linux/Android.
+- Wire capture → `CaptureVadController` on Android/Windows and run offline device smoke tests.
 
 Synthetic inference validates that the pinned model executes and responds plausibly; it is not a substitute for recorded-speech accuracy benchmarking.
