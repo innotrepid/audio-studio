@@ -196,6 +196,18 @@ if(BUILD_TESTING)
     endif()
     add_test(NAME audio_studio_capture_vad_worker_tests COMMAND audio_studio_capture_vad_worker_tests)
 
+    add_executable(audio_studio_live_capture_vad_tests tests/live_capture_vad_test.cpp)
+    target_link_libraries(audio_studio_live_capture_vad_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_live_capture_vad_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_live_capture_vad_tests PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(audio_studio_live_capture_vad_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME audio_studio_live_capture_vad_tests
+        COMMAND audio_studio_live_capture_vad_tests ${CMAKE_SOURCE_DIR}/build/transcription-models/silero_vad.onnx)
+    set_tests_properties(audio_studio_live_capture_vad_tests PROPERTIES TIMEOUT 60)
+
     add_executable(audio_studio_vad_tests tests/vad_test.cpp)
     target_link_libraries(audio_studio_vad_tests PRIVATE audio_studio_core)
     target_compile_features(audio_studio_vad_tests PRIVATE cxx_std_17)
