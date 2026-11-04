@@ -132,6 +132,15 @@ void LiveCaptureVad::worker_loop() {
         SpeechRegion region{};
         while (worker_.pop_region(region)) {
             std::lock_guard<std::mutex> lock(regions_mutex_);
+            // Reclaim regions already consumed by the UI before enforcing the
+            // pending limit. Otherwise the backing vector grows for the entire
+            // recording and eventually reports overflow despite an empty queue.
+            if (region_read_ > 0U) {
+                completed_regions_.erase(
+                    completed_regions_.begin(),
+                    completed_regions_.begin() + static_cast<std::ptrdiff_t>(region_read_));
+                region_read_ = 0U;
+            }
             if (completed_regions_.size() >= options_.max_pending_regions) {
                 mark_failed("Live-capture VAD region queue overflowed.");
                 break;
@@ -149,8 +158,19 @@ void LiveCaptureVad::worker_loop() {
             SpeechRegion tail{};
             while (worker_.pop_region(tail)) {
                 std::lock_guard<std::mutex> lock(regions_mutex_);
+                if (region_read_ > 0U) {
+                    completed_regions_.erase(
+                        completed_regions_.begin(),
+                        completed_regions_.begin() + static_cast<std::ptrdiff_t>(region_read_));
+                    region_read_ = 0U;
+                }
+                if (completed_regions_.size() >= options_.max_pending_regions) {
+                    mark_failed("Live-capture VAD region queue overflowed.");
+                    break;
+                }
                 completed_regions_.push_back(tail);
             }
+            if (failed_.load(std::memory_order_acquire)) break;
             finished_.store(true, std::memory_order_release);
             break;
         }
