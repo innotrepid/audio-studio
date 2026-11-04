@@ -19,6 +19,13 @@ local.properties
 **/build/
 *.keystore
 *.jks
+platforms/android/app/src/main/assetsGenerated/models/
+
+# Offline inference models (fetched by scripts/fetch_transcription_models.py)
+*.bin
+!models/
+ggml-*.bin
+silero_vad.onnx
 
 # Visual Studio / Windows
 .vs/

@@ -119,12 +119,17 @@ jobs:
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /p:Configuration=Release /p:Platform=x64
       - name: Publish self-contained Windows app
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
-      - name: Include native audio engine and ONNX Runtime
+      - name: Include native audio engine, ONNX Runtime, and offline models
         shell: pwsh
         run: |
           $publish = "platforms/windows/AudioStudio/artifacts/windows-self-contained"
           Copy-Item build/Release/audio_studio_native.dll "$publish/audio_studio_native.dll"
           Copy-Item build/Release/onnxruntime.dll "$publish/onnxruntime.dll"
+          New-Item -ItemType Directory -Force -Path "$publish/models" | Out-Null
+          Copy-Item build/transcription-models/ggml-tiny.bin "$publish/models/ggml-tiny.bin"
+          Copy-Item build/transcription-models/silero_vad.onnx "$publish/models/silero_vad.onnx"
+      - name: Verify packaged Windows offline models
+        run: python scripts/verify_packaged_models.py --directory platforms/windows/AudioStudio/artifacts/windows-self-contained/models
       - name: Upload self-contained Windows application
         uses: actions/upload-artifact@v4
         with:
@@ -144,6 +149,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Fetch and verify pinned transcription models
+        run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -183,6 +194,8 @@ jobs:
         run: gradle -p platforms/android :app:assembleDebug
       - name: Stage Synvidra-branded Android APK
         run: cp platforms/android/app/build/outputs/apk/debug/app-debug.apk platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk
+      - name: Verify offline models embedded in APK
+        run: python scripts/verify_packaged_models.py --apk platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk --apk-asset-prefix assets/models
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
