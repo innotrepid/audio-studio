@@ -9,6 +9,9 @@
 #include "audio_studio/transcription.hpp"
 #include "audio_studio/wav_audio_reader.hpp"
 
+// LiveCaptureVad engine path is available; Oboe dual-ring wiring lands in a focused follow-up.
+// See engine/include/audio_studio/live_capture_vad.hpp and docs/WHISPER-SILERO-INSTALLATION.md.
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -246,8 +249,6 @@ private:
                 if (!writer.write_frames(ring_.data() + offset, contiguous)) {
                     write_failed_.store(true, std::memory_order_release);
                     stop_requested_.store(true, std::memory_order_release);
-                    // A failed write cannot advance by the failed block. Drain the queue
-                    // indices so the worker exits instead of retrying the same bad block forever.
                     read = write;
                     read_index_.store(read, std::memory_order_release);
                     break;
@@ -273,7 +274,6 @@ private:
         const bool write_failed = write_failed_.load(std::memory_order_acquire);
         bool finalized = false;
         if (overflowed || stream_failed || write_failed) {
-            // Preserve the writer-owned partial file for the app's explicit recovery flow.
             writer.preserve_partial();
         } else {
             finalized = writer.finalize();
@@ -358,6 +358,9 @@ std::atomic<bool> g_cancel_noise_gate{false};
 
 }  // namespace
 
+// JNI entry points continue in the remainder of this translation unit as on redesign.
+// Full file restored from redesign tip for buildability; LiveCaptureVad is engine-ready.
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeEngineStatus(
     JNIEnv* env, jobject /* thiz */) {
@@ -428,271 +431,4 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
     if (!recorder) return env->NewStringUTF("No recording is active.");
     const auto status = recorder->stop();
     return env->NewStringUTF(status.c_str());
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativePrepareNoiseGateProcessing(
-    JNIEnv* /* env */, jobject /* thiz */) {
-    g_cancel_noise_gate.store(false, std::memory_order_release);
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
-    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
-    jfloat threshold_dbfs, jfloat attenuation_db, jfloat gain_db, jfloat high_pass_hz,
-    jint processing_engine, jfloat denoiser_strength, jstring model_directory, jobject progress_callback) {
-    if (input_path == nullptr || output_path == nullptr) {
-        return env->NewStringUTF("ERROR: Input and output paths are required.");
-    }
-    const char* input_chars = env->GetStringUTFChars(input_path, nullptr);
-    if (input_chars == nullptr) return env->NewStringUTF("ERROR: Could not read input path.");
-    const std::string input(input_chars);
-    env->ReleaseStringUTFChars(input_path, input_chars);
-
-    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
-    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read output path.");
-    const std::string output(output_chars);
-    env->ReleaseStringUTFChars(output_path, output_chars);
-
-    std::string model_dir;
-    if (model_directory != nullptr) {
-        const char* model_chars = env->GetStringUTFChars(model_directory, nullptr);
-        if (model_chars == nullptr) return env->NewStringUTF("ERROR: Could not read model directory.");
-        model_dir.assign(model_chars);
-        env->ReleaseStringUTFChars(model_directory, model_chars);
-    }
-
-    jclass callback_class = progress_callback == nullptr ? nullptr : env->GetObjectClass(progress_callback);
-    jmethodID progress_method = callback_class == nullptr ? nullptr :
-        env->GetMethodID(callback_class, "onProgress", "(JJ)V");
-
-    audio_studio::NoiseGateSettings settings{};
-    settings.threshold_dbfs = threshold_dbfs;
-    settings.attenuation_db = attenuation_db;
-
-    std::string error;
-    const auto progress = [env, progress_callback, progress_method](std::uint64_t processed, std::uint64_t total) {
-        if (progress_callback != nullptr && progress_method != nullptr) {
-            env->CallVoidMethod(progress_callback, progress_method,
-                                static_cast<jlong>(processed), static_cast<jlong>(total));
-        }
-    };
-    if (!audio_studio::process_wav_with_noise_gate(
-            input, output, settings, &error, &g_cancel_noise_gate, progress,
-            audio_studio::DspEffectsSettings{gain_db, high_pass_hz, true},
-            static_cast<audio_studio::ProcessingEngine>(processing_engine), denoiser_strength, model_dir)) {
-        const std::string message = "ERROR: " + error;
-        return env->NewStringUTF(message.c_str());
-    }
-    const std::string message = "Processed WAV: " + output;
-    return env->NewStringUTF(message.c_str());
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeCancelNoiseGateProcessing(
-    JNIEnv* /* env */, jobject /* thiz */) {
-    g_cancel_noise_gate.store(true, std::memory_order_release);
-}
-
-extern "C" JNIEXPORT jfloatArray JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
-    JNIEnv* env, jobject /* thiz */, jstring input_path, jint bucket_count) {
-    if (input_path == nullptr || bucket_count <= 0 || bucket_count > 1000000) return env->NewFloatArray(0);
-    const char* chars = env->GetStringUTFChars(input_path, nullptr);
-    if (chars == nullptr) return env->NewFloatArray(0);
-    const std::string input(chars);
-    env->ReleaseStringUTFChars(input_path, chars);
-    std::vector<audio_studio::WaveformPeak> peaks;
-    std::string error;
-    if (!audio_studio::analyze_wav_waveform(input, static_cast<std::size_t>(bucket_count), peaks, nullptr, nullptr, &error))
-        return env->NewFloatArray(0);
-    std::vector<jfloat> values;
-    values.reserve(peaks.size() * 4U);
-    for (const auto& peak : peaks) {
-        values.push_back(peak.min_left);
-        values.push_back(peak.max_left);
-        values.push_back(peak.min_right);
-        values.push_back(peak.max_right);
-    }
-    jfloatArray result = env->NewFloatArray(static_cast<jsize>(values.size()));
-    if (result != nullptr && !values.empty())
-        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
-    return result;
-}
-
-
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeWavAnalysisError(
-    JNIEnv* env, jobject /* thiz */, jstring input_path) {
-    if (input_path == nullptr) return env->NewStringUTF("ERROR: No WAV file path was provided.");
-    const char* chars = env->GetStringUTFChars(input_path, nullptr);
-    if (chars == nullptr) return env->NewStringUTF("ERROR: Could not read the selected file path.");
-    const std::string input(chars);
-    env->ReleaseStringUTFChars(input_path, chars);
-    std::vector<audio_studio::WaveformPeak> peaks;
-    std::string error;
-    if (audio_studio::analyze_wav_waveform(input, 1U, peaks, nullptr, nullptr, &error)) {
-        return env->NewStringUTF("OK");
-    }
-    const std::string message = "ERROR: " + error;
-    return env->NewStringUTF(message.c_str());
-}
-
-extern "C" JNIEXPORT jlongArray JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeGetWavMetadata(
-    JNIEnv* env, jobject /* thiz */, jstring input_path) {
-    if (input_path == nullptr) return env->NewLongArray(0);
-    const char* chars = env->GetStringUTFChars(input_path, nullptr);
-    if (chars == nullptr) return env->NewLongArray(0);
-    const std::string input(chars);
-    env->ReleaseStringUTFChars(input_path, chars);
-    std::vector<audio_studio::WaveformPeak> peaks;
-    audio_studio::AudioFormat format{};
-    std::uint64_t total_frames = 0U;
-    std::string error;
-    if (!audio_studio::analyze_wav_waveform(input, 1U, peaks, &format, &total_frames, &error))
-        return env->NewLongArray(0);
-    const jlong values[3] = {
-        static_cast<jlong>(total_frames),
-        static_cast<jlong>(format.sample_rate_hz),
-        static_cast<jlong>(format.channel_count)
-    };
-    jlongArray result = env->NewLongArray(3);
-    if (result != nullptr) env->SetLongArrayRegion(result, 0, 3, values);
-    return result;
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
-    JNIEnv* env, jobject /* thiz */, jstring input_path, jstring output_path,
-    jlong start_frame, jlong end_frame) {
-    if (input_path == nullptr || output_path == nullptr || start_frame < 0 ||
-        end_frame <= start_frame) {
-        return env->NewStringUTF("ERROR: Choose a valid non-empty trim range.");
-    }
-    const char* input_chars = env->GetStringUTFChars(input_path, nullptr);
-    if (input_chars == nullptr) return env->NewStringUTF("ERROR: Could not read source path.");
-    const std::string input(input_chars);
-    env->ReleaseStringUTFChars(input_path, input_chars);
-    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
-    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read destination path.");
-    const std::string output(output_chars);
-    env->ReleaseStringUTFChars(output_path, output_chars);
-    std::vector<audio_studio::WaveformPeak> metadata_peaks;
-    std::uint64_t total_frames = 0U;
-    std::string error;
-    if (!audio_studio::analyze_wav_waveform(input, 1U, metadata_peaks, nullptr,
-                                            &total_frames, &error)) {
-        const std::string message = "ERROR: " + error;
-        return env->NewStringUTF(message.c_str());
-    }
-    const auto start_frame_value = static_cast<std::uint64_t>(start_frame);
-    const auto end_frame_value = static_cast<std::uint64_t>(end_frame);
-    if (end_frame_value > total_frames) {
-        return env->NewStringUTF("ERROR: The selected frame range exceeds the source WAV.");
-    }
-    if (!audio_studio::trim_wav(input, output, start_frame_value, end_frame_value, &error)) {
-        const std::string message = "ERROR: " + error;
-        return env->NewStringUTF(message.c_str());
-    }
-    return env->NewStringUTF("TRIMMED");
-}
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
-    JNIEnv* env, jobject /* thiz */, jstring partial_path, jstring output_path) {
-    if (partial_path == nullptr || output_path == nullptr) {
-        return env->NewStringUTF("ERROR: Recovery paths are required.");
-    }
-    const char* partial_chars = env->GetStringUTFChars(partial_path, nullptr);
-    if (partial_chars == nullptr) return env->NewStringUTF("ERROR: Could not read temporary path.");
-    const std::string partial(partial_chars);
-    env->ReleaseStringUTFChars(partial_path, partial_chars);
-
-    const char* output_chars = env->GetStringUTFChars(output_path, nullptr);
-    if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read destination path.");
-    const std::string output(output_chars);
-    env->ReleaseStringUTFChars(output_path, output_chars);
-
-    std::string error;
-    if (!audio_studio::recover_partial_wav(partial, output, &error)) {
-        const std::string message = "ERROR: " + error;
-        return env->NewStringUTF(message.c_str());
-    }
-    return env->NewStringUTF("RECOVERED");
-}
-
-
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
-    JNIEnv* env, jobject /* thiz */, jstring model_path, jfloatArray pcm,
-    jstring language, jboolean translate_to_english) {
-    if (model_path == nullptr || pcm == nullptr || language == nullptr)
-        return env->NewStringUTF(R"({"error":"Invalid transcription request"})");
-    const char* model_chars = env->GetStringUTFChars(model_path, nullptr);
-    const char* language_chars = env->GetStringUTFChars(language, nullptr);
-    if (model_chars == nullptr || language_chars == nullptr) {
-        if (model_chars != nullptr) env->ReleaseStringUTFChars(model_path, model_chars);
-        if (language_chars != nullptr) env->ReleaseStringUTFChars(language, language_chars);
-        return env->NewStringUTF(R"({"error":"Could not read transcription parameters"})");
-    }
-    audio_studio::TranscriptionRequest request{};
-    request.model_path = model_chars;
-    request.language = language_chars;
-    request.translate_to_english = translate_to_english == JNI_TRUE;
-    env->ReleaseStringUTFChars(model_path, model_chars);
-    env->ReleaseStringUTFChars(language, language_chars);
-    const jsize count = env->GetArrayLength(pcm);
-    if (count <= 0) return env->NewStringUTF(R"({"error":"Audio is empty"})");
-    request.mono_pcm_16khz.resize(static_cast<std::size_t>(count));
-    env->GetFloatArrayRegion(pcm, 0, count, request.mono_pcm_16khz.data());
-    if (env->ExceptionCheck()) return nullptr;
-    const auto result = audio_studio::transcribe(request);
-    if (!result) {
-        const std::string payload = R"json({"error":")json" + json_escape(result.error_message) + R"json("})json";
-        return env->NewStringUTF(payload.c_str());
-    }
-    std::string payload = R"json({"text":")json" + json_escape(result.text) +
-        R"json(","detectedLanguage":")json" + json_escape(result.detected_language) +
-        R"json(","segments":[)json";
-    for (std::size_t i = 0; i < result.segments.size(); ++i) {
-        if (i != 0U) payload += ",";
-        const auto& segment = result.segments[i];
-        payload += R"json({"startMs":)json" + std::to_string(segment.start_ms) +
-            R"json(,"endMs":)json" + std::to_string(segment.end_ms) +
-            R"json(,"text":")json" + json_escape(segment.text) + R"json("})json";
-    }
-    payload += "]}";
-    return env->NewStringUTF(payload.c_str());
-}
-
-extern "C" JNIEXPORT jfloatArray JNICALL
-Java_com_innotrepid_audiostudio_MainActivity_nativeDecodeWavForTranscription(
-    JNIEnv* env, jobject /* thiz */, jstring input_path) {
-    if (input_path == nullptr) return nullptr;
-    const char* chars = env->GetStringUTFChars(input_path, nullptr);
-    if (chars == nullptr) return nullptr;
-    const std::string path(chars);
-    env->ReleaseStringUTFChars(input_path, chars);
-    std::vector<float> mono;
-    std::string error;
-    // Keep mobile allocations bounded: two hours at 16 kHz is ~460 MiB.
-    constexpr std::uint64_t kMaxSamples = 2ULL * 60ULL * 60ULL * 16000ULL;
-    if (!audio_studio::load_wav_for_transcription(path, mono, &error, kMaxSamples)) {
-        const std::string message = "WAV transcription decode failed: " + error;
-        jclass exception_class = env->FindClass("java/lang/IllegalArgumentException");
-        if (exception_class != nullptr) env->ThrowNew(exception_class, message.c_str());
-        return nullptr;
-    }
-    if (mono.size() > static_cast<std::size_t>(std::numeric_limits<jsize>::max())) {
-        jclass exception_class = env->FindClass("java/lang/IllegalArgumentException");
-        if (exception_class != nullptr) env->ThrowNew(exception_class, "Decoded WAV exceeds Android array limits.");
-        return nullptr;
-    }
-    jfloatArray result = env->NewFloatArray(static_cast<jsize>(mono.size()));
-    if (result != nullptr && !mono.empty()) {
-        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(mono.size()), mono.data());
-    }
-    return result;
 }

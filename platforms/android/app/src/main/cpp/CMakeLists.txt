@@ -96,6 +96,7 @@ add_library(audio_studio_core STATIC
     ../../../../../../engine/src/capture_pcm_ring.cpp
     ../../../../../../engine/src/capture_vad_worker.cpp
     ../../../../../../engine/src/capture_vad_controller.cpp
+    ../../../../../../engine/src/live_capture_vad.cpp
 )
 target_include_directories(audio_studio_core PUBLIC
     ../../../../../../engine/include
