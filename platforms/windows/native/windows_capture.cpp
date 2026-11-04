@@ -17,6 +17,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -534,7 +535,7 @@ extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_recover_partial_wav(
     if (!audio_studio::recover_partial_wav(
             std::filesystem::path(partial_path),
             std::filesystem::path(output_path),
-            &message)) {
+            std::addressof(message))) {
         result.assign(message.begin(), message.end());
         return result.c_str();
     }
