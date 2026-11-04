@@ -78,6 +78,8 @@ if(WIN32)
         engine/src/native_api.cpp
         engine/src/audio_types.cpp
         engine/src/wav_writer.cpp
+        engine/src/wav_reader.cpp
+        engine/src/wav_audio_reader.cpp
         engine/src/audio_decoder.cpp
         engine/src/wav_recovery.cpp
         engine/src/noise_gate.cpp
@@ -87,13 +89,20 @@ if(WIN32)
         engine/src/native_vad_api.cpp
         engine/src/audio_resampler.cpp
         engine/src/vad.cpp
+        engine/src/transcription.cpp
+        engine/src/capture_pcm_ring.cpp
+        engine/src/capture_vad_worker.cpp
+        engine/src/capture_vad_controller.cpp
+        engine/src/live_capture_vad.cpp
         engine/src/wav_processing.cpp
         platforms/windows/native/windows_capture.cpp
         platforms/windows/native/windows_processing.cpp
+        platforms/windows/native/windows_transcription.cpp
+        platforms/windows/native/windows_recovery.cpp
     )
     target_include_directories(audio_studio_native PRIVATE engine/include platforms/windows/native "${ONNXRUNTIME_INCLUDE_DIR}")
     target_compile_features(audio_studio_native PRIVATE cxx_std_17)
-    target_link_libraries(audio_studio_native PRIVATE dsp_engine_static noise_cancellation_static "${ONNXRUNTIME_LIBRARY}" ole32 uuid propsys ws2_32 userenv bcrypt advapi32 ntdll)
+    target_link_libraries(audio_studio_native PRIVATE dsp_engine_static noise_cancellation_static whisper "${ONNXRUNTIME_LIBRARY}" ole32 uuid propsys ws2_32 userenv bcrypt advapi32 ntdll)
     add_custom_command(TARGET audio_studio_native POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ONNXRUNTIME_DLL}"

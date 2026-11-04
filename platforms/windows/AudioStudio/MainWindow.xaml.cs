@@ -1164,6 +1164,54 @@ public sealed partial class MainWindow : Window
         catch (Exception error) { CreatorCaptionStatusText.Text = "Transcript save failed: " + error.Message; }
     }
 
+    private async void TranscribeSelectedWav_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _lastVerifiedRecordingPath ?? _currentRecordingPath;
+        if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+        {
+            if (CreatorCaptionStatusText != null)
+            {
+                CreatorCaptionStatusText.Text = "Select or record a WAV first, then transcribe offline.";
+            }
+            return;
+        }
+
+        if (CreatorCaptionStatusText != null)
+        {
+            CreatorCaptionStatusText.Text = "Transcribing offline with bundled Whisper tiny…";
+        }
+
+        var (ok, textOrError) = await OfflineSpeechNative.TranscribeWavAsync(path);
+        if (!ok)
+        {
+            if (CreatorCaptionStatusText != null)
+            {
+                CreatorCaptionStatusText.Text = "Transcription failed: " + textOrError;
+            }
+            return;
+        }
+
+        if (CreatorTranscriptBox != null)
+        {
+            CreatorTranscriptBox.Text = textOrError;
+        }
+        try
+        {
+            SaveCreatorTranscriptAndCaptions();
+            if (CreatorCaptionStatusText != null)
+            {
+                CreatorCaptionStatusText.Text = "Offline transcript ready and saved locally.";
+            }
+        }
+        catch (Exception error)
+        {
+            if (CreatorCaptionStatusText != null)
+            {
+                CreatorCaptionStatusText.Text = "Transcript ready but save failed: " + error.Message;
+            }
+        }
+    }
+
     private void CreatorTranscriptCopyScript_Click(object sender, RoutedEventArgs e)
     {
         SaveCreatorScript();
@@ -1988,7 +2036,15 @@ public sealed partial class MainWindow : Window
                 $"Synvidra_Recording_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.wav");
 
             RecordingStatusText.Text = "Opening microphone…";
-            var started = await Task.Run(() => NativeRecordingStart(stagingPath));
+            var started = await Task.Run(() =>
+            {
+                // Prefer live Silero VAD when the offline model is packaged; fall back to plain capture.
+                if (OfflineSpeechNative.TryStartRecordingWithBundledVad(stagingPath, out _))
+                {
+                    return 1;
+                }
+                return NativeRecordingStart(stagingPath);
+            });
             RecordingStatusText.Text = ReadRecordingStatus();
             if (started != 0)
             {

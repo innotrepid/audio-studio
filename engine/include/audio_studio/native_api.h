@@ -67,6 +67,12 @@ AUDIO_STUDIO_API const wchar_t* audio_studio_capture_device_name(int index);
 AUDIO_STUDIO_API const wchar_t* audio_studio_capture_device_id(int index);
 AUDIO_STUDIO_API int audio_studio_capture_device_select(const wchar_t* device_id);
 AUDIO_STUDIO_API int audio_studio_recording_start(const wchar_t* output_path);
+// Optional live Silero path (UTF-16). Soft-fails to plain recording if model is missing.
+AUDIO_STUDIO_API int audio_studio_recording_start_with_vad(
+    const wchar_t* output_path, const wchar_t* silero_model_path);
+AUDIO_STUDIO_API int audio_studio_recording_pending_vad_regions(void);
+AUDIO_STUDIO_API int audio_studio_recording_pop_vad_region(
+    uint64_t* start_ms, uint64_t* end_ms);
 AUDIO_STUDIO_API int audio_studio_recording_stop(void);
 AUDIO_STUDIO_API int audio_studio_recording_pause(void);
 AUDIO_STUDIO_API int audio_studio_recording_resume(void);
@@ -85,6 +91,15 @@ AUDIO_STUDIO_API float audio_studio_processing_progress(void);
 AUDIO_STUDIO_API const wchar_t* audio_studio_processing_status(void);
 AUDIO_STUDIO_API int audio_studio_analyze_wav_waveform(const wchar_t* input_path, unsigned int bucket_count, float* interleaved_peaks, unsigned long long* total_frames, unsigned int* sample_rate, unsigned short* channels);
 AUDIO_STUDIO_API int audio_studio_trim_wav(const wchar_t* input_path, const wchar_t* output_path, unsigned long long start_frame, unsigned long long end_frame);
+
+// Offline Whisper transcription of a mono/stereo WAV (decoded+resampled to 16 kHz).
+// model_path and wav_path are UTF-16. On success writes UTF-8 text into out_utf8 (NUL-terminated)
+// and returns 1; on failure returns 0 and sets audio_studio_transcription_last_error().
+AUDIO_STUDIO_API int audio_studio_transcribe_wav(
+    const wchar_t* model_path, const wchar_t* wav_path,
+    const char* language_utf8, int translate_to_english,
+    char* out_utf8, size_t out_capacity);
+AUDIO_STUDIO_API const char* audio_studio_transcription_last_error(void);
 
 #ifdef __cplusplus
 }

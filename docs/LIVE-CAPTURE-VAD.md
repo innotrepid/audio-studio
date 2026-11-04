@@ -1,6 +1,6 @@
 # Live capture VAD
 
-## Engine (this branch)
+## Engine
 
 `audio_studio::LiveCaptureVad` owns:
 
@@ -15,21 +15,21 @@ Sources:
 - `engine/include/audio_studio/live_capture_vad.hpp`
 - `engine/src/live_capture_vad.cpp`
 
-Linked from desktop `audio_studio_core` and the Android NDK core.
+Linked from desktop `audio_studio_core`, Android NDK core, and Windows `audio_studio_native`.
 
 ## Platform wiring status
 
 | Platform | Status |
 |----------|--------|
 | Engine pipeline | Done |
-| Android Oboe dual-submit | Next: optional model path on start, submit in `onAudioReady`, finish on stop |
-| Windows WASAPI | Next: same pattern in `windows_capture.cpp` |
-| UI region list | After capture wiring |
+| Android Oboe dual-submit | Done — optional model path on start, submit in capture callback, finish on stop; Kotlin region poll |
+| Windows WASAPI | Done — `audio_studio_recording_start_with_vad`, dual-submit after float convert, finish on stop |
+| UI region list | Android status line poll; Windows can drain via `audio_studio_recording_pop_vad_region` / `OfflineSpeechNative` |
 
 Recording must remain functional if VAD is disabled or soft-fails under backpressure.
 
 ## Validation
 
-1. Unit-level: ring/worker/controller tests (existing).
+1. Unit-level: ring/worker/controller tests (existing); Windows live-capture integration test with ORT.
 2. Device: start recording with bundled Silero path, speak, stop, drain regions offline.
 3. Confirm WAV finalize is unchanged when VAD is on or off.
