@@ -2,36 +2,35 @@
 
 Goal: after installing Synvidra on Android or Windows, Whisper (speech-to-text) and Silero VAD work **offline** with no post-install model download.
 
-## Done in this packaging pass
+## Done
 
-- Pinned artifacts remain in `models/transcription-models.json` (`ggml-tiny.bin`, `silero_vad.onnx`) with exact size + SHA-256.
+### Packaging
+- Pinned artifacts in `models/transcription-models.json` (`ggml-tiny.bin`, `silero_vad.onnx`) with exact size + SHA-256.
 - `scripts/fetch_transcription_models.py` downloads and verifies those artifacts.
-- **Windows CI / publish:** copies both models into `models/` next to the app output and self-contained publish directory; verifies checksums.
-- **Android CI / APK:** fetches models before Gradle, copies them into `assets/models/`, builds the APK, and verifies the APK embeds both files with matching size/hash.
-- Platform helpers resolve packaged paths:
-  - Windows: `BundledModelPaths` under the executable `models/` folder.
-  - Android: `BundledModelStore` extracts assets to app-private storage once, then returns absolute filesystem paths for native APIs.
+- **Windows CI / publish:** copies both models into `models/` next to the app; verifies checksums.
+- **Android CI / APK:** fetches models, copies into `assets/models/`, verifies the APK embeds both files.
+- Platform helpers: Windows `BundledModelPaths`, Android `BundledModelStore`.
+
+### Silero engine availability
+- **Windows:** production `audio_studio_vad_create` / UTF-16 paths + ONNX Runtime 1.23.2 (existing).
+- **Android:** production `audio_studio_vad_create_utf8`, NDK-linked `silero_onnx.cpp`, extracted `onnxruntime-android:1.23.2` headers/`.so`, Kotlin `SileroVadSession` opening the bundled model offline.
+- Capture worker/controller sources are linked into the Android native library for the next wiring step.
 
 ## Still required before product claims
 
-These are intentionally **out of scope** for the packaging PR and must not be described as finished until implemented and tested.
-
-### Android Silero production inference
-
-1. Link `silero_onnx.cpp` against ABI-matched ONNX Runtime **native** headers/`libonnxruntime.so` in the NDK CMake target (the Maven AAR alone is not sufficient for the C++ adapter).
-2. Un-gate `audio_studio_vad_create` for non-Windows (UTF-8 model paths).
-3. Device/CI smoke: load `silero_vad.onnx` offline and run one inference window.
-
-### Capture and UI wiring (both platforms)
-
+### Capture wiring (both platforms)
 1. Own a per-recording VAD lifecycle in the capture worker (model path + options before start).
-2. Feed the same PCM to WAV recording and VAD without blocking the real-time callback.
-3. Pause/resume/stop/flush/error/reset behavior with bounded region delivery.
-4. UI entry points that call `transcribe()` with decoded/resampled 16 kHz mono PCM on a background thread.
+2. Capture callback only writes to `CapturePcmRing`; a non-RT thread runs `CaptureVadController`.
+3. Pause/resume/stop/flush/error/reset with bounded region delivery (no silent drops).
+4. Surface regions to UI without blocking audio callbacks.
+
+### Whisper UI entry points
+1. Decode → resample 16 kHz mono → `transcribe()` on a background thread.
+2. Resolve model via `BundledModelPaths` / `BundledModelStore`.
+3. Offline CI/device smoke with network disabled.
 
 ### Validation
-
-1. Fresh install with network disabled: resolve both model paths and run one Whisper pass + one Silero session.
+1. Fresh install offline: open `SileroVadSession` and run one push/flush cycle.
 2. Recorded-speech fixture coverage before accuracy claims in UI/changelog.
 3. Keep package size and memory budgets explicit when changing the default Whisper variant.
 
@@ -41,4 +40,4 @@ These are intentionally **out of scope** for the packaging PR and must not be de
 python scripts/fetch_transcription_models.py --output build/transcription-models
 ```
 
-Windows builds expect that directory (or CI-equivalent) before packaging. Android Gradle copies from `build/transcription-models` into app assets during `preBuild`; if the directory is missing, the copy task fails with a clear error.
+Android Gradle extracts ONNX Runtime into `app/build/onnxruntime-native` during `preBuild` and fails clearly if offline models are missing.
