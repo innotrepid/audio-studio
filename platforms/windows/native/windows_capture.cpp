@@ -178,6 +178,16 @@ public:
         return snapshot.c_str();
     }
 
+    std::size_t pending_vad_regions() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return live_vad_ ? live_vad_->pending_region_count() : 0U;
+    }
+
+    bool pop_vad_region(audio_studio::SpeechRegion& region) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return live_vad_ && live_vad_->pop_region(region);
+    }
+
 private:
     void publish_startup(bool okay, const std::wstring& message) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -424,16 +434,6 @@ private:
         active_.store(false);
     }
 
-    std::size_t pending_vad_regions() const {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return live_vad_ ? live_vad_->pending_region_count() : 0U;
-    }
-
-    bool pop_vad_region(audio_studio::SpeechRegion& region) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return live_vad_ && live_vad_->pop_region(region);
-    }
-
     mutable std::mutex mutex_;
     std::condition_variable startup_cv_;
     std::condition_variable pause_cv_;
@@ -529,23 +529,17 @@ extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_recover_partial_wav(
     const wchar_t* partial_path, const wchar_t* output_path) {
     thread_local std::wstring result;
     if (partial_path == nullptr || output_path == nullptr) {
-        result = L"ERROR: Recovery paths are required.";
+        result = L"Recovery requires both a temporary partial path and a destination path.";
         return result.c_str();
     }
-    try {
-        std::string error;
-        if (!audio_studio::recover_partial_wav(
-                std::filesystem::path(partial_path),
-                std::filesystem::path(output_path), &error)) {
-            result = L"ERROR: ";
-            for (const char character : error) {
-                result.push_back(static_cast<wchar_t>(static_cast<unsigned char>(character)));
-            }
-            return result.c_str();
-        }
-        result = L"RECOVERED";
-    } catch (...) {
-        result = L"ERROR: Recovery failed unexpectedly.";
+    std::string message;
+    if (!audio_studio::recover_partial_wav(
+            std::filesystem::path(partial_path),
+            std::filesystem::path(output_path),
+            message)) {
+        result.assign(message.begin(), message.end());
+        return result.c_str();
     }
+    result = L"Recovered a complete PCM WAV from the interrupted recording.";
     return result.c_str();
 }
