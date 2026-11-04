@@ -1,5 +1,6 @@
 #include "audio_studio/live_capture_vad.hpp"
 
+#include <chrono>
 #include <utility>
 
 namespace audio_studio {
