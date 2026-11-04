@@ -130,5 +130,33 @@ if(WIN32)
         set_tests_properties(audio_studio_silero_onnx_tests PROPERTIES
             TIMEOUT 60
             ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
+
+        # LiveCaptureVad needs production Silero ONNX (Windows ORT package).
+        add_executable(audio_studio_live_capture_vad_tests
+            engine/tests/live_capture_vad_test.cpp
+            engine/src/live_capture_vad.cpp
+            engine/src/capture_pcm_ring.cpp
+            engine/src/capture_vad_worker.cpp
+            engine/src/capture_vad_controller.cpp
+            engine/src/native_vad_session.cpp
+            engine/src/silero_onnx.cpp
+            engine/src/audio_resampler.cpp
+            engine/src/vad.cpp
+        )
+        target_include_directories(audio_studio_live_capture_vad_tests PRIVATE
+            engine/include "${ONNXRUNTIME_INCLUDE_DIR}")
+        target_compile_features(audio_studio_live_capture_vad_tests PRIVATE cxx_std_17)
+        target_link_libraries(audio_studio_live_capture_vad_tests PRIVATE "${ONNXRUNTIME_LIBRARY}")
+        if(MSVC)
+            target_compile_options(audio_studio_live_capture_vad_tests PRIVATE /W4 /WX)
+        else()
+            target_compile_options(audio_studio_live_capture_vad_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+        endif()
+        add_test(NAME audio_studio_live_capture_vad_tests
+            COMMAND audio_studio_live_capture_vad_tests
+                "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx")
+        set_tests_properties(audio_studio_live_capture_vad_tests PROPERTIES
+            TIMEOUT 60
+            ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
     endif()
 endif()

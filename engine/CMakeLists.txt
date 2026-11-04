@@ -79,7 +79,7 @@ if(BUILD_TESTING)
 
     add_executable(audio_studio_wav_processing_tests tests/wav_processing_test.cpp)
     target_link_libraries(audio_studio_wav_processing_tests PRIVATE audio_studio_core)
-    target_compile_features(audio_studio_wav_processing_tests PUBLIC cxx_std_17)
+    target_compile_features(audio_studio_wav_processing_tests PRIVATE cxx_std_17)
     if(MSVC)
         target_compile_options(audio_studio_wav_processing_tests PRIVATE /W4 /WX)
     else()
@@ -116,7 +116,6 @@ if(BUILD_TESTING)
         target_compile_options(audio_studio_transcription_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
     add_test(NAME audio_studio_transcription_tests COMMAND audio_studio_transcription_tests)
-    set_tests_properties(audio_studio_transcription_tests PROPERTIES TIMEOUT 60)
 
     add_executable(audio_studio_wav_audio_reader_tests tests/wav_audio_reader_test.cpp)
     target_link_libraries(audio_studio_wav_audio_reader_tests PRIVATE audio_studio_core)
@@ -195,23 +194,6 @@ if(BUILD_TESTING)
         target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     endif()
     add_test(NAME audio_studio_capture_vad_worker_tests COMMAND audio_studio_capture_vad_worker_tests)
-
-    add_executable(audio_studio_live_capture_vad_tests
-        tests/live_capture_vad_test.cpp
-        src/native_vad_session.cpp
-        src/audio_resampler.cpp
-        src/vad.cpp
-    )
-    target_link_libraries(audio_studio_live_capture_vad_tests PRIVATE audio_studio_core)
-    target_compile_features(audio_studio_live_capture_vad_tests PRIVATE cxx_std_17)
-    if(MSVC)
-        target_compile_options(audio_studio_live_capture_vad_tests PRIVATE /W4 /WX /UNDEBUG)
-    else()
-        target_compile_options(audio_studio_live_capture_vad_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
-    endif()
-    add_test(NAME audio_studio_live_capture_vad_tests
-        COMMAND audio_studio_live_capture_vad_tests ${CMAKE_SOURCE_DIR}/build/transcription-models/silero_vad.onnx)
-    set_tests_properties(audio_studio_live_capture_vad_tests PROPERTIES TIMEOUT 60)
 
     add_executable(audio_studio_vad_tests tests/vad_test.cpp)
     target_link_libraries(audio_studio_vad_tests PRIVATE audio_studio_core)

@@ -66,6 +66,8 @@ public:
     bool flush(std::vector<SpeechRegion>& completed_regions);
     void reset() noexcept;
     std::uint64_t audio_duration_ms() const noexcept;
+    // True while push_audio may accept more PCM (not flushed and not failed).
+    bool accepting_audio() const noexcept { return !flushed_ && !failed_; }
 
 private:
     bool analyze_window(std::size_t valid_samples,

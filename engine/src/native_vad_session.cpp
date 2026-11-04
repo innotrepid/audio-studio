@@ -34,7 +34,8 @@ std::unique_ptr<NativeVadSession> NativeVadSession::create_for_testing(std::uint
 #endif
 
 bool NativeVadSession::push_audio(const float* input,std::size_t frames,std::vector<SpeechRegion>& regions){
- regions.clear();if(!impl_)return false;
+ regions.clear();
+ if(!impl_ || !impl_->coordinator || !impl_->coordinator->accepting_audio()) return false;
  if(!convert_to_mono(input,frames,impl_->input_rate,impl_->channels,kVadSampleRateHz,impl_->converted))return false;
  return impl_->coordinator->push_audio(impl_->converted.data(),impl_->converted.size(),regions);
 }
