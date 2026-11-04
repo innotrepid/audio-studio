@@ -55,8 +55,10 @@ if(WIN32)
     else()
         message(FATAL_ERROR "DeepFilterNet3 Windows build requires DirectML.lib; set DIRECTML_LIBRARY to the x64 library path.")
     endif()
-    set_property(TARGET noise_cancellation_static APPEND PROPERTY
-        INTERFACE_LINK_LIBRARIES "${NOISE_CANCELLATION_SYSTEM_LIBS}")
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES "${NOISE_CANCELLATION_SYSTEM_LIBS}")
+elseif(UNIX)
+    set_property(TARGET noise_cancellation_static PROPERTY INTERFACE_LINK_LIBRARIES
+        "dl;pthread;m;rt;util")
 endif()
 
 add_subdirectory(engine)
@@ -73,9 +75,9 @@ if(WIN32)
     endif()
 
     add_library(audio_studio_native SHARED
+        engine/src/native_api.cpp
         engine/src/audio_types.cpp
         engine/src/wav_writer.cpp
-        engine/src/wav_reader.cpp
         engine/src/audio_decoder.cpp
         engine/src/wav_recovery.cpp
         engine/src/noise_gate.cpp
