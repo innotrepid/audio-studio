@@ -38,6 +38,18 @@
           DestinationFolder="$(OutDir)models" SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- Offline Whisper + Silero artifacts from scripts/fetch_transcription_models.py -->
+  <Target Name="CopyTranscriptionModels" AfterTargets="Build">
+    <PropertyGroup>
+      <TranscriptionModelSource>$(MSBuildThisFileDirectory)..\..\..\build\transcription-models\</TranscriptionModelSource>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(TranscriptionModelSource)ggml-tiny.bin') Or !Exists('$(TranscriptionModelSource)silero_vad.onnx')"
+           Text="Whisper/Silero model files were not found under build/transcription-models. Run: python scripts/fetch_transcription_models.py --output build/transcription-models" />
+    <MakeDir Directories="$(OutDir)models" />
+    <Copy SourceFiles="$(TranscriptionModelSource)ggml-tiny.bin;$(TranscriptionModelSource)silero_vad.onnx"
+          DestinationFolder="$(OutDir)models" SkipUnchangedFiles="true" />
+  </Target>
+
   <Target Name="CopyAudioStudioNative" AfterTargets="Build">
     <PropertyGroup>
       <NativeEnginePath>$(MSBuildThisFileDirectory)..\..\..\build\Release\audio_studio_native.dll</NativeEnginePath>
