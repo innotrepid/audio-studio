@@ -56,44 +56,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Restore teleprompter UI from Redesign if XAML is truncated
-        shell: bash
-        run: |
-          set -euo pipefail
-          XAML=platforms/windows/AudioStudio/MainWindow.xaml
-          CS=platforms/windows/AudioStudio/MainWindow.xaml.cs
-          size=$(wc -c < "$XAML" || echo 0)
-          echo "MainWindow.xaml size=$size"
-          if [ "$size" -lt 5000 ]; then
-            git fetch --depth=1 origin 'Redesign,-Teleprompter,-captions-&-more'
-            git show 'FETCH_HEAD:platforms/windows/AudioStudio/MainWindow.xaml' > "$XAML"
-            echo "Restored XAML to $(wc -c < "$XAML") bytes"
-          fi
-          if [ -f patches/mainwindow-cs-teleprompter-flow.patch ]; then
-            git apply --whitespace=nowarn patches/mainwindow-cs-teleprompter-flow.patch || echo "CS call-site patch already applied or skipped"
-          fi
-          if ! grep -q 'SyncStudioTeleprompterFromCreator' "$CS"; then
-            echo "Injecting SyncStudioTeleprompterFromCreator method"
-            python - <<'PY'
-          from pathlib import Path
-          cs = Path('platforms/windows/AudioStudio/MainWindow.xaml.cs')
-          text = cs.read_text(encoding='utf-8')
-          if 'SyncStudioTeleprompterFromCreator' in text:
-              raise SystemExit(0)
-          method = Path('patches/sync-studio-teleprompter-method.cs.txt').read_text(encoding='utf-8')
-          # Strip leading comment lines that are not C#
-          lines = [ln for ln in method.splitlines() if not ln.startswith('// Paste')]
-          method_body = '\n'.join(lines).strip() + '\n\n'
-          anchor = '    private void RefreshCreatorProductionMarkers()'
-          if anchor not in text:
-              raise SystemExit('anchor missing in MainWindow.xaml.cs')
-          cs.write_text(text.replace(anchor, method_body + anchor, 1), encoding='utf-8')
-          print('Injected SyncStudioTeleprompterFromCreator')
-          PY
-          fi
-          grep -q CreatorTeleprompterWorkspace "$XAML"
-          grep -q SyncStudioTeleprompterFromCreator "$CS"
-          echo "Windows teleprompter UI ready"
       - name: Fetch and verify pinned Silero recorded-speech fixture
         if: runner.os == 'Windows'
         run: python scripts/fetch_silero_test_fixture.py --output build/test-data
@@ -101,6 +63,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+      - name: Apply Creator teleprompter Windows UI fixes
+        shell: bash
+        run: python scripts/ci_apply_teleprompter_ui.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -189,28 +154,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Apply Creator teleprompter Android patch if needed
-        shell: bash
-        run: |
-          set -euo pipefail
-          MA=platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt
-          if ! grep -q studioTeleprompterHeight "$MA"; then
-            if [ -f patches/mainactivity-teleprompter-flow.patch ]; then
-              git apply --whitespace=nowarn patches/mainactivity-teleprompter-flow.patch
-              echo "Applied mainactivity-teleprompter-flow.patch"
-            else
-              echo "Android teleprompter patch missing and MainActivity not patched" >&2
-              exit 1
-            fi
-          else
-            echo "MainActivity already contains studioTeleprompterHeight"
-          fi
-          grep -q studioTeleprompterHeight "$MA"
-          grep -q creatorTeleprompterPanel "$MA"
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+      - name: Apply Creator teleprompter Android UI fixes
+        shell: bash
+        run: python scripts/ci_apply_teleprompter_ui.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
