@@ -77,7 +77,9 @@ int main() {
     require(regions.empty(), "finalized regions must not be emitted more than once");
     require(session->flush(regions), "flush should complete");
     require(!session->flush(regions), "a second flush must not finalize the stream twice");
-    require(!session->push_audio(silence.data(), silence.size(), regions),
+    // Frame count (not interleaved sample count): after flush, push must reject
+    // without reading past the capture buffer.
+    require(!session->push_audio(silence.data(), 12288U, regions),
             "push after flush must be rejected");
     session->reset();
     require(session != nullptr, "reset must retain a valid session");
