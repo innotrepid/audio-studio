@@ -98,6 +98,7 @@ if(WIN32)
         platforms/windows/native/windows_capture.cpp
         platforms/windows/native/windows_processing.cpp
         platforms/windows/native/windows_transcription.cpp
+        platforms/windows/native/windows_recovery.cpp
     )
     target_include_directories(audio_studio_native PRIVATE engine/include platforms/windows/native "${ONNXRUNTIME_INCLUDE_DIR}")
     target_compile_features(audio_studio_native PRIVATE cxx_std_17)
