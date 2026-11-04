@@ -1,1 +1,207 @@
-PLACEHOLDER
+add_library(audio_studio_core STATIC
+    src/audio_types.cpp
+    src/wav_writer.cpp
+    src/wav_reader.cpp
+    src/audio_decoder.cpp
+    src/wav_recovery.cpp
+    src/noise_gate.cpp
+    src/dsp_effects.cpp
+    src/wav_processing.cpp
+    src/transcription.cpp
+    src/audio_resampler.cpp
+    src/wav_audio_reader.cpp
+    src/vad.cpp
+    src/speech_region_delivery.cpp
+    src/capture_vad_worker.cpp
+    src/capture_pcm_ring.cpp
+    src/capture_vad_controller.cpp
+    src/live_capture_vad.cpp
+)
+target_include_directories(audio_studio_core PUBLIC include ${CMAKE_SOURCE_DIR}/third_party/noise-cancellation)
+target_compile_features(audio_studio_core PUBLIC cxx_std_17)
+target_link_libraries(audio_studio_core PUBLIC dsp_engine_static noise_cancellation_static whisper)
+if(MSVC)
+    target_compile_options(audio_studio_core PRIVATE /W4 /WX)
+else()
+    target_compile_options(audio_studio_core PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(audio_studio_core_tests tests/audio_types_test.cpp)
+    target_link_libraries(audio_studio_core_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_core_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_core_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_core_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_core_tests COMMAND audio_studio_core_tests)
+
+    add_executable(audio_studio_wav_writer_tests tests/wav_writer_test.cpp)
+    target_link_libraries(audio_studio_wav_writer_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_writer_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_writer_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_writer_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_writer_tests COMMAND audio_studio_wav_writer_tests)
+
+    add_executable(audio_studio_wav_reader_tests tests/wav_reader_test.cpp)
+    target_link_libraries(audio_studio_wav_reader_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_reader_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_reader_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_reader_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_reader_tests COMMAND audio_studio_wav_reader_tests)
+
+    add_executable(audio_studio_decoder_tests tests/audio_decoder_test.cpp)
+    target_link_libraries(audio_studio_decoder_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_decoder_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_decoder_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_decoder_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_decoder_tests COMMAND audio_studio_decoder_tests)
+
+    add_executable(audio_studio_wav_recovery_tests tests/wav_recovery_test.cpp)
+    target_link_libraries(audio_studio_wav_recovery_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_recovery_tests PUBLIC cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_recovery_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_recovery_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_recovery_tests COMMAND audio_studio_wav_recovery_tests)
+
+    add_executable(audio_studio_wav_processing_tests tests/wav_processing_test.cpp)
+    target_link_libraries(audio_studio_wav_processing_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_processing_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_processing_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_processing_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_processing_tests COMMAND audio_studio_wav_processing_tests)
+
+    add_executable(audio_studio_noise_gate_tests tests/noise_gate_test.cpp)
+    target_link_libraries(audio_studio_noise_gate_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_noise_gate_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_noise_gate_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_noise_gate_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_noise_gate_tests COMMAND audio_studio_noise_gate_tests)
+
+    add_executable(audio_studio_dsp_effects_tests tests/dsp_effects_test.cpp)
+    target_link_libraries(audio_studio_dsp_effects_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_dsp_effects_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_dsp_effects_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_dsp_effects_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_dsp_effects_tests COMMAND audio_studio_dsp_effects_tests)
+
+    add_executable(audio_studio_transcription_tests tests/transcription_test.cpp)
+    target_link_libraries(audio_studio_transcription_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_transcription_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_transcription_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_transcription_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_transcription_tests COMMAND audio_studio_transcription_tests)
+
+    add_executable(audio_studio_wav_audio_reader_tests tests/wav_audio_reader_test.cpp)
+    target_link_libraries(audio_studio_wav_audio_reader_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_wav_audio_reader_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_wav_audio_reader_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_wav_audio_reader_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_wav_audio_reader_tests COMMAND audio_studio_wav_audio_reader_tests)
+
+    add_executable(audio_studio_resampler_tests tests/audio_resampler_test.cpp)
+    target_link_libraries(audio_studio_resampler_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_resampler_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_resampler_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_resampler_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_resampler_tests COMMAND audio_studio_resampler_tests)
+
+    add_executable(audio_studio_speech_region_delivery_tests tests/speech_region_delivery_test.cpp src/speech_region_delivery.cpp)
+    target_include_directories(audio_studio_speech_region_delivery_tests PRIVATE include)
+    target_compile_features(audio_studio_speech_region_delivery_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_speech_region_delivery_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_speech_region_delivery_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_speech_region_delivery_tests COMMAND audio_studio_speech_region_delivery_tests)
+
+    add_executable(audio_studio_native_vad_api_tests tests/native_vad_api_test.cpp src/native_vad_api.cpp)
+    target_include_directories(audio_studio_native_vad_api_tests PRIVATE include tests)
+    target_compile_definitions(audio_studio_native_vad_api_tests PRIVATE AUDIO_STUDIO_NATIVE_VAD_TESTING)
+    target_link_libraries(audio_studio_native_vad_api_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_native_vad_api_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_native_vad_api_tests PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(audio_studio_native_vad_api_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME audio_studio_native_vad_api_tests COMMAND audio_studio_native_vad_api_tests)
+
+    add_executable(audio_studio_native_vad_session_tests
+        tests/native_vad_session_test.cpp
+        src/native_vad_session.cpp
+        src/audio_resampler.cpp
+        src/vad.cpp
+    )
+    target_include_directories(audio_studio_native_vad_session_tests PRIVATE include tests)
+    target_compile_definitions(audio_studio_native_vad_session_tests PRIVATE AUDIO_STUDIO_NATIVE_VAD_TESTING)
+    target_compile_features(audio_studio_native_vad_session_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_native_vad_session_tests PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(audio_studio_native_vad_session_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME audio_studio_native_vad_session_tests COMMAND audio_studio_native_vad_session_tests)
+
+    add_executable(audio_studio_capture_pcm_ring_tests tests/capture_pcm_ring_test.cpp src/capture_pcm_ring.cpp)
+    target_include_directories(audio_studio_capture_pcm_ring_tests PRIVATE include)
+    target_compile_features(audio_studio_capture_pcm_ring_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_capture_pcm_ring_tests PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(audio_studio_capture_pcm_ring_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME audio_studio_capture_pcm_ring_tests COMMAND audio_studio_capture_pcm_ring_tests)
+
+    add_executable(audio_studio_capture_vad_worker_tests tests/capture_vad_worker_test.cpp src/capture_vad_worker.cpp)
+    target_include_directories(audio_studio_capture_vad_worker_tests PRIVATE include)
+    target_compile_features(audio_studio_capture_vad_worker_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(audio_studio_capture_vad_worker_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME audio_studio_capture_vad_worker_tests COMMAND audio_studio_capture_vad_worker_tests)
+
+    add_executable(audio_studio_vad_tests tests/vad_test.cpp)
+    target_link_libraries(audio_studio_vad_tests PRIVATE audio_studio_core)
+    target_compile_features(audio_studio_vad_tests PRIVATE cxx_std_17)
+    if(MSVC)
+        target_compile_options(audio_studio_vad_tests PRIVATE /W4 /WX)
+    else()
+        target_compile_options(audio_studio_vad_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME audio_studio_vad_tests COMMAND audio_studio_vad_tests)
+endif()
