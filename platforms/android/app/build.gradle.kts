@@ -68,8 +68,8 @@ android {
     }
 }
 
-// Expect CI or local `scripts/fetch_transcription_models.py --output build/transcription-models`.
-val transcriptionModelsDir = rootProject.projectDir.resolve("../../../build/transcription-models")
+// App module is platforms/android/app → repo root is ../../..
+val transcriptionModelsDir = projectDir.resolve("../../../build/transcription-models")
 val generatedAssetsDir = layout.projectDirectory.dir("src/main/assetsGenerated")
 
 val copyTranscriptionModels by tasks.registering(Copy::class) {
@@ -79,7 +79,7 @@ val copyTranscriptionModels by tasks.registering(Copy::class) {
     doFirst {
         if (!whisper.isFile || !silero.isFile) {
             throw GradleException(
-                "Missing offline models under ${transcriptionModelsDir}. " +
+                "Missing offline models under ${transcriptionModelsDir.canonicalFile}. " +
                     "Run: python scripts/fetch_transcription_models.py --output build/transcription-models"
             )
         }
