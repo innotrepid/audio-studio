@@ -1,3 +1,434 @@
-// Assembled from part includes to keep reviewable diffs bounded.
-#include "native_bridge_part1.inc"
-#include "native_bridge_part2.inc"
+#include <jni.h>
+
+#include <oboe/Oboe.h>
+
+#include "audio_studio/audio_types.hpp"
+#include "audio_studio/wav_writer.hpp"
+#include "audio_studio/wav_processing.hpp"
+#include "audio_studio/wav_recovery.hpp"
+#include "audio_studio/transcription.hpp"
+#include "audio_studio/wav_audio_reader.hpp"
+
+// LiveCaptureVad engine path is available; Oboe dual-ring wiring lands in a focused follow-up.
+// See engine/include/audio_studio/live_capture_vad.hpp and docs/WHISPER-SILERO-INSTALLATION.md.
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <cmath>
+#include <cstdint>
+#include <memory>
+#include <limits>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+namespace {
+
+class AndroidRecorder final : public oboe::AudioStreamDataCallback,
+                             public oboe::AudioStreamErrorCallback {
+public:
+    static constexpr std::uint32_t kRequestedSampleRate = 48000U;
+    static constexpr std::size_t kRingCapacity = 1U << 18U;
+    static constexpr std::size_t kRingMask = kRingCapacity - 1U;
+
+    std::array<float, 3U> meter() const noexcept {
+        return {meter_rms_.load(std::memory_order_relaxed),
+                meter_peak_.load(std::memory_order_relaxed),
+                clipping_detected_.load(std::memory_order_relaxed) ? 1.0F : 0.0F};
+    }
+
+    bool start(const std::string& path) {
+        if (running_.load(std::memory_order_acquire)) {
+            set_status("A recording is already active.");
+            return false;
+        }
+
+        oboe::AudioStreamBuilder builder;
+        builder.setDirection(oboe::Direction::Input);
+        builder.setPerformanceMode(oboe::PerformanceMode::LowLatency);
+        builder.setSharingMode(oboe::SharingMode::Shared);
+        builder.setFormat(oboe::AudioFormat::Float);
+        builder.setChannelCount(1);
+        builder.setSampleRate(static_cast<int32_t>(kRequestedSampleRate));
+        builder.setDataCallback(this);
+        builder.setErrorCallback(this);
+
+        const auto open_result = builder.openStream(stream_);
+        if (open_result != oboe::Result::OK || !stream_) {
+            set_status(std::string("Could not open microphone stream: ") +
+                       oboe::convertToText(open_result));
+            stream_.reset();
+            return false;
+        }
+
+        const auto actual_sample_rate =
+            static_cast<std::uint32_t>(stream_->getSampleRate());
+        if (actual_sample_rate == 0U) {
+            stream_->close();
+            stream_.reset();
+            set_status("Microphone returned an invalid sample rate.");
+            return false;
+        }
+
+        stop_requested_.store(false, std::memory_order_release);
+        paused_.store(false, std::memory_order_release);
+        overflow_.store(false, std::memory_order_release);
+        write_failed_.store(false, std::memory_order_release);
+        stream_error_.store(false, std::memory_order_release);
+        meter_rms_.store(0.0F, std::memory_order_release);
+        meter_peak_.store(0.0F, std::memory_order_release);
+        clipping_detected_.store(false, std::memory_order_release);
+        write_index_.store(0U, std::memory_order_release);
+        read_index_.store(0U, std::memory_order_release);
+        worker_ready_ = false;
+        worker_opened_ = false;
+
+        worker_ = std::thread(&AndroidRecorder::writer_loop, this, path,
+                              audio_studio::AudioFormat{actual_sample_rate, 1U});
+        {
+            std::unique_lock<std::mutex> lock(worker_mutex_);
+            worker_cv_.wait(lock, [this] { return worker_ready_; });
+        }
+        if (!worker_opened_) {
+            if (worker_.joinable()) worker_.join();
+            stream_->close();
+            stream_.reset();
+            return false;
+        }
+
+        const auto start_result = stream_->requestStart();
+        if (start_result != oboe::Result::OK) {
+            stream_->close();
+            stream_.reset();
+            stop_requested_.store(true, std::memory_order_release);
+            worker_cv_.notify_one();
+            if (worker_.joinable()) worker_.join();
+            set_status(std::string("Could not start microphone stream: ") +
+                       oboe::convertToText(start_result));
+            return false;
+        }
+
+        running_.store(true, std::memory_order_release);
+        set_status("Recording");
+        return true;
+    }
+
+    bool pause() {
+        if (!running_.load(std::memory_order_acquire) || !stream_) return false;
+        if (paused_.load(std::memory_order_acquire)) return true;
+        const auto result = stream_->requestPause();
+        if (result != oboe::Result::OK) {
+            set_status(std::string("Could not pause microphone stream: ") + oboe::convertToText(result));
+            return false;
+        }
+        paused_.store(true, std::memory_order_release);
+        set_status("Recording paused");
+        return true;
+    }
+
+    bool resume() {
+        if (!running_.load(std::memory_order_acquire) || !stream_) return false;
+        if (!paused_.load(std::memory_order_acquire)) return true;
+        const auto result = stream_->requestStart();
+        if (result != oboe::Result::OK) {
+            set_status(std::string("Could not resume microphone stream: ") + oboe::convertToText(result));
+            return false;
+        }
+        paused_.store(false, std::memory_order_release);
+        set_status("Recording");
+        return true;
+    }
+
+    std::string stop() {
+        if (stream_) {
+            (void)stream_->requestStop();
+            (void)stream_->close();
+            stream_.reset();
+        }
+
+        stop_requested_.store(true, std::memory_order_release);
+        worker_cv_.notify_one();
+        if (worker_.joinable()) worker_.join();
+        running_.store(false, std::memory_order_release);
+
+        std::lock_guard<std::mutex> lock(status_mutex_);
+        return final_status_;
+    }
+
+    oboe::DataCallbackResult onAudioReady(oboe::AudioStream*,
+                                           void* audio_data,
+                                           int32_t num_frames) override {
+        if (num_frames <= 0 || audio_data == nullptr) {
+            return oboe::DataCallbackResult::Continue;
+        }
+
+        const auto frame_count = static_cast<std::uint64_t>(num_frames);
+        const auto write = write_index_.load(std::memory_order_relaxed);
+        const auto read = read_index_.load(std::memory_order_acquire);
+        const auto queued = write - read;
+        if (frame_count > kRingCapacity || queued > kRingCapacity - frame_count) {
+            overflow_.store(true, std::memory_order_release);
+            worker_cv_.notify_one();
+            return oboe::DataCallbackResult::Stop;
+        }
+
+        const auto* input = static_cast<const float*>(audio_data);
+        float peak = 0.0F;
+        double sum_squares = 0.0;
+        for (std::uint64_t i = 0; i < frame_count; ++i) {
+            const float sample = input[i];
+            ring_[static_cast<std::size_t>((write + i) & kRingMask)] = sample;
+            if (std::isfinite(sample)) {
+                const float magnitude = std::abs(sample);
+                peak = std::max(peak, magnitude);
+                sum_squares += static_cast<double>(sample) * static_cast<double>(sample);
+                if (magnitude >= 0.999F) {
+                    clipping_detected_.store(true, std::memory_order_release);
+                }
+            }
+        }
+        meter_peak_.store(peak, std::memory_order_release);
+        meter_rms_.store(static_cast<float>(std::sqrt(sum_squares / static_cast<double>(frame_count))),
+                         std::memory_order_release);
+        write_index_.store(write + frame_count, std::memory_order_release);
+        worker_cv_.notify_one();
+        return oboe::DataCallbackResult::Continue;
+    }
+
+    void onErrorBeforeClose(oboe::AudioStream*, oboe::Result error) override {
+        stream_error_.store(true, std::memory_order_release);
+        set_status(std::string("Microphone stream error: ") + oboe::convertToText(error));
+        stop_requested_.store(true, std::memory_order_release);
+        worker_cv_.notify_one();
+    }
+
+    void onErrorAfterClose(oboe::AudioStream*, oboe::Result error) override {
+        stream_error_.store(true, std::memory_order_release);
+        set_status(std::string("Microphone stream closed with error: ") +
+                   oboe::convertToText(error));
+        stop_requested_.store(true, std::memory_order_release);
+        worker_cv_.notify_one();
+    }
+
+private:
+    void writer_loop(const std::string& path, audio_studio::AudioFormat format) {
+        audio_studio::WavWriter writer;
+        const bool opened = writer.open(path, format);
+        {
+            std::lock_guard<std::mutex> lock(worker_mutex_);
+            worker_opened_ = opened;
+            worker_ready_ = true;
+        }
+        worker_cv_.notify_all();
+        if (!opened) {
+            set_status(std::string("Could not create WAV recording: ") + writer.last_error());
+            return;
+        }
+
+        for (;;) {
+            {
+                std::unique_lock<std::mutex> lock(worker_mutex_);
+                worker_cv_.wait_for(lock, std::chrono::milliseconds(50), [this] {
+                    return stop_requested_.load(std::memory_order_acquire) ||
+                           overflow_.load(std::memory_order_acquire) ||
+                           write_index_.load(std::memory_order_acquire) !=
+                               read_index_.load(std::memory_order_relaxed);
+                });
+            }
+
+            auto read = read_index_.load(std::memory_order_relaxed);
+            const auto write = write_index_.load(std::memory_order_acquire);
+            while (read < write) {
+                const auto offset = static_cast<std::size_t>(read & kRingMask);
+                const auto available = static_cast<std::size_t>(write - read);
+                const auto contiguous = std::min(available, kRingCapacity - offset);
+                if (!writer.write_frames(ring_.data() + offset, contiguous)) {
+                    write_failed_.store(true, std::memory_order_release);
+                    stop_requested_.store(true, std::memory_order_release);
+                    read = write;
+                    read_index_.store(read, std::memory_order_release);
+                    break;
+                }
+                read += contiguous;
+                read_index_.store(read, std::memory_order_release);
+            }
+
+            const bool stopping =
+                stop_requested_.load(std::memory_order_acquire) ||
+                overflow_.load(std::memory_order_acquire) ||
+                write_failed_.load(std::memory_order_acquire);
+            if (stopping &&
+                read_index_.load(std::memory_order_acquire) ==
+                    write_index_.load(std::memory_order_acquire)) {
+                break;
+            }
+        }
+
+        const auto frames = writer.frames_written();
+        const bool overflowed = overflow_.load(std::memory_order_acquire);
+        const bool stream_failed = stream_error_.load(std::memory_order_acquire);
+        const bool write_failed = write_failed_.load(std::memory_order_acquire);
+        bool finalized = false;
+        if (overflowed || stream_failed || write_failed) {
+            writer.preserve_partial();
+        } else {
+            finalized = writer.finalize();
+            if (!finalized) writer.preserve_partial();
+        }
+
+        const auto partial_path = writer.partial_path();
+        std::string result = "Saved recording: " + path + " (" +
+                             std::to_string(frames) + " frames).";
+        if (overflowed) {
+            result = "ERROR: Recording stopped because the audio queue filled; a recoverable partial was retained.";
+        } else if (stream_failed) {
+            result = "ERROR: The microphone stream was interrupted; a recoverable partial was retained.";
+        } else if (write_failed || !finalized) {
+            const auto detail = writer.last_error();
+            result = "ERROR: Recording could not be fully written or finalized";
+            if (!detail.empty()) result += ": " + detail;
+            result += "; a recoverable partial was retained.";
+        }
+        if (!finalized || overflowed || stream_failed || write_failed) {
+            if (!partial_path.empty()) result += " Partial: " + partial_path;
+        }
+        set_status(std::move(result));
+    }
+
+    void set_status(std::string status) {
+        std::lock_guard<std::mutex> lock(status_mutex_);
+        final_status_ = std::move(status);
+    }
+
+    std::array<float, kRingCapacity> ring_{};
+    std::atomic<std::uint64_t> write_index_{0U};
+    std::atomic<std::uint64_t> read_index_{0U};
+    std::atomic<bool> stop_requested_{false};
+    std::atomic<bool> overflow_{false};
+    std::atomic<bool> write_failed_{false};
+    std::atomic<bool> stream_error_{false};
+    std::atomic<float> meter_rms_{0.0F};
+    std::atomic<float> meter_peak_{0.0F};
+    std::atomic<bool> clipping_detected_{false};
+    std::atomic<bool> running_{false};
+    std::atomic<bool> paused_{false};
+    std::shared_ptr<oboe::AudioStream> stream_{};
+    std::thread worker_{};
+    std::mutex worker_mutex_{};
+    std::condition_variable worker_cv_{};
+    bool worker_ready_{false};
+    bool worker_opened_{false};
+    std::mutex status_mutex_{};
+    std::string final_status_{"Ready to record."};
+};
+
+std::string json_escape(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size() + 8U);
+    for (const unsigned char ch : value) {
+        switch (ch) {
+        case '"': escaped += "\\\""; break;
+        case '\\': escaped += "\\\\"; break;
+        case '\b': escaped += "\\b"; break;
+        case '\f': escaped += "\\f"; break;
+        case '\n': escaped += "\\n"; break;
+        case '\r': escaped += "\\r"; break;
+        case '\t': escaped += "\\t"; break;
+        default:
+            if (ch < 0x20U) {
+                constexpr char hex[] = "0123456789abcdef";
+                escaped += "\\u00";
+                escaped += hex[(ch >> 4U) & 0x0fU];
+                escaped += hex[ch & 0x0fU];
+            } else {
+                escaped += static_cast<char>(ch);
+            }
+        }
+    }
+    return escaped;
+}
+
+std::mutex g_recorder_mutex;
+std::unique_ptr<AndroidRecorder> g_recorder;
+std::atomic<bool> g_cancel_noise_gate{false};
+
+}  // namespace
+
+// JNI entry points continue in the remainder of this translation unit as on redesign.
+// Full file restored from redesign tip for buildability; LiveCaptureVad is engine-ready.
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeEngineStatus(
+    JNIEnv* env, jobject /* thiz */) {
+    const audio_studio::AudioFormat baseline{48000U, 1U};
+    const char* status = baseline.is_valid()
+        ? "Native C++ core connected · Oboe microphone capture available"
+        : "Native audio core failed its baseline validation";
+    return env->NewStringUTF(status);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecording(
+    JNIEnv* env, jobject /* thiz */, jstring output_path) {
+    if (output_path == nullptr) return JNI_FALSE;
+    const char* chars = env->GetStringUTFChars(output_path, nullptr);
+    if (chars == nullptr) return JNI_FALSE;
+    const std::string path(chars);
+    env->ReleaseStringUTFChars(output_path, chars);
+
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    if (g_recorder) return JNI_FALSE;
+    auto recorder = std::make_unique<AndroidRecorder>();
+    if (!recorder->start(path)) {
+        (void)recorder->stop();
+        return JNI_FALSE;
+    }
+    g_recorder = std::move(recorder);
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativePauseRecording(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    return g_recorder && g_recorder->pause() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeResumeRecording(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    return g_recorder && g_recorder->resume() ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jfloatArray JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeRecordingMeter(
+    JNIEnv* env, jobject /* thiz */) {
+    std::array<float, 3U> values{};
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        if (g_recorder) values = g_recorder->meter();
+    }
+    jfloatArray result = env->NewFloatArray(static_cast<jsize>(values.size()));
+    if (result != nullptr) {
+        env->SetFloatArrayRegion(result, 0, static_cast<jsize>(values.size()), values.data());
+    }
+    return result;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeStopRecording(
+    JNIEnv* env, jobject /* thiz */) {
+    std::unique_ptr<AndroidRecorder> recorder;
+    {
+        std::lock_guard<std::mutex> lock(g_recorder_mutex);
+        recorder = std::move(g_recorder);
+    }
+    if (!recorder) return env->NewStringUTF("No recording is active.");
+    const auto status = recorder->stop();
+    return env->NewStringUTF(status.c_str());
+}
