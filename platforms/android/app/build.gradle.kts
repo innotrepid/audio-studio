@@ -23,7 +23,10 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += listOf("-std=c++17", "-Wall", "-Wextra")
-                arguments += listOf("-DANDROID_STL=c++_shared")
+                arguments += listOf(
+                    "-DANDROID_STL=c++_shared",
+                    "-DONNXRUNTIME_ROOT=${layout.buildDirectory.get().asFile.resolve("onnxruntime-native").absolutePath}",
+                )
             }
         }
     }
@@ -71,6 +74,7 @@ android {
 // App module is platforms/android/app → repo root is ../../..
 val transcriptionModelsDir = projectDir.resolve("../../../build/transcription-models")
 val generatedAssetsDir = layout.projectDirectory.dir("src/main/assetsGenerated")
+val onnxNativeRoot = layout.buildDirectory.dir("onnxruntime-native")
 
 val copyTranscriptionModels by tasks.registering(Copy::class) {
     description = "Copy verified Whisper and Silero model files into APK assets/models"
@@ -91,16 +95,38 @@ val copyTranscriptionModels by tasks.registering(Copy::class) {
     into(generatedAssetsDir)
 }
 
-tasks.named("preBuild").configure {
-    dependsOn(copyTranscriptionModels)
-}
+configurations.create("onnxRuntimeAar")
 
 dependencies {
     implementation("com.google.oboe:oboe:1.11.0")
     // Pinned CPU ONNX Runtime; its native Android libraries are packaged in the APK.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
+    add("onnxRuntimeAar", "com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("org.robolectric:robolectric:4.14.1")
+}
+
+val extractOnnxRuntimeNative by tasks.registering(Copy::class) {
+    description = "Extract ONNX Runtime headers and ABI shared libraries for NDK CMake"
+    val aarFiles = configurations.getByName("onnxRuntimeAar").resolve()
+    if (aarFiles.isEmpty()) {
+        throw GradleException("onnxruntime-android:1.23.2 AAR was not resolved")
+    }
+    from(zipTree(aarFiles.first())) {
+        include("headers/**", "jni/**")
+    }
+    into(onnxNativeRoot)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(copyTranscriptionModels, extractOnnxRuntimeNative)
+}
+
+afterEvaluate {
+    tasks.matching { it.name.startsWith("externalNativeBuild") }.configureEach {
+        dependsOn(extractOnnxRuntimeNative)
+    }
 }

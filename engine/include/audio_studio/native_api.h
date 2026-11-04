@@ -17,17 +17,22 @@ extern "C" {
 // Region timestamps (start_ms / end_ms) are milliseconds on the internal 16 kHz
 // mono timeline after capture resampling. They match source duration but are not
 // original device frame indices.
-// Production create is currently implemented for the Windows native build; other
-// targets should treat create failures as "not packaged yet" until ONNX Runtime
-// is shipped for those ABIs.
+// Create requires a packaged silero_vad.onnx path and ONNX Runtime on the target.
 typedef struct AudioStudioVadHandle AudioStudioVadHandle;
 typedef struct AudioStudioSpeechRegion {
     uint64_t start_ms;
     uint64_t end_ms;
 } AudioStudioSpeechRegion;
 
+// Windows-oriented create: model_path is a NUL-terminated UTF-16 path.
 AUDIO_STUDIO_API AudioStudioVadHandle* audio_studio_vad_create(
     const wchar_t* model_path, uint32_t sample_rate, uint32_t channels,
+    float speech_threshold, uint64_t minimum_speech_ms,
+    uint64_t minimum_silence_ms, uint64_t padding_ms);
+// Cross-platform create: model_path_utf8 is a filesystem path to silero_vad.onnx.
+// Preferred on Android/Linux; also valid on Windows when the path is UTF-8.
+AUDIO_STUDIO_API AudioStudioVadHandle* audio_studio_vad_create_utf8(
+    const char* model_path_utf8, uint32_t sample_rate, uint32_t channels,
     float speech_threshold, uint64_t minimum_speech_ms,
     uint64_t minimum_silence_ms, uint64_t padding_ms);
 AUDIO_STUDIO_API void audio_studio_vad_destroy(AudioStudioVadHandle* handle);

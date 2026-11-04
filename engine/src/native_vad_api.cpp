@@ -26,8 +26,6 @@ thread_local std::string vad_error;
 void clear_error() { vad_error.clear(); }
 void set_error(const char* message) { vad_error = message ? message : "VAD operation failed."; }
 
-// Pure delivery helper: does not mutate the queued regions. This makes the
-// required-capacity/retry contract deterministic to test without model audio.
 int copy_regions(const std::vector<audio_studio::SpeechRegion>& regions,
                  AudioStudioSpeechRegion* output, size_t capacity,
                  size_t* written) {
@@ -46,53 +44,86 @@ int copy_regions(const std::vector<audio_studio::SpeechRegion>& regions,
     }
     return 1;
 }
+
+AudioStudioVadHandle* create_session_from_path(
+    const std::string& path, uint32_t sample_rate, uint32_t channels,
+    float speech_threshold, uint64_t minimum_speech_ms,
+    uint64_t minimum_silence_ms, uint64_t padding_ms) {
+    if (path.empty() || !std::isfinite(speech_threshold) ||
+        speech_threshold < 0.0F || speech_threshold > 1.0F) {
+        set_error("Invalid model path or speech threshold.");
+        return nullptr;
+    }
+    audio_studio::VadOptions options;
+    options.speech_threshold = speech_threshold;
+    options.minimum_speech_ms = minimum_speech_ms;
+    options.minimum_silence_ms = minimum_silence_ms;
+    options.padding_ms = padding_ms;
+    std::string error;
+#ifdef AUDIO_STUDIO_NATIVE_VAD_TESTING
+    auto session = audio_studio::native_vad_test::create_session(
+        path, sample_rate, channels, options, error);
+#else
+    auto session = audio_studio::NativeVadSession::create(
+        path, sample_rate, channels, options, error);
+#endif
+    if (!session) {
+        set_error(error.empty() ? "Could not create VAD session." : error.c_str());
+        return nullptr;
+    }
+    auto* handle = new AudioStudioVadHandle;
+    handle->session = std::move(session);
+    return handle;
 }
+}  // namespace
 
 extern "C" {
 
-// Creates an independent VAD stream. On Windows, model_path is a NUL-terminated
-// UTF-16 path. Audio is normalized float32 PCM interleaved by channel; frame_count
-// counts frames, not individual channel samples. Calls on a handle must be
-// serialized by the caller. Returns nullptr on failure; query the thread-local
-// error immediately with audio_studio_vad_last_error().
 AudioStudioVadHandle* audio_studio_vad_create(
     const wchar_t* model_path, uint32_t sample_rate, uint32_t channels,
     float speech_threshold, uint64_t minimum_speech_ms,
     uint64_t minimum_silence_ms, uint64_t padding_ms) {
     clear_error();
-    if (!model_path || !*model_path || !std::isfinite(speech_threshold) ||
-        speech_threshold < 0.0F || speech_threshold > 1.0F) {
+    if (!model_path || !*model_path) {
         set_error("Invalid model path or speech threshold.");
         return nullptr;
     }
     try {
-        std::string path;
 #if defined(AUDIO_STUDIO_NATIVE_VAD_TESTING)
-        path = "test-session";
+        return create_session_from_path(
+            "test-session", sample_rate, channels, speech_threshold,
+            minimum_speech_ms, minimum_silence_ms, padding_ms);
 #elif defined(_WIN32)
-        path = std::filesystem::path(model_path).u8string();
+        const std::string path = std::filesystem::path(model_path).u8string();
+        return create_session_from_path(
+            path, sample_rate, channels, speech_threshold, minimum_speech_ms,
+            minimum_silence_ms, padding_ms);
 #else
-        set_error("Native Silero VAD is supported only by the Windows native build.");
+        set_error("audio_studio_vad_create requires a UTF-16 path on Windows; "
+                  "use audio_studio_vad_create_utf8 on this platform.");
         return nullptr;
 #endif
-        audio_studio::VadOptions options;
-        options.speech_threshold = speech_threshold;
-        options.minimum_speech_ms = minimum_speech_ms;
-        options.minimum_silence_ms = minimum_silence_ms;
-        options.padding_ms = padding_ms;
-        std::string error;
-#ifdef AUDIO_STUDIO_NATIVE_VAD_TESTING
-        auto session = audio_studio::native_vad_test::create_session(path, sample_rate, channels, options, error);
-#else
-        auto session = audio_studio::NativeVadSession::create(path, sample_rate, channels, options, error);
-#endif
-        if (!session) {
-            set_error(error.c_str());
-            return nullptr;
-        }
-        auto* handle = new AudioStudioVadHandle;
-        handle->session = std::move(session);
-        return handle;
+    } catch (const std::exception& e) {
+        set_error(e.what());
+    } catch (...) {
+        set_error("Could not allocate native VAD handle.");
+    }
+    return nullptr;
+}
+
+AudioStudioVadHandle* audio_studio_vad_create_utf8(
+    const char* model_path_utf8, uint32_t sample_rate, uint32_t channels,
+    float speech_threshold, uint64_t minimum_speech_ms,
+    uint64_t minimum_silence_ms, uint64_t padding_ms) {
+    clear_error();
+    if (!model_path_utf8 || !*model_path_utf8) {
+        set_error("Invalid model path or speech threshold.");
+        return nullptr;
+    }
+    try {
+        return create_session_from_path(
+            std::string(model_path_utf8), sample_rate, channels, speech_threshold,
+            minimum_speech_ms, minimum_silence_ms, padding_ms);
     } catch (const std::exception& e) {
         set_error(e.what());
     } catch (...) {
@@ -106,9 +137,6 @@ void audio_studio_vad_destroy(AudioStudioVadHandle* handle) {
     delete handle;
 }
 
-// Returns 1 on success, 0 on failure. On output-capacity failure, *written
-// reports the required region count and queued regions remain retained. Retry
-// with a larger output buffer; do not replay the same audio chunk.
 int audio_studio_vad_push_audio(
     AudioStudioVadHandle* handle, const float* interleaved, size_t frame_count,
     AudioStudioSpeechRegion* output, size_t capacity, size_t* written) {
@@ -120,7 +148,6 @@ int audio_studio_vad_push_audio(
     *written = 0;
     if (!handle || !handle->session || (!interleaved && frame_count != 0)) {
         set_error("Invalid VAD handle or audio buffer.");
-        if (written) *written = 0;
         return 0;
     }
     try {
@@ -137,10 +164,10 @@ int audio_studio_vad_push_audio(
         std::vector<audio_studio::SpeechRegion> regions;
         if (!handle->session->push_audio(interleaved, frame_count, regions)) {
             set_error("VAD audio processing failed; reset the session before retrying.");
-            if (written) *written = 0;
             return 0;
         }
-        handle->pending_regions.insert(handle->pending_regions.end(), regions.begin(), regions.end());
+        handle->pending_regions.insert(
+            handle->pending_regions.end(), regions.begin(), regions.end());
         if (!copy_regions(handle->pending_regions, output, capacity, written)) {
             handle->push_retry_pending = true;
             return 0;
@@ -156,8 +183,6 @@ int audio_studio_vad_push_audio(
     return 0;
 }
 
-// Finalizes the stream once. If output capacity is insufficient, final regions
-// remain queued; a subsequent flush retries delivery without re-finalizing.
 int audio_studio_vad_flush(
     AudioStudioVadHandle* handle, AudioStudioSpeechRegion* output,
     size_t capacity, size_t* written) {
@@ -169,7 +194,6 @@ int audio_studio_vad_flush(
     *written = 0;
     if (!handle || !handle->session) {
         set_error("Invalid VAD handle.");
-        if (written) *written = 0;
         return 0;
     }
     try {
@@ -181,10 +205,10 @@ int audio_studio_vad_flush(
             std::vector<audio_studio::SpeechRegion> regions;
             if (!handle->session->flush(regions)) {
                 set_error("VAD final flush failed; reset the session before retrying.");
-                if (written) *written = 0;
                 return 0;
             }
-            handle->pending_regions.insert(handle->pending_regions.end(), regions.begin(), regions.end());
+            handle->pending_regions.insert(
+                handle->pending_regions.end(), regions.begin(), regions.end());
             handle->flushed = true;
         }
         if (!copy_regions(handle->pending_regions, output, capacity, written)) return 0;
@@ -199,7 +223,6 @@ int audio_studio_vad_flush(
     return 0;
 }
 
-// Starts a fresh stream and discards queued, not-yet-delivered regions.
 int audio_studio_vad_reset(AudioStudioVadHandle* handle) {
     clear_error();
     if (!handle || !handle->session) {
@@ -213,8 +236,6 @@ int audio_studio_vad_reset(AudioStudioVadHandle* handle) {
     return 1;
 }
 
-// Error text is thread-local and remains valid until the next VAD API call on
-// the same thread. Copy it if it must outlive that call.
 const char* audio_studio_vad_last_error(void) {
     return vad_error.c_str();
 }
