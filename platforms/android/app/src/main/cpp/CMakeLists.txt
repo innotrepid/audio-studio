@@ -52,7 +52,28 @@ set_target_properties(noise_cancellation_static PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/../../../../../../third_party/noise-cancellation"
 )
 
-add_library(audio_studio_android SHARED native_bridge.cpp)
+# ONNX Runtime native bits extracted from the pinned onnxruntime-android AAR.
+if(NOT DEFINED ONNXRUNTIME_ROOT)
+    message(FATAL_ERROR "ONNXRUNTIME_ROOT must point at the extracted onnxruntime-android package")
+endif()
+set(ONNXRUNTIME_INCLUDE_DIR "${ONNXRUNTIME_ROOT}/headers")
+set(ONNXRUNTIME_JNI_LIB "${ONNXRUNTIME_ROOT}/jni/${ANDROID_ABI}/libonnxruntime.so")
+if(NOT EXISTS "${ONNXRUNTIME_INCLUDE_DIR}/onnxruntime_cxx_api.h")
+    message(FATAL_ERROR "ONNX Runtime C++ headers missing under ${ONNXRUNTIME_INCLUDE_DIR}")
+endif()
+if(NOT EXISTS "${ONNXRUNTIME_JNI_LIB}")
+    message(FATAL_ERROR "ONNX Runtime shared library missing for ${ANDROID_ABI}: ${ONNXRUNTIME_JNI_LIB}")
+endif()
+add_library(onnxruntime SHARED IMPORTED)
+set_target_properties(onnxruntime PROPERTIES
+    IMPORTED_LOCATION "${ONNXRUNTIME_JNI_LIB}"
+    INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_INCLUDE_DIR}"
+)
+
+add_library(audio_studio_android SHARED
+    native_bridge.cpp
+    vad_jni.cpp
+)
 target_compile_features(audio_studio_android PRIVATE cxx_std_17)
 
 add_library(audio_studio_core STATIC
@@ -68,15 +89,28 @@ add_library(audio_studio_core STATIC
     ../../../../../../engine/src/audio_resampler.cpp
     ../../../../../../engine/src/wav_audio_reader.cpp
     ../../../../../../engine/src/vad.cpp
+    ../../../../../../engine/src/silero_onnx.cpp
+    ../../../../../../engine/src/native_vad_session.cpp
+    ../../../../../../engine/src/native_vad_api.cpp
+    ../../../../../../engine/src/speech_region_delivery.cpp
+    ../../../../../../engine/src/capture_pcm_ring.cpp
+    ../../../../../../engine/src/capture_vad_worker.cpp
+    ../../../../../../engine/src/capture_vad_controller.cpp
 )
 target_include_directories(audio_studio_core PUBLIC
     ../../../../../../engine/include
+    "${ONNXRUNTIME_INCLUDE_DIR}"
 )
 target_compile_features(audio_studio_core PUBLIC cxx_std_17)
-target_link_libraries(audio_studio_core PUBLIC dsp_engine_static noise_cancellation_static whisper)
+target_link_libraries(audio_studio_core PUBLIC
+    dsp_engine_static
+    noise_cancellation_static
+    whisper
+    onnxruntime
+)
 
 find_package(oboe REQUIRED CONFIG)
 
 target_link_libraries(audio_studio_android
-    PRIVATE audio_studio_core whisper oboe::oboe log dl m
+    PRIVATE audio_studio_core whisper onnxruntime oboe::oboe log dl m
 )
