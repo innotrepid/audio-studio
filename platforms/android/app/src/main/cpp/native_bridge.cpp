@@ -8,6 +8,7 @@
 #include "audio_studio/wav_recovery.hpp"
 #include "audio_studio/transcription.hpp"
 #include "audio_studio/wav_audio_reader.hpp"
+#include "audio_studio/live_capture_vad.hpp"
 
 #include <algorithm>
 #include <array>
@@ -38,11 +39,14 @@ public:
                 clipping_detected_.load(std::memory_order_relaxed) ? 1.0F : 0.0F};
     }
 
-    bool start(const std::string& path) {
+    bool start(const std::string& path, const std::string& silero_model_path = {}) {
         if (running_.load(std::memory_order_acquire)) {
             set_status("A recording is already active.");
             return false;
         }
+
+        live_vad_.reset();
+        vad_soft_failed_.store(false, std::memory_order_release);
 
         oboe::AudioStreamBuilder builder;
         builder.setDirection(oboe::Direction::Input);
@@ -95,6 +99,25 @@ public:
             stream_->close();
             stream_.reset();
             return false;
+        }
+
+        if (!silero_model_path.empty()) {
+            std::string vad_error;
+            audio_studio::LiveCaptureVad::Options options;
+            live_vad_ = audio_studio::LiveCaptureVad::create(
+                silero_model_path, actual_sample_rate, 1U, options, vad_error);
+            if (!live_vad_) {
+                if (worker_.joinable()) {
+                    stop_requested_.store(true, std::memory_order_release);
+                    worker_cv_.notify_one();
+                    worker_.join();
+                }
+                stream_->close();
+                stream_.reset();
+                set_status(std::string("Could not start live Silero VAD: ") +
+                           (vad_error.empty() ? "unknown error" : vad_error));
+                return false;
+            }
         }
 
         const auto start_result = stream_->requestStart();
@@ -150,6 +173,18 @@ public:
         stop_requested_.store(true, std::memory_order_release);
         worker_cv_.notify_one();
         if (worker_.joinable()) worker_.join();
+        if (live_vad_) {
+            live_vad_->finish();
+            if (live_vad_->failed() || vad_soft_failed_.load(std::memory_order_acquire)) {
+                std::lock_guard<std::mutex> lock(status_mutex_);
+                const auto detail = live_vad_->last_error();
+                if (!detail.empty()) {
+                    final_status_ += " VAD note: " + detail;
+                } else if (vad_soft_failed_.load(std::memory_order_acquire)) {
+                    final_status_ += " VAD note: live region detection dropped audio under backpressure.";
+                }
+            }
+        }
         running_.store(false, std::memory_order_release);
 
         std::lock_guard<std::mutex> lock(status_mutex_);
@@ -192,6 +227,14 @@ public:
         meter_rms_.store(static_cast<float>(std::sqrt(sum_squares / static_cast<double>(frame_count))),
                          std::memory_order_release);
         write_index_.store(write + frame_count, std::memory_order_release);
+        if (live_vad_) {
+            const auto vad_status = live_vad_->submit_audio(
+                input, static_cast<std::size_t>(frame_count));
+            if (vad_status == audio_studio::CapturePcmRing::Status::backpressure ||
+                vad_status == audio_studio::CapturePcmRing::Status::invalid) {
+                vad_soft_failed_.store(true, std::memory_order_release);
+            }
+        }
         worker_cv_.notify_one();
         return oboe::DataCallbackResult::Continue;
     }
@@ -246,8 +289,6 @@ private:
                 if (!writer.write_frames(ring_.data() + offset, contiguous)) {
                     write_failed_.store(true, std::memory_order_release);
                     stop_requested_.store(true, std::memory_order_release);
-                    // A failed write cannot advance by the failed block. Drain the queue
-                    // indices so the worker exits instead of retrying the same bad block forever.
                     read = write;
                     read_index_.store(read, std::memory_order_release);
                     break;
@@ -273,7 +314,6 @@ private:
         const bool write_failed = write_failed_.load(std::memory_order_acquire);
         bool finalized = false;
         if (overflowed || stream_failed || write_failed) {
-            // Preserve the writer-owned partial file for the app's explicit recovery flow.
             writer.preserve_partial();
         } else {
             finalized = writer.finalize();
@@ -324,6 +364,19 @@ private:
     bool worker_opened_{false};
     std::mutex status_mutex_{};
     std::string final_status_{"Ready to record."};
+    std::unique_ptr<audio_studio::LiveCaptureVad> live_vad_{};
+    std::atomic<bool> vad_soft_failed_{false};
+
+public:
+    bool pop_vad_region(audio_studio::SpeechRegion& region) {
+        return live_vad_ && live_vad_->pop_region(region);
+    }
+
+    std::size_t pending_vad_regions() const {
+        return live_vad_ ? live_vad_->pending_region_count() : 0U;
+    }
+
+    bool vad_active() const noexcept { return static_cast<bool>(live_vad_); }
 };
 
 std::string json_escape(const std::string& value) {
@@ -369,22 +422,64 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeEngineStatus(
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecordingWithVad(
+    JNIEnv* env, jobject /* thiz */, jstring output_path, jstring silero_model_path);
+
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecording(
     JNIEnv* env, jobject /* thiz */, jstring output_path) {
+    return Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecordingWithVad(
+        env, nullptr, output_path, nullptr);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativeStartRecordingWithVad(
+    JNIEnv* env, jobject /* thiz */, jstring output_path, jstring silero_model_path) {
     if (output_path == nullptr) return JNI_FALSE;
     const char* chars = env->GetStringUTFChars(output_path, nullptr);
     if (chars == nullptr) return JNI_FALSE;
     const std::string path(chars);
     env->ReleaseStringUTFChars(output_path, chars);
 
+    std::string silero_path;
+    if (silero_model_path != nullptr) {
+        const char* model_chars = env->GetStringUTFChars(silero_model_path, nullptr);
+        if (model_chars == nullptr) return JNI_FALSE;
+        silero_path.assign(model_chars);
+        env->ReleaseStringUTFChars(silero_model_path, model_chars);
+    }
+
     std::lock_guard<std::mutex> lock(g_recorder_mutex);
     if (g_recorder) return JNI_FALSE;
     auto recorder = std::make_unique<AndroidRecorder>();
-    if (!recorder->start(path)) {
+    if (!recorder->start(path, silero_path)) {
         (void)recorder->stop();
         return JNI_FALSE;
     }
     g_recorder = std::move(recorder);
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativePendingVadRegions(
+    JNIEnv* /* env */, jobject /* thiz */) {
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    if (!g_recorder) return 0;
+    return static_cast<jint>(g_recorder->pending_vad_regions());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_innotrepid_audiostudio_MainActivity_nativePopVadRegion(
+    JNIEnv* env, jobject /* thiz */, jlongArray out_pair) {
+    if (out_pair == nullptr || env->GetArrayLength(out_pair) < 2) return JNI_FALSE;
+    audio_studio::SpeechRegion region{};
+    std::lock_guard<std::mutex> lock(g_recorder_mutex);
+    if (!g_recorder || !g_recorder->pop_vad_region(region)) return JNI_FALSE;
+    const jlong values[2] = {
+        static_cast<jlong>(region.start_ms),
+        static_cast<jlong>(region.end_ms),
+    };
+    env->SetLongArrayRegion(out_pair, 0, 2, values);
     return JNI_TRUE;
 }
 
