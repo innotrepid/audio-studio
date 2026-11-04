@@ -99,79 +99,70 @@
                       HorizontalScrollBarVisibility="Disabled"
                       Padding="24,20">
         <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Spacing="14" MaxWidth="1040" Margin="4,4,4,32">
-            <Border x:Name="RecordPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0">
-                <StackPanel Spacing="16" Margin="24">
-                    <StackPanel Spacing="5">
-                        <TextBlock Text="RECORD" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" />
-                        <TextBlock Text="Capture a clean take" FontSize="24" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Choose your microphone, check the level, and save a WAV recording." TextWrapping="Wrap" Foreground="#AEB9CC" />
-                    </StackPanel>
-                    <Border Background="#111722" CornerRadius="10" Padding="14">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="ENGINE STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
-                            <TextBlock x:Name="EngineStatusText" Text="Checking native engine…" TextWrapping="Wrap" Foreground="#77E0B5" />
+            <Border x:Name="RecordPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" MinHeight="640">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Compact chrome: device, status, clipping -->
+                    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,12">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="RECORD" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="160" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="RecordingElapsedText" Text="00:00" FontSize="22" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#F4F6FB" FontSize="13" VerticalAlignment="Center"/>
                         </StackPanel>
-                    </Border>
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="INPUT DEVICE" FontSize="11" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <ComboBox x:Name="InputDeviceComboBox" MinWidth="260" PlaceholderText="Select microphone" />
-                            <Button x:Name="RefreshInputDevicesButton" Content="Refresh" Click="RefreshInputDevices_Click" />
+                            <ComboBox x:Name="InputDeviceComboBox" MinWidth="220" PlaceholderText="Select microphone"/>
+                            <Button x:Name="RefreshInputDevicesButton" Content="Refresh" Click="RefreshInputDevices_Click"/>
+                            <TextBlock x:Name="InputDeviceStatusText" Text="" VerticalAlignment="Center" Foreground="#AEB9CC" FontSize="12"/>
                         </StackPanel>
-                        <TextBlock x:Name="InputDeviceStatusText" Text="Loading input devices…" TextWrapping="Wrap" Foreground="#AEB9CC" />
+                        <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EngineStatusText" Text="" TextWrapping="Wrap" Foreground="#77E0B5" FontSize="11"/>
+                        <TextBlock Text="Script and teleprompter settings come from Creator → Teleprompter." Foreground="#AEB9CC" FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
-                    <Border Background="#111722" CornerRadius="10" Padding="14">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="RECORDING STATUS" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
-                            <TextBlock Text="ELAPSED TIME" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="120" />
-                            <TextBlock x:Name="RecordingElapsedText" Text="00:00" FontSize="36" FontWeight="SemiBold" Foreground="White" />
-                            <TextBlock x:Name="RecordingStatusText" Text="Ready to record." TextWrapping="Wrap" Foreground="#F4F6FB" FontSize="15" />
-                            <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#AEB9CC" />
-                            <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Height="14" Foreground="#4F7DFF" />
-                            <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold" />
-                        </StackPanel>
+
+                    <!-- Dominant studio teleprompter -->
+                    <Border Grid.Row="1" Background="#0D1119" CornerRadius="12" Padding="4">
+                        <ScrollViewer x:Name="TeleprompterScriptScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <TextBlock x:Name="TeleprompterScriptText"
+                                       Text="Your script will appear here from Creator → Teleprompter."
+                                       TextWrapping="Wrap"
+                                       FontSize="28"
+                                       LineHeight="42"
+                                       Foreground="White"
+                                       Padding="20"/>
+                        </ScrollViewer>
                     </Border>
-                    <Button x:Name="RecordToggleButton" Content="●  Start recording" Style="{StaticResource PrimaryRecordButton}" Click="RecordToggle_Click" HorizontalAlignment="Center" MinWidth="240" />
-                    <Border Background="#111722" CornerRadius="12" Padding="16">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="STUDIO TELEPROMPTER" FontSize="10" FontWeight="Bold" Foreground="#A0BEFF" CharacterSpacing="120" />
-                            <TextBlock Text="Read your saved script while Audio Studio records. The scroll starts only after recording successfully begins." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
-                            <ScrollViewer x:Name="TeleprompterScriptScroll" Height="300" Background="#0D1119" Padding="18" VerticalScrollBarVisibility="Auto">
-                                <TextBlock x:Name="TeleprompterScriptText" Text="Your saved Creator script will appear here." TextWrapping="Wrap" FontSize="28" LineHeight="42" Foreground="White" TextAlignment="Center" />
-                            </ScrollViewer>
-                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                                <TextBlock Text="COUNTDOWN" Foreground="#AEB9CC" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" />
-                                <ComboBox x:Name="TeleprompterCountdownComboBox" SelectedIndex="0" MinWidth="150">
-                                    <ComboBoxItem Content="3 seconds" />
-                                    <ComboBoxItem Content="5 seconds" />
-                                    <ComboBoxItem Content="10 seconds" />
-                                </ComboBox>
-                            </StackPanel>
-                            <TextBlock x:Name="TeleprompterSpeedText" Text="Scroll speed · 42 px/s" Foreground="#AEB9CC" FontSize="12" />
-                            <Slider x:Name="TeleprompterSpeedSlider" Minimum="15" Maximum="120" Value="42" />
-                            <TextBlock Text="TEXT SIZE" Foreground="#AEB9CC" FontSize="10" FontWeight="Bold" />
-                            <TextBlock x:Name="TeleprompterFontSizeText" Text="Text size · 28 px" Foreground="#AEB9CC" FontSize="12" />
-                            <Slider x:Name="TeleprompterFontSizeSlider" Minimum="20" Maximum="40" Value="28" AutomationProperties.Name="Teleprompter text size" />
-                            <TextBlock x:Name="TeleprompterLineSpacingText" Text="Line spacing · 1.5×" Foreground="#AEB9CC" FontSize="12" />
-                            <Slider x:Name="TeleprompterLineSpacingSlider" Minimum="1.2" Maximum="2.0" Value="1.5" AutomationProperties.Name="Teleprompter line spacing" />
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <Button x:Name="StartStudioTakeButton" Content="Start studio take" Click="StartStudioTake_Click" Style="{StaticResource PrimaryRecordButton}" />
-                                <Button x:Name="PauseTeleprompterButton" Content="Pause scroll" Click="PauseTeleprompter_Click" IsEnabled="False" />
-                            </StackPanel>
-                            <TextBlock x:Name="TeleprompterStatusText" Text="Choose a countdown, then record while your script scrolls." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12" />
+
+                    <!-- Essential transport only -->
+                    <StackPanel Grid.Row="2" Spacing="8" Margin="0,12,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button x:Name="RecordToggleButton" Content="●  Start recording" Style="{StaticResource PrimaryRecordButton}" Click="RecordToggle_Click"/>
+                            <Button x:Name="PauseTeleprompterButton" Content="Pause" Click="PauseTeleprompter_Click" IsEnabled="False"/>
+                            <ComboBox x:Name="TeleprompterCountdownComboBox" SelectedIndex="0" MinWidth="120" ToolTipService.ToolTip="Pre-roll before record + scroll (defaults from Creator → Teleprompter)">
+                                <ComboBoxItem Content="3 s pre-roll"/>
+                                <ComboBoxItem Content="5 s pre-roll"/>
+                                <ComboBoxItem Content="10 s pre-roll"/>
+                                <ComboBoxItem Content="No pre-roll"/>
+                            </ComboBox>
                         </StackPanel>
-                    </Border>
-                    <Button x:Name="OpenLatestTakeFromRecordButton" Content="Open latest verified take in Editor" Click="OpenLatestTake_Click" IsEnabled="False" HorizontalAlignment="Left" />
-                    <Border Background="#111722" CornerRadius="10" Padding="14">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="RECOVERY" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="120" />
-                            <TextBlock Text="If an app or device interruption leaves a temporary recording, you can check a folder and recover valid audio without overwriting existing files." TextWrapping="Wrap" Foreground="#AEB9CC" />
-                            <Button x:Name="RecoverRecordingsButton" Content="Check for interrupted recordings…" Click="RecoverRecordings_Click" HorizontalAlignment="Left" />
-                            <TextBlock x:Name="RecoveryStatusText" Text="Recovery checks only a folder you choose and never overwrites existing recordings." TextWrapping="Wrap" Foreground="#AEB9CC" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                        <TextBlock x:Name="TeleprompterStatusText" Text="Record starts scrolling the studio teleprompter. Pause stops both." TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12"/>
+                        <!-- Hidden legacy controls kept for code-behind bindings; not shown on Record -->
+                        <Slider x:Name="TeleprompterSpeedSlider" Minimum="15" Maximum="120" Value="42" Visibility="Collapsed"/>
+                        <Slider x:Name="TeleprompterFontSizeSlider" Minimum="20" Maximum="48" Value="28" Visibility="Collapsed"/>
+                        <Slider x:Name="TeleprompterLineSpacingSlider" Minimum="1.2" Maximum="2.0" Value="1.5" Visibility="Collapsed"/>
+                        <TextBlock x:Name="TeleprompterSpeedText" Visibility="Collapsed"/>
+                        <TextBlock x:Name="TeleprompterFontSizeText" Visibility="Collapsed"/>
+                        <TextBlock x:Name="TeleprompterLineSpacingText" Visibility="Collapsed"/>
+                        <Button x:Name="StartStudioTakeButton" Content="Start studio take" Click="StartStudioTake_Click" Visibility="Collapsed"/>
+                        <Button x:Name="OpenLatestTakeFromRecordButton" Content="Open latest verified take in Editor" Click="OpenLatestTake_Click" IsEnabled="False" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Grid>
             </Border>
+
             <Border x:Name="ProcessingPanel" Background="#171D29" CornerRadius="16" Margin="0,12,0,0" Visibility="Collapsed">
                 <StackPanel Spacing="16" Margin="24">
                     <StackPanel Spacing="5">
@@ -354,6 +345,32 @@
                         <TextBlock x:Name="CreatorTakesSummaryText" Text="Linked takes: 0" FontSize="12" Foreground="#AEB9CC" />
                         <TextBlock Text="NEXT IN CREATOR" FontSize="10" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
                         <TextBlock Text="Integrated teleprompter · countdown and synchronized scroll · transcripts &amp; captions · production notes" TextWrapping="Wrap" Foreground="#AEB9CC" />
+                    </StackPanel>
+                    <StackPanel x:Name="CreatorTeleprompterWorkspace" Spacing="12" Visibility="Collapsed">
+                        <TextBlock Text="TELEPROMPTER" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110"/>
+                        <TextBlock Text="Script text mirrors Creator → Scripts automatically. Settings here drive the Record studio teleprompter." TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <Border Background="#0D1119" CornerRadius="12" Padding="4" MinHeight="220">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                                <TextBlock x:Name="CreatorTeleprompterPreviewText" Text="Write a script under Scripts to preview it here." TextWrapping="Wrap" FontSize="22" LineHeight="34" Foreground="White" Padding="16"/>
+                            </ScrollViewer>
+                        </Border>
+                        <TextBlock Text="SCROLL SPEED" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100"/>
+                        <Slider x:Name="CreatorTeleprompterSpeedSlider" Minimum="15" Maximum="120" Value="42"/>
+                        <TextBlock x:Name="CreatorTeleprompterSpeedText" Text="Scroll speed · 42 px/s" Foreground="#AEB9CC" FontSize="12"/>
+                        <TextBlock Text="TEXT SIZE" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100"/>
+                        <Slider x:Name="CreatorTeleprompterFontSizeSlider" Minimum="20" Maximum="48" Value="28"/>
+                        <TextBlock x:Name="CreatorTeleprompterFontSizeText" Text="Text size · 28 px" Foreground="#AEB9CC" FontSize="12"/>
+                        <TextBlock Text="LINE SPACING" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100"/>
+                        <Slider x:Name="CreatorTeleprompterLineSpacingSlider" Minimum="1.2" Maximum="2.0" Value="1.5"/>
+                        <TextBlock x:Name="CreatorTeleprompterLineSpacingText" Text="Line spacing · 1.5×" Foreground="#AEB9CC" FontSize="12"/>
+                        <TextBlock Text="DEFAULT PRE-ROLL" FontSize="10" FontWeight="Bold" Foreground="#AEB9CC" CharacterSpacing="100"/>
+                        <ComboBox x:Name="CreatorTeleprompterCountdownComboBox" SelectedIndex="0" MinWidth="160">
+                            <ComboBoxItem Content="3 s pre-roll"/>
+                            <ComboBoxItem Content="5 s pre-roll"/>
+                            <ComboBoxItem Content="10 s pre-roll"/>
+                            <ComboBoxItem Content="No pre-roll"/>
+                        </ComboBox>
+                        <TextBlock x:Name="CreatorTeleprompterStatusText" Text="Settings apply to Record’s studio teleprompter." Foreground="#AEB9CC" FontSize="12" TextWrapping="Wrap"/>
                     </StackPanel>
                     <StackPanel x:Name="CreatorCaptionsWorkspace" Spacing="12" Visibility="Collapsed">
                         <TextBlock Text="TRANSCRIPT" FontSize="11" FontWeight="Bold" Foreground="#4F7DFF" CharacterSpacing="110" />
