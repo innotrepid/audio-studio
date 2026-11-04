@@ -17,7 +17,6 @@
 #include <condition_variable>
 #include <cstdint>
 #include <filesystem>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -522,23 +521,4 @@ extern "C" AUDIO_STUDIO_API float audio_studio_recording_peak(void) {
 }
 extern "C" AUDIO_STUDIO_API int audio_studio_recording_clipping(void) {
     return capture_instance().clipping();
-}
-
-extern "C" AUDIO_STUDIO_API const wchar_t* audio_studio_recover_partial_wav(
-    const wchar_t* partial_path, const wchar_t* output_path) {
-    thread_local std::wstring result;
-    if (partial_path == nullptr || output_path == nullptr) {
-        result = L"Recovery requires both a temporary partial path and a destination path.";
-        return result.c_str();
-    }
-    std::string message;
-    if (!audio_studio::recover_partial_wav(
-            std::filesystem::path(partial_path),
-            std::filesystem::path(output_path),
-            std::addressof(message))) {
-        result.assign(message.begin(), message.end());
-        return result.c_str();
-    }
-    result = L"Recovered a complete PCM WAV from the interrupted recording.";
-    return result.c_str();
 }
