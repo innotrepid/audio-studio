@@ -887,6 +887,10 @@ class MainActivity : Activity() {
             "Build the material for your next take. Scripts are saved locally; audio recordings remain separate and are never moved or overwritten."
         )
         val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val creatorTeleprompterPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = ViewGroup.GONE
+        }
         val creatorWorkspaceContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -965,19 +969,27 @@ class MainActivity : Activity() {
                 minHeight = dp(44)
                 setOnClickListener {
                     val scriptsSelected = workspace == "Scripts"
+                    val teleprompterSelected = workspace == "Teleprompter"
                     val captionsSelected = workspace == "Captions"
                     val productionSelected = workspace == "Production"
                     creatorScriptsPanel.visibility = if (scriptsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
+                    creatorTeleprompterPanel.visibility = if (teleprompterSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorCaptionsPanel.visibility = if (captionsSelected) ViewGroup.VISIBLE else ViewGroup.GONE
                     creatorWorkspaceContent.getChildAt(creatorWorkspaceContent.childCount - 1)?.visibility = if (productionSelected) ViewGroup.VISIBLE else ViewGroup.GONE
-                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
+                    creatorSubworkspaceNotice.visibility = if (scriptsSelected || teleprompterSelected || captionsSelected || productionSelected) ViewGroup.GONE else ViewGroup.VISIBLE
                     if (productionSelected) creatorWorkspaceContent.getChildAt(creatorWorkspaceContent.childCount - 1)?.tag = "refresh-markers"
                     if (captionsSelected) {
                         transcriptInput.setText(activeCreatorProject?.transcript.orEmpty())
                         refreshCaptionList()
                     }
+                    if (teleprompterSelected) {
+                        val text = creatorBodyInput.text?.toString().orEmpty().ifBlank {
+                            "Write a script under Scripts to preview it here."
+                        }
+                        creatorTeleprompterPreview.text = text
+                        teleprompterScriptView?.text = text
+                    }
                     creatorSubworkspaceNotice.text = when (workspace) {
-                        "Teleprompter" -> "TELEPROMPTER\nIntegrated recording teleprompter with countdown and synchronized scroll. Your scripts remain saved in Scripts."
                         "Production" -> "PRODUCTION\nProduction markers, retake notes, and take review linked to your project."
                         else -> ""
                     }
@@ -1151,18 +1163,22 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(174, 185, 204))
         }.also { teleprompterCountdownText = it }
 
-        // Attach teleprompter views only after their local declarations are initialized.
+        // Studio teleprompter: maximize height; settings live under Creator → Teleprompter.
+        teleprompterHeading.text = "STUDIO TELEPROMPTER"
+        val studioTeleprompterHeight = (resources.displayMetrics.heightPixels * 0.52f).toInt().coerceAtLeast(dp(280))
         recordSection.addView(teleprompterHeading, matchWidth())
+        recordSection.addView(TextView(this).apply {
+            text = "Script and settings come from Creator → Teleprompter."
+            textSize = 11f
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, 0, 0, dp(6))
+        }, matchWidth())
         recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)
+            ViewGroup.LayoutParams.MATCH_PARENT, studioTeleprompterHeight
         ))
         recordSection.addView(teleprompterCountdown, matchWidth())
-        recordSection.addView(teleprompterSpeedLabel, matchWidth())
-        recordSection.addView(teleprompterSpeed, matchWidth())
-        recordSection.addView(teleprompterFontSizeLabel, matchWidth())
-        recordSection.addView(teleprompterFontSize, matchWidth())
-        recordSection.addView(teleprompterLineSpacingLabel, matchWidth())
-        recordSection.addView(teleprompterLineSpacing, matchWidth())
+        teleprompterStart.text = "Pre-roll + record"
+        teleprompterPause.text = "Pause"
         recordSection.addView(teleprompterControls, matchWidth())
         recordSection.addView(teleprompterCountdownStatus, matchWidth())
         openLatestTakeButton = Button(this).apply {
@@ -1171,6 +1187,47 @@ class MainActivity : Activity() {
             minHeight = dp(48)
         }
         recordSection.addView(openLatestTakeButton, matchWidth())
+
+        creatorTeleprompterPanel.addView(TextView(this).apply {
+            text = "TELEPROMPTER"
+            textSize = 11f
+            letterSpacing = 0.1f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(79, 125, 255))
+            setPadding(0, dp(8), 0, dp(6))
+        }, matchWidth())
+        creatorTeleprompterPanel.addView(TextView(this).apply {
+            text = "Script text mirrors Creator → Scripts. Settings drive the Record studio teleprompter."
+            textSize = 12f
+            setTextColor(Color.rgb(174, 185, 204))
+            setPadding(0, 0, 0, dp(8))
+        }, matchWidth())
+        val creatorTeleprompterPreview = TextView(this).apply {
+            text = "Write a script under Scripts to preview it here."
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setBackgroundColor(Color.rgb(13, 17, 25))
+            minHeight = dp(120)
+        }
+        creatorTeleprompterPanel.addView(creatorTeleprompterPreview, matchWidth())
+        creatorTeleprompterPanel.addView(teleprompterSpeedLabel, matchWidth())
+        creatorTeleprompterPanel.addView(teleprompterSpeed, matchWidth())
+        creatorTeleprompterPanel.addView(teleprompterFontSizeLabel, matchWidth())
+        creatorTeleprompterPanel.addView(teleprompterFontSize, matchWidth())
+        creatorTeleprompterPanel.addView(teleprompterLineSpacingLabel, matchWidth())
+        creatorTeleprompterPanel.addView(teleprompterLineSpacing, matchWidth())
+        creatorBodyInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val text = s?.toString().orEmpty().ifBlank {
+                    "Write a script under Scripts to preview it here."
+                }
+                creatorTeleprompterPreview.text = text
+                teleprompterScriptView?.text = text
+            }
+        })
 
         val creatorSaveStatus = TextView(this).apply {
             text = "Loading local project…"
@@ -1693,6 +1750,7 @@ class MainActivity : Activity() {
         creatorProductionPanel.addView(productionStatus,matchWidth())
         creatorProductionPanel.addView(productionMarkerList,matchWidth())
         creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())
+        creatorWorkspaceContent.addView(creatorTeleprompterPanel, matchWidth())
         creatorWorkspaceContent.addView(creatorCaptionsPanel, matchWidth())
         creatorWorkspaceContent.addView(creatorProductionPanel, matchWidth())
         creatorWorkspaceContent.addView(creatorSubworkspaceNotice, matchWidth())
@@ -1943,6 +2001,7 @@ class MainActivity : Activity() {
                 contentDescription = label
                 setOnClickListener {
                     recordSection.visibility = if (target === recordSection) android.view.View.VISIBLE else android.view.View.GONE
+                    screenScroll.setOnTouchListener { _, _ -> target === recordSection }
                     editSection.visibility = if (target === editSection) android.view.View.VISIBLE else android.view.View.GONE
                     processingSection.visibility = android.view.View.GONE
                     creatorSection.visibility = if (target === creatorSection) android.view.View.VISIBLE else android.view.View.GONE
@@ -2218,12 +2277,12 @@ class MainActivity : Activity() {
         processButton.isEnabled = !started
         updateRecordToggleButton()
         if (started) {
-            val startTeleprompter = teleprompterStartRequested
             teleprompterStartRequested = false
             teleprompterStartButton?.isEnabled = false
-            teleprompterStartButton?.text = if (startTeleprompter) "Studio take recording…" else "Recording active"
-            teleprompterPauseButton?.isEnabled = startTeleprompter
-            teleprompterCountdownText?.text = if (startTeleprompter) "Recording and script scroll are synchronized." else "Ready for your next take."
+            teleprompterStartButton?.text = "Recording active"
+            teleprompterPauseButton?.isEnabled = true
+            teleprompterPauseButton?.text = "Pause"
+            teleprompterCountdownText?.text = "Recording and teleprompter scroll are synchronized."
             recordingStartedAtMs = SystemClock.elapsedRealtime()
             recordingPausedAtMs = 0L
             recordingPausedTotalMs = 0L
@@ -2244,7 +2303,7 @@ class MainActivity : Activity() {
             inputMeterLabel.setTextColor(Color.rgb(190, 220, 200))
             mainHandler.post(recordingClock)
             mainHandler.post(recordingMeterClock)
-            if (startTeleprompter) startTeleprompterScroll()
+            startTeleprompterScroll()
         } else {
             teleprompterStartRequested = false
             teleprompterStartButton?.isEnabled = true
