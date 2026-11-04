@@ -31,35 +31,29 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeProcessNoiseGate(
         env->ReleaseStringUTFChars(model_directory, model_chars);
     }
 
-    jclass callback_class = nullptr;
-    jmethodID on_progress = nullptr;
-    if (progress_callback != nullptr) {
-        callback_class = env->GetObjectClass(progress_callback);
-        if (callback_class != nullptr) {
-            on_progress = env->GetMethodID(callback_class, "onProgress", "(F)V");
-        }
-    }
+    jclass callback_class = progress_callback == nullptr ? nullptr : env->GetObjectClass(progress_callback);
+    jmethodID progress_method = callback_class == nullptr ? nullptr :
+        env->GetMethodID(callback_class, "onProgress", "(JJ)V");
 
     audio_studio::NoiseGateSettings settings{};
     settings.threshold_dbfs = threshold_dbfs;
     settings.attenuation_db = attenuation_db;
-    settings.gain_db = gain_db;
-    settings.high_pass_hz = high_pass_hz;
 
-    const auto engine = static_cast<audio_studio::ProcessingEngine>(processing_engine);
-    std::string status;
-    const bool ok = audio_studio::process_wav_with_noise_gate(
-        input, output, settings, engine, denoiser_strength, model_dir,
-        [&](float progress) {
-            if (on_progress != nullptr && progress_callback != nullptr) {
-                env->CallVoidMethod(progress_callback, on_progress, progress);
-            }
-        },
-        [&]() { return g_cancel_noise_gate.load(std::memory_order_acquire); },
-        &status);
-    if (!ok && status.empty()) status = "ERROR: Processing failed.";
-    if (ok && status.empty()) status = "Processed recording saved.";
-    return env->NewStringUTF(status.c_str());
+    std::string error;
+    const auto progress = [env, progress_callback, progress_method](std::uint64_t processed, std::uint64_t total) {
+        if (progress_callback != nullptr && progress_method != nullptr) {
+            env->CallVoidMethod(progress_callback, progress_method,
+                                static_cast<jlong>(processed), static_cast<jlong>(total));
+        }
+    };
+    if (!audio_studio::process_wav_with_noise_gate(
+            input, output, settings, &error, &g_cancel_noise_gate, progress,
+            audio_studio::DspEffectsSettings{gain_db, high_pass_hz, true},
+            static_cast<audio_studio::ProcessingEngine>(processing_engine), denoiser_strength, model_dir)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    return env->NewStringUTF("Processed copy saved.");
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -82,29 +76,46 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeRecoverPartialWav(
     if (output_chars == nullptr) return env->NewStringUTF("ERROR: Could not read output path.");
     const std::string output(output_chars);
     env->ReleaseStringUTFChars(output_path, output_chars);
-    std::string message;
-    const bool ok = audio_studio::recover_partial_wav(partial, output, &message);
-    if (!ok && message.empty()) message = "ERROR: Recovery failed.";
-    if (ok && message.empty()) message = "Recovered WAV saved.";
-    return env->NewStringUTF(message.c_str());
+
+    std::string error;
+    if (!audio_studio::recover_partial_wav(partial, output, &error)) {
+        const std::string message = "ERROR: " + error;
+        return env->NewStringUTF(message.c_str());
+    }
+    return env->NewStringUTF("Recovered WAV saved.");
 }
 
-extern "C" JNIEXPORT jfloatArray JNICALL
+extern "C" JNIEXPORT jboolean JNICALL
 Java_com_innotrepid_audiostudio_MainActivity_nativeAnalyzeWavWaveform(
-    JNIEnv* env, jobject /* thiz */, jstring input_path, jint bucket_count) {
+    JNIEnv* env, jobject /* thiz */, jstring input_path, jint bucket_count,
+    jlongArray out_total_frames, jintArray out_sample_rate, jintArray out_channels) {
     if (input_path == nullptr || bucket_count <= 0) return nullptr;
     const char* chars = env->GetStringUTFChars(input_path, nullptr);
     if (chars == nullptr) return nullptr;
     const std::string path(chars);
     env->ReleaseStringUTFChars(input_path, chars);
+
     std::vector<float> peaks;
     std::uint64_t total_frames = 0;
     std::uint32_t sample_rate = 0;
     std::uint16_t channels = 0;
     std::string error;
-    if (!audio_studio::analyze_wav_waveform(path, static_cast<std::size_t>(bucket_count),
-                                           peaks, total_frames, sample_rate, channels, &error)) {
+    if (!audio_studio::analyze_wav_waveform(
+            path, static_cast<unsigned int>(bucket_count), peaks, total_frames,
+            sample_rate, channels, &error)) {
         return nullptr;
+    }
+    if (out_total_frames != nullptr && env->GetArrayLength(out_total_frames) >= 1) {
+        jlong frames = static_cast<jlong>(total_frames);
+        env->SetLongArrayRegion(out_total_frames, 0, 1, &frames);
+    }
+    if (out_sample_rate != nullptr && env->GetArrayLength(out_sample_rate) >= 1) {
+        jint rate = static_cast<jint>(sample_rate);
+        env->SetIntArrayRegion(out_sample_rate, 0, 1, &rate);
+    }
+    if (out_channels != nullptr && env->GetArrayLength(out_channels) >= 1) {
+        jint ch = static_cast<jint>(channels);
+        env->SetIntArrayRegion(out_channels, 0, 1, &ch);
     }
     jfloatArray result = env->NewFloatArray(static_cast<jsize>(peaks.size()));
     if (result != nullptr && !peaks.empty()) {
@@ -127,10 +138,12 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTrimWav(
     const std::string output(output_chars);
     env->ReleaseStringUTFChars(output_path, output_chars);
     std::string error;
-    const bool ok = audio_studio::trim_wav(
-        input, output, static_cast<std::uint64_t>(start_frame),
-        static_cast<std::uint64_t>(end_frame), &error);
-    return ok ? JNI_TRUE : JNI_FALSE;
+    if (!audio_studio::trim_wav(
+            input, output, static_cast<std::uint64_t>(start_frame),
+            static_cast<std::uint64_t>(end_frame), &error)) {
+        return JNI_FALSE;
+    }
+    return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -151,7 +164,7 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
         }
     }
     const jsize count = env->GetArrayLength(pcm);
-    std::vector<float> samples(static_cast<std::size_t>(count));
+    std::vector<float> samples(static_cast<std::size_t>(std::max(count, 0)));
     if (count > 0) env->GetFloatArrayRegion(pcm, 0, count, samples.data());
     audio_studio::TranscriptionRequest request{};
     request.model_path = model;
@@ -161,8 +174,7 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
     request.language = lang;
     const auto result = audio_studio::transcribe(request);
     if (!result) {
-        const std::string payload =
-            std::string(R"json({"error":)") + json_escape(result.error_message) +
+        const std::string payload = std::string(R"json({"error":)") + json_escape(result.error_message) +
             R"json("})json";
         return env->NewStringUTF(payload.c_str());
     }
