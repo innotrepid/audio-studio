@@ -991,6 +991,32 @@ public sealed partial class MainWindow : Window
     private void NavigateCompare_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ComparePanel);
     private void NavigateLibrary_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(LibraryPanel);
 
+    private void SyncStudioTeleprompterFromCreator()
+    {
+        if (CreatorScriptBodyBox == null || TeleprompterScriptText == null)
+            return;
+
+        var scriptText = CreatorScriptBodyBox.Text;
+        if (string.IsNullOrWhiteSpace(scriptText))
+            scriptText = "Your script will appear here from Creator → Teleprompter.";
+        TeleprompterScriptText.Text = scriptText;
+
+        if (CreatorTeleprompterFontSizeSlider != null)
+        {
+            var size = CreatorTeleprompterFontSizeSlider.Value;
+            TeleprompterScriptText.FontSize = size;
+            TeleprompterScriptText.LineHeight = size * CreatorTeleprompterLineSpacingSlider.Value;
+        }
+        if (CreatorTeleprompterSpeedSlider != null)
+            TeleprompterSpeedSlider.Value = CreatorTeleprompterSpeedSlider.Value;
+        if (CreatorTeleprompterLineSpacingSlider != null)
+            TeleprompterLineSpacingSlider.Value = CreatorTeleprompterLineSpacingSlider.Value;
+
+        if (CreatorTeleprompterCountdownComboBox?.SelectedItem is ComboBoxItem selected &&
+            TeleprompterCountdownComboBox != null)
+            TeleprompterCountdownComboBox.SelectedIndex = CreatorTeleprompterCountdownComboBox.SelectedIndex;
+    }
+
     private void CreatorSubnav_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button button || button.Tag is not string workspace)
