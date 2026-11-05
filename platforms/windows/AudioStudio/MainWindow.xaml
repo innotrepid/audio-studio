@@ -121,6 +121,13 @@
                         </StackPanel>
                         <TextBlock x:Name="ClippingWarningText" Text="" TextWrapping="Wrap" Foreground="#FF7777" FontWeight="SemiBold"/>
                         <TextBlock x:Name="EngineStatusText" Text="" TextWrapping="Wrap" Foreground="#77E0B5" FontSize="11"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ProgressBar x:Name="InputLevelBar" Minimum="0" Maximum="1" Value="0" Width="180" Height="10" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="InputLevelText" Text="Input level: 0%" Foreground="#AEB9CC" FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="RecoveryStatusText" Text="" TextWrapping="Wrap" Foreground="#AEB9CC" FontSize="12"/>
+                        <Button x:Name="RecoverRecordingsButton" Content="Recover interrupted recording" Click="RecoverRecordings_Click" HorizontalAlignment="Left"/>
+
                         <TextBlock Text="Script and teleprompter settings come from Creator → Teleprompter." Foreground="#AEB9CC" FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
 
