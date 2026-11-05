@@ -17,7 +17,6 @@ def ensure_android() -> None:
         print("Android reading-position hooks already present")
         return
 
-    # Promote section id to class field if still local-only
     if "private var selectedCreatorSectionId" not in text:
         anchor = "    private var teleprompterScrollRemainder = 0f\n"
         if anchor not in text:
@@ -29,7 +28,6 @@ def ensure_android() -> None:
             + "    private var selectedCreatorScriptId: String? = null\n",
             1,
         )
-        # Drop the local shadowing declaration inside onCreate
         text = text.replace(
             "        var selectedCreatorSectionId: String? = null\n",
             "        // selectedCreatorSectionId is a class field (reading-position + section nav)\n",
@@ -37,34 +35,37 @@ def ensure_android() -> None:
         )
         print("Promoted selectedCreatorSectionId to class field")
 
-    # Track script id when sections refresh / body shown
-    if "selectedCreatorScriptId =" not in text:
-        # Best-effort: when setting section text from ordered sections, also stamp script id
-        pass
-
     helpers = '''
     private fun saveTeleprompterReadingPosition() {
         val scrollY = teleprompterScrollView?.scrollY ?: 0
         val sectionId = selectedCreatorSectionId
         if (sectionId.isNullOrBlank()) return
+        val scriptId = selectedCreatorScriptId
+            ?: activeCreatorProject?.scripts?.firstOrNull { script ->
+                script.sections.any { it.sectionId == sectionId }
+            }?.scriptId
         TeleprompterPreferences.saveReadingPosition(
             this,
             sectionId,
-            selectedCreatorScriptId,
+            scriptId,
             scrollY,
         )
     }
 
     private fun restoreTeleprompterReadingPosition() {
-        val saved = TeleprompterPreferences.loadReadingPosition(this) ?: return
+        val saved = TeleprompterPreferences.loadReadingPosition(this)
         val sectionId = selectedCreatorSectionId
-        if (sectionId.isNullOrBlank() || saved.sectionId != sectionId) {
+        if (saved == null || sectionId.isNullOrBlank() || saved.sectionId != sectionId) {
             teleprompterScrollView?.scrollTo(0, 0)
             return
         }
-        if (!selectedCreatorScriptId.isNullOrBlank()
+        val scriptId = selectedCreatorScriptId
+            ?: activeCreatorProject?.scripts?.firstOrNull { script ->
+                script.sections.any { it.sectionId == sectionId }
+            }?.scriptId
+        if (!scriptId.isNullOrBlank()
             && saved.scriptId.isNotBlank()
-            && saved.scriptId != selectedCreatorScriptId
+            && saved.scriptId != scriptId
         ) {
             teleprompterScrollView?.scrollTo(0, 0)
             return
@@ -83,7 +84,6 @@ def ensure_android() -> None:
         text = text[:insert_at] + helpers + text[insert_at:]
         print("Injected Android reading-position helpers")
 
-    # Restore instead of always resetting on countdown start
     text = text.replace(
         "        teleprompterScrollView?.scrollTo(0, 0)\n"
         "        teleprompterStartButton?.isEnabled = true\n",
@@ -92,8 +92,8 @@ def ensure_android() -> None:
         1,
     )
 
-    # Save on pause
-    if "saveTeleprompterReadingPosition()" not in text.split("private fun toggleTeleprompterPause")[1][:800]:
+    pause_part = text.split("private fun toggleTeleprompterPause")[1][:900] if "private fun toggleTeleprompterPause" in text else ""
+    if "saveTeleprompterReadingPosition()" not in pause_part:
         text = text.replace(
             "            teleprompterPauseButton?.text = \"Resume take\"\n"
             "            teleprompterCountdownText?.text = \"Take and script paused.\"\n",
@@ -103,7 +103,6 @@ def ensure_android() -> None:
             1,
         )
 
-    # Save when scroll stops
     text = text.replace(
         "    private fun stopTeleprompterScroll() {\n"
         "        mainHandler.removeCallbacks(teleprompterScrollClock)\n",
@@ -113,8 +112,8 @@ def ensure_android() -> None:
         1,
     )
 
-    # Save when activity stops
-    if "saveTeleprompterReadingPosition()" not in text[text.find("override fun onStop") : text.find("override fun onStop") + 600]:
+    on_stop = text[text.find("override fun onStop") : text.find("override fun onStop") + 700] if "override fun onStop" in text else ""
+    if "saveTeleprompterReadingPosition()" not in on_stop:
         text = text.replace(
             "        if (recording) stopRecording(interrupted = true)\n"
             "        // Processing belongs to this Activity. Cancel it when leaving the foreground;\n",
@@ -124,18 +123,13 @@ def ensure_android() -> None:
             1,
         )
 
-    # When selecting a section, stamp script id if available
+    # Stamp script id from the active script when a section is chosen (Section has no scriptId field)
     if "selectedCreatorScriptId =" not in text:
         text = text.replace(
             "            selectedCreatorSectionId = ordered.first().sectionId\n",
             "            selectedCreatorSectionId = ordered.first().sectionId\n"
-            "            selectedCreatorScriptId = ordered.first().scriptId\n",
+            "            selectedCreatorScriptId = currentCreatorScript()?.scriptId\n",
             1,
-        )
-        # common pattern: selectedCreatorSectionId = section.sectionId
-        text = text.replace(
-            "selectedCreatorSectionId = nextSection.sectionId",
-            "selectedCreatorSectionId = nextSection.sectionId.also { selectedCreatorScriptId = nextSection.scriptId }",
         )
 
     if text != original:
@@ -219,7 +213,6 @@ def ensure_windows() -> None:
         else:
             raise SystemExit("Cannot find Windows teleprompter method anchor")
 
-    # SelectedCreatorSectionId property may not exist — synthesize from combo if needed
     if "SelectedCreatorSectionId" not in text:
         prop = '''
     private string? SelectedCreatorSectionId
@@ -245,7 +238,6 @@ def ensure_windows() -> None:
         )
         print("Injected SelectedCreatorSectionId helper property")
 
-    # Countdown start: restore instead of forced 0
     text = text.replace(
         "        TeleprompterScriptScroll.ChangeView(null, 0, null, true);\n"
         "        StartStudioTakeButton.Content = \"Cancel countdown\";\n",
@@ -254,7 +246,6 @@ def ensure_windows() -> None:
         1,
     )
 
-    # Start scroll: do not force top; keep restored offset
     text = text.replace(
         "    private void StartTeleprompterScroll()\n"
         "    {\n"
@@ -266,7 +257,6 @@ def ensure_windows() -> None:
         1,
     )
 
-    # Save on stop
     text = text.replace(
         "    private void StopTeleprompterScroll()\n"
         "    {\n"
@@ -278,8 +268,8 @@ def ensure_windows() -> None:
         1,
     )
 
-    # Save on pause
-    if "SaveTeleprompterReadingPosition()" not in text.split("PauseTeleprompter_Click")[1][:900]:
+    pause_part = text.split("PauseTeleprompter_Click")[1][:900] if "PauseTeleprompter_Click" in text else ""
+    if "SaveTeleprompterReadingPosition()" not in pause_part:
         text = text.replace(
             "            PauseTeleprompterButton.Content = \"Resume take\";\n",
             "            SaveTeleprompterReadingPosition();\n"
