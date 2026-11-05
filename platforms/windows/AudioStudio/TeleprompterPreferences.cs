@@ -44,32 +44,15 @@ internal static class TeleprompterPreferences
     }
 
     private static double ReadDouble(
-        ApplicationDataCompositeValue? ignored,
+        Windows.Foundation.Collections.IPropertySet values,
         string key,
         double fallback,
         double min,
         double max)
     {
-        var values = ApplicationData.Current.LocalSettings.Values;
-        if (values.TryGetValue(key, out var raw) && raw is double d)
-            return Math.Clamp(d, min, max);
-        if (raw is int i)
-            return Math.Clamp((double)i, min, max);
-        if (raw is float f)
-            return Math.Clamp((double)f, min, max);
-        return fallback;
-    }
-
-    private static double ReadDouble(
-        System.Collections.Generic.IDictionary<string, object> values,
-        string key,
-        double fallback,
-        double min,
-        double max)
-    {
-        if (!values.TryGetValue(key, out var raw) || raw is null)
+        if (!values.ContainsKey(key))
             return fallback;
-        return raw switch
+        return values[key] switch
         {
             double d => Math.Clamp(d, min, max),
             int i => Math.Clamp((double)i, min, max),
@@ -80,15 +63,15 @@ internal static class TeleprompterPreferences
     }
 
     private static int ReadInt(
-        System.Collections.Generic.IDictionary<string, object> values,
+        Windows.Foundation.Collections.IPropertySet values,
         string key,
         int fallback,
         int min,
         int max)
     {
-        if (!values.TryGetValue(key, out var raw) || raw is null)
+        if (!values.ContainsKey(key))
             return fallback;
-        return raw switch
+        return values[key] switch
         {
             int i => Math.Clamp(i, min, max),
             double d => Math.Clamp((int)Math.Round(d), min, max),
