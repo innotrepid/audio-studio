@@ -958,6 +958,8 @@ class MainActivity : Activity() {
                 captionList.addView(row,matchWidth())
             }
         }
+        lateinit var creatorBodyInput: EditText
+        lateinit var creatorTeleprompterPreview: TextView
         val creatorSubnav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -1028,7 +1030,7 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(10), dp(12), dp(10))
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(79, 125, 255))
         }
-        val creatorBodyInput = EditText(this).apply {
+        creatorBodyInput = EditText(this).apply {
             hint = "Start writing your script…"
             textSize = 16f
             setTextColor(Color.WHITE)
@@ -1202,7 +1204,7 @@ class MainActivity : Activity() {
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, 0, 0, dp(8))
         }, matchWidth())
-        val creatorTeleprompterPreview = TextView(this).apply {
+        creatorTeleprompterPreview = TextView(this).apply {
             text = "Write a script under Scripts to preview it here."
             textSize = 18f
             setTextColor(Color.WHITE)
@@ -1990,6 +1992,7 @@ class MainActivity : Activity() {
                 }
             }
         }
+        lateinit var screenScroll: ScrollView
         fun navButton(label: String, iconGlyph: String, target: LinearLayout): LinearLayout {
             val item = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -2038,7 +2041,7 @@ class MainActivity : Activity() {
         ).forEach { navBar.addView(it, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)) }
         applyNavSelection(recordSection)
 
-        val screenScroll = ScrollView(this).apply {
+        screenScroll = ScrollView(this).apply {
             isFillViewport = true
             clipToPadding = false
             setBackgroundColor(Color.rgb(16, 18, 24))
