@@ -19,14 +19,16 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 ## Phase 1 — Existing workflow refinement
 
 - Refine Record hierarchy, input monitoring, recording state, clipping warnings, and post-save actions.
-- [x] Deliver the first audio-only Studio Teleprompter slice on Android and Windows: show the active Creator script in Record, offer a 3/5/10-second pre-roll, start scrolling only after native recording succeeds, adjust scroll speed, and pause/resume scrolling independently of recording. Android hands-on testing confirmed the workflow works as expected; CI is green.
-- [x] Add adjustable teleprompter text size and line spacing on Android and Windows. Android hands-on testing confirmed both controls work.
-- [ ] Add section navigation and section-aware script editing/recording; then persist and restore teleprompter reading position. Keep camera/video preview as a separate platform capability; voice-follow scrolling remains a later advanced enhancement.
+- [x] Deliver the first audio-only Studio Teleprompter slice on Android and Windows (script-in-Record, countdown, scroll after record start). Android hands-on confirmed; CI green.
+- [x] Add adjustable teleprompter text size and line spacing controls (initially on Record; **moving ownership to Creator → Teleprompter** per `docs/CREATOR-TELEPROMPTER-FLOW.md`).
+- [ ] **Record layout:** non-scrollable Record workspace; maximize studio teleprompter; keep only essential controls (record/pause, clipping/level, compact status). Teleprompter **settings live under Creator → Teleprompter**, not Record.
+- [ ] **Single data path:** Scripts → auto-mirror into Creator Teleprompter → Record studio teleprompter uses Teleprompter text+settings (not Scripts widgets).
+- [ ] **Coupled transport:** record start starts teleprompter scroll; pause pauses recording and scroll together.
+- [ ] Add section navigation and section-aware script editing/recording; persist and restore teleprompter reading position. Camera/video preview remains separate; voice-follow scrolling remains later.
 - Refine Editor waveform scale, selection feedback, timecodes, preview, trim, processing presets, and A/B review.
-- Refine Library clarity and source/derived asset distinctions without unexpectedly broadening storage discovery.
-- Preserve incremental UI updates and loaded state across navigation.
+- Refine Library clarity and source/derived asset presentation without changing scan or file-safety rules.
 
-**Exit criteria:** existing record/save/recovery/playback/trim/process/cancel behavior remains intact; Android and Windows CI pass; focused manual smoke checks are recorded.
+**Exit criteria:** primary workflows remain usable after visual refinement; no recording or processing regressions; CI remains green.
 
 ## Phase 2 — Creator and project foundation
 
@@ -35,17 +37,20 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 - [ ] Implement atomic persistence, autosave, recovery, and migration tests on Android and Windows.
 - [x] Associate verified takes with projects without moving or rewriting source audio.
 
-**Implementation note:** Creator now exposes Scripts, Teleprompter, Captions, and Production destinations on both platforms. Scripts is the functional workspace; the other destinations are navigation placeholders until their phases are implemented.\n\n**Exit criteria:** project data survives restart; malformed imports fail safely; recovery and migration behavior are tested; standalone recordings remain accessible.
+**Implementation note:** Creator exposes Scripts, Teleprompter, Captions, and Production on both platforms. Scripts and project persistence are functional. **Teleprompter is becoming a real workspace** (script mirror + settings ownership for the Record studio teleprompter)—see `docs/CREATOR-TELEPROMPTER-FLOW.md`. Captions/Production remain thinner until Phase 4 exit criteria.
+
+**Exit criteria:** project data survives restart; malformed imports fail safely; recovery and migration behavior are tested; standalone recordings remain accessible.
 
 ## Phase 3 — Scripts and teleprompter
 
 - Script editing and organization into stable, reorderable sections.
 - Section notes and production cues.
-- Dedicated teleprompter reading mode with adjustable typography, line spacing, scroll speed, and section navigation.
-- Persist teleprompter preferences and restore them reliably.
+- **Creator → Teleprompter workspace:** auto-shows active script text; owns speed, text size, line spacing, countdown defaults; persists preferences.
+- **Record studio teleprompter:** large, non-scrollable page chrome; consumes Teleprompter text+settings; record/pause coupled to scroll (see `docs/CREATOR-TELEPROMPTER-FLOW.md`).
+- Section navigation while reading/recording; persist and restore reading position.
 - Link recording sessions to the active project/script section using the existing native recording engine.
 
-**Exit criteria:** edit, autosave, reload, scroll, manual navigation, and section-linked recording tests pass on supported platforms.
+**Exit criteria:** edit, autosave, reload, Teleprompter mirror, Record layout, coupled transport, and section-linked recording checks pass on supported platforms.
 
 ## Phase 4 — Transcripts, captions, and production
 
