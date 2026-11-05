@@ -209,6 +209,16 @@ public sealed partial class MainWindow : Window
             TeleprompterScriptText.LineHeight = TeleprompterScriptText.FontSize * spacing;
             TeleprompterLineSpacingText.Text = $"Line spacing · {spacing:0.0}×";
         };
+
+        // Creator → Teleprompter owns settings; mirror into Record studio teleprompter.
+        if (CreatorTeleprompterSpeedSlider != null)
+            CreatorTeleprompterSpeedSlider.ValueChanged += (_, _) => SyncStudioTeleprompterFromCreator();
+        if (CreatorTeleprompterFontSizeSlider != null)
+            CreatorTeleprompterFontSizeSlider.ValueChanged += (_, _) => SyncStudioTeleprompterFromCreator();
+        if (CreatorTeleprompterLineSpacingSlider != null)
+            CreatorTeleprompterLineSpacingSlider.ValueChanged += (_, _) => SyncStudioTeleprompterFromCreator();
+        if (CreatorTeleprompterCountdownComboBox != null)
+            CreatorTeleprompterCountdownComboBox.SelectionChanged += (_, _) => SyncStudioTeleprompterFromCreator();
         _meterTimer.Tick += (_, _) => UpdateInputMeter();
         _trimPreviewTimer.Tick += (_, _) =>
         {
@@ -969,7 +979,12 @@ public sealed partial class MainWindow : Window
                 isSelected ? (byte)255 : (byte)80));
     }
 
-    private void NavigateRecord_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(RecordPanel);
+    private void NavigateRecord_Click(object sender, RoutedEventArgs e)
+    {
+        SyncStudioTeleprompterFromCreator();
+        ShowWorkflowPanel(RecordPanel);
+    }
+
     private void NavigateEditor_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(EditorPanel);
     private void NavigateCreator_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(CreatorPanel);
     private void NavigateProcessing_Click(object sender, RoutedEventArgs e) => ShowWorkflowPanel(ProcessingPanel);
@@ -982,12 +997,16 @@ public sealed partial class MainWindow : Window
             return;
 
         var isScripts = string.Equals(workspace, "Scripts", StringComparison.Ordinal);
+        var isTeleprompter = string.Equals(workspace, "Teleprompter", StringComparison.Ordinal);
         var isCaptions = string.Equals(workspace, "Captions", StringComparison.Ordinal);
         var isProduction = string.Equals(workspace, "Production", StringComparison.Ordinal);
         CreatorScriptsWorkspace.Visibility = isScripts ? Visibility.Visible : Visibility.Collapsed;
+        CreatorTeleprompterWorkspace.Visibility = isTeleprompter ? Visibility.Visible : Visibility.Collapsed;
         CreatorCaptionsWorkspace.Visibility = isCaptions ? Visibility.Visible : Visibility.Collapsed;
         CreatorProductionWorkspace.Visibility = isProduction ? Visibility.Visible : Visibility.Collapsed;
-        CreatorSubworkspaceNotice.Visibility = isScripts || isCaptions || isProduction ? Visibility.Collapsed : Visibility.Visible;
+        CreatorSubworkspaceNotice.Visibility = isScripts || isTeleprompter || isCaptions || isProduction
+            ? Visibility.Collapsed : Visibility.Visible;
+        if (isTeleprompter) SyncStudioTeleprompterFromCreator();
         if (isCaptions)
         {
             CreatorTranscriptBox.Text = _creatorProject?.Transcript ?? string.Empty;
@@ -1708,6 +1727,7 @@ public sealed partial class MainWindow : Window
 
     private void CreatorScript_TextChanged(object sender, TextChangedEventArgs e)
     {
+        SyncStudioTeleprompterFromCreator();
         TeleprompterScriptText.Text = CreatorScriptBodyBox.Text;
         if (_loadingCreatorEditor || _creatorProject is null || _creatorStore is null)
             return;
@@ -2000,7 +2020,10 @@ public sealed partial class MainWindow : Window
         if (NativeRecordingActive() != 0)
             StopRecording_Click(sender, e);
         else
+        {
+            SyncStudioTeleprompterFromCreator();
             StartRecording_Click(sender, e);
+        }
     }
 
     private async void StartRecording_Click(object sender, RoutedEventArgs e)
@@ -2058,17 +2081,13 @@ public sealed partial class MainWindow : Window
                 RefreshInputDevicesButton.IsEnabled = false;
                 ClippingWarningText.Text = "";
                 _meterTimer.Start();
-                if (_teleprompterStartPending)
-                {
-                    _teleprompterStartPending = false;
-                    StartTeleprompterScroll();
-                }
-                else
-                {
-                    StartStudioTakeButton.IsEnabled = false;
-                    StartStudioTakeButton.Content = "Recording active";
-                    PauseTeleprompterButton.IsEnabled = false;
-                }
+                // Always drive the studio teleprompter from Creator → Teleprompter data.
+                SyncStudioTeleprompterFromCreator();
+                _teleprompterStartPending = false;
+                StartTeleprompterScroll();
+                PauseTeleprompterButton.IsEnabled = true;
+                PauseTeleprompterButton.Content = "Pause";
+                TeleprompterStatusText.Text = "Recording and teleprompter scroll are synchronized.";
             }
             else if (_teleprompterStartPending)
             {
