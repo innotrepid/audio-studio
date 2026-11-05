@@ -2,6 +2,7 @@
 """Apply Creator teleprompter Record-flow fixes in CI (GitHub-only friendly)."""
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -130,6 +131,12 @@ def ensure_windows_cs():
     print("Injected SyncStudioTeleprompterFromCreator")
 
 
+def _strip_kotlin_comments(s: str) -> str:
+    s = re.sub(r"//.*?$", "", s, flags=re.M)
+    s = re.sub(r"/\*.*?\*/", "", s, flags=re.S)
+    return s
+
+
 def fix_android_forward_refs(text: str) -> str:
     """Fix Kotlin forward-reference compile errors in MainActivity.onCreate."""
     old_block = (
@@ -143,8 +150,7 @@ def fix_android_forward_refs(text: str) -> str:
     )
     new_block = (
         "                    if (teleprompterSelected) {\n"
-        "                        // creatorBodyInput / creatorTeleprompterPreview are declared later in onCreate.\n"
-        "                        // Script mirror is maintained by the text watcher after those views exist.\n"
+        "                        // Script mirror is maintained by the text watcher after views exist.\n"
         "                        teleprompterScriptView?.let { view ->\n"
         "                            val mirrored = view.text?.toString().orEmpty()\n"
         "                            if (mirrored.isBlank()) {\n"
@@ -156,8 +162,6 @@ def fix_android_forward_refs(text: str) -> str:
     if old_block in text:
         text = text.replace(old_block, new_block, 1)
         print("Fixed teleprompterSelected forward refs")
-    elif "creatorBodyInput.text" in text.split("val creatorBodyInput")[0]:
-        raise SystemExit("teleprompterSelected still references creatorBodyInput before declaration")
 
     old_scroll = (
         "                    screenScroll.setOnTouchListener { _, _ -> target === recordSection }\n"
@@ -171,7 +175,6 @@ def fix_android_forward_refs(text: str) -> str:
         print("Replaced early screenScroll touch lock with recordScrollLocked flag")
 
     if "var recordScrollLocked" not in text and "recordScrollLocked =" in text:
-        # Declare flag near navigation setup
         inserted = False
         for anchor in (
             "        val navItems",
@@ -213,19 +216,18 @@ def fix_android_forward_refs(text: str) -> str:
         text = text.replace(old_sv, new_sv, 1)
         print("Wired screenScroll touch listener after declaration")
 
-    # Guard: no creatorBodyInput before its declaration line
-    if "val creatorBodyInput" in text:
-        before, _, _ = text.partition("val creatorBodyInput")
-        if "creatorBodyInput" in before:
+    code = _strip_kotlin_comments(text)
+    if "val creatorBodyInput" in code:
+        before, _, _ = code.partition("val creatorBodyInput")
+        if re.search(r"\bcreatorBodyInput\b", before):
             raise SystemExit("creatorBodyInput still referenced before declaration")
-    if "val creatorTeleprompterPreview" in text:
-        before, _, _ = text.partition("val creatorTeleprompterPreview")
-        if "creatorTeleprompterPreview" in before:
+    if "val creatorTeleprompterPreview" in code:
+        before, _, _ = code.partition("val creatorTeleprompterPreview")
+        if re.search(r"\bcreatorTeleprompterPreview\b", before):
             raise SystemExit("creatorTeleprompterPreview still referenced before declaration")
-    if "val screenScroll" in text:
-        before, _, _ = text.partition("val screenScroll")
-        # allow recordScrollLocked only
-        if "screenScroll" in before:
+    if "val screenScroll" in code:
+        before, _, _ = code.partition("val screenScroll")
+        if re.search(r"\bscreenScroll\b", before):
             raise SystemExit("screenScroll still referenced before declaration")
 
     return text
@@ -236,7 +238,6 @@ def ensure_android_mainactivity():
     text = ma.read_text(encoding="utf-8")
     original = text
 
-    # Always apply compile fixes first (safe if already applied)
     text = fix_android_forward_refs(text)
 
     if "studioTeleprompterHeight" not in text:
@@ -310,12 +311,6 @@ def ensure_android_mainactivity():
         print("Wrote Android MainActivity fixes")
     else:
         print("MainActivity already compile-clean for teleprompter forward refs")
-
-    text = ma.read_text(encoding="utf-8")
-    if "creatorBodyInput.text" in text.split("val creatorBodyInput")[0]:
-        raise SystemExit("creatorBodyInput still used before declaration after fix")
-    if "screenScroll.setOnTouchListener" in text.split("val screenScroll")[0]:
-        raise SystemExit("screenScroll still used before declaration after fix")
 
 
 def main():
