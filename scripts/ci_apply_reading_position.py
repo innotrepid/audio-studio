@@ -17,17 +17,26 @@ def ensure_android() -> None:
         print("Android reading-position hooks already present")
         return
 
+    # Promote section id only (script id already exists as a class field on Redesign tip)
     if "private var selectedCreatorSectionId" not in text:
         anchor = "    private var teleprompterScrollRemainder = 0f\n"
         if anchor not in text:
-            raise SystemExit("Cannot find teleprompterScrollRemainder field")
-        text = text.replace(
-            anchor,
-            anchor
-            + "    private var selectedCreatorSectionId: String? = null\n"
-            + "    private var selectedCreatorScriptId: String? = null\n",
-            1,
-        )
+            # Fall back after selectedCreatorScriptId field if present
+            alt = "    private var selectedCreatorScriptId: String? = null\n"
+            if alt in text:
+                text = text.replace(
+                    alt,
+                    alt + "    private var selectedCreatorSectionId: String? = null\n",
+                    1,
+                )
+            else:
+                raise SystemExit("Cannot find insertion point for selectedCreatorSectionId")
+        else:
+            text = text.replace(
+                anchor,
+                anchor + "    private var selectedCreatorSectionId: String? = null\n",
+                1,
+            )
         text = text.replace(
             "        var selectedCreatorSectionId: String? = null\n",
             "        // selectedCreatorSectionId is a class field (reading-position + section nav)\n",
@@ -123,15 +132,6 @@ def ensure_android() -> None:
             1,
         )
 
-    # Stamp script id from the active script when a section is chosen (Section has no scriptId field)
-    if "selectedCreatorScriptId =" not in text:
-        text = text.replace(
-            "            selectedCreatorSectionId = ordered.first().sectionId\n",
-            "            selectedCreatorSectionId = ordered.first().sectionId\n"
-            "            selectedCreatorScriptId = currentCreatorScript()?.scriptId\n",
-            1,
-        )
-
     if text != original:
         path.write_text(text, encoding="utf-8")
         print("Wrote Android MainActivity reading-position wiring")
@@ -145,9 +145,21 @@ def ensure_windows() -> None:
     original = text
 
     if "SaveTeleprompterReadingPosition" in text and "RestoreTeleprompterReadingPosition" in text:
-        print("Windows reading-position hooks already present")
+        # Ensure property exists even if an earlier partial apply left methods only
+        if "private string? SelectedCreatorSectionId" not in text and "string? SelectedCreatorSectionId" not in text:
+            prop = _windows_section_id_property()
+            text = text.replace(
+                "    private void SaveTeleprompterReadingPosition()",
+                prop + "    private void SaveTeleprompterReadingPosition()",
+                1,
+            )
+            path.write_text(text, encoding="utf-8")
+            print("Backfilled SelectedCreatorSectionId property")
+        else:
+            print("Windows reading-position hooks already present")
         return
 
+    prop = _windows_section_id_property()
     methods = '''
     private void SaveTeleprompterReadingPosition()
     {
@@ -200,6 +212,7 @@ def ensure_windows() -> None:
 
 '''
 
+    # Inject property + methods together before StartTeleprompterScroll
     if "private void SaveTeleprompterReadingPosition()" not in text:
         for anchor in (
             "    private void StartTeleprompterScroll()",
@@ -207,36 +220,11 @@ def ensure_windows() -> None:
             "    private void ResetTeleprompterControls()",
         ):
             if anchor in text:
-                text = text.replace(anchor, methods + anchor, 1)
-                print("Injected Windows reading-position helpers")
+                text = text.replace(anchor, prop + methods + anchor, 1)
+                print("Injected Windows reading-position property + helpers")
                 break
         else:
             raise SystemExit("Cannot find Windows teleprompter method anchor")
-
-    if "SelectedCreatorSectionId" not in text:
-        prop = '''
-    private string? SelectedCreatorSectionId
-    {
-        get
-        {
-            var script = SelectedCreatorScript;
-            if (script?.Sections is null || script.Sections.Count == 0)
-                return null;
-            var ordered = script.Sections.OrderBy(section => section.Order).ToList();
-            var index = CreatorSectionComboBox?.SelectedIndex ?? 0;
-            if (index < 0 || index >= ordered.Count)
-                index = 0;
-            return ordered[index].SectionId;
-        }
-    }
-
-'''
-        text = text.replace(
-            "    private void SaveTeleprompterReadingPosition()",
-            prop + "    private void SaveTeleprompterReadingPosition()",
-            1,
-        )
-        print("Injected SelectedCreatorSectionId helper property")
 
     text = text.replace(
         "        TeleprompterScriptScroll.ChangeView(null, 0, null, true);\n"
@@ -282,6 +270,26 @@ def ensure_windows() -> None:
         print("Wrote Windows MainWindow reading-position wiring")
     else:
         print("Windows MainWindow unchanged")
+
+
+def _windows_section_id_property() -> str:
+    return '''
+    private string? SelectedCreatorSectionId
+    {
+        get
+        {
+            var script = SelectedCreatorScript;
+            if (script?.Sections is null || script.Sections.Count == 0)
+                return null;
+            var ordered = script.Sections.OrderBy(section => section.Order).ToList();
+            var index = CreatorSectionComboBox?.SelectedIndex ?? 0;
+            if (index < 0 || index >= ordered.Count)
+                index = 0;
+            return ordered[index].SectionId;
+        }
+    }
+
+'''
 
 
 def main() -> int:
