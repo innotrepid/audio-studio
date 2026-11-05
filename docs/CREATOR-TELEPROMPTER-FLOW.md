@@ -1,6 +1,6 @@
 # Creator → Teleprompter → Record flow
 
-**Status:** Active implementation on `feat/creator-teleprompter-record-flow`  
+**Status:** Active — preference persistence on `feat/teleprompter-prefs-persistence`  
 **Platforms:** Android and Windows
 
 ## Product rule
@@ -21,10 +21,17 @@
 | Data | Owner | Consumers |
 |------|--------|-----------|
 | Script body / sections | Creator Scripts + `CreatorProjectStore` | Creator Teleprompter (auto), Record studio teleprompter (via Teleprompter mirror) |
-| Teleprompter settings | Creator Teleprompter (persisted prefs) | Record studio teleprompter |
+| Teleprompter settings | Creator Teleprompter (**persisted**) | Record studio teleprompter |
 | Takes | Record engine + project take refs | Library / Editor / Production |
 
-Settings persistence may use platform preference stores initially; project JSON may later embed a `teleprompter` prefs object without blocking UI work.
+### Preference persistence
+
+| Platform | Store | Keys |
+|----------|--------|------|
+| Android | `SharedPreferences` name `teleprompter_preferences` | `speed_progress`, `font_progress`, `spacing_progress`, `countdown_index` |
+| Windows | `ApplicationData.Current.LocalSettings` | `teleprompter.speed`, `teleprompter.fontSize`, `teleprompter.lineSpacing`, `teleprompter.countdownIndex` |
+
+Helpers: `TeleprompterPreferences.kt` / `TeleprompterPreferences.cs`. CI applies UI wiring via `scripts/ci_apply_teleprompter_ui.py` (load on start, save on control change; pre-roll spinner hosted under Creator Teleprompter).
 
 ## Explicitly out of scope for this slice
 
@@ -32,11 +39,13 @@ Settings persistence may use platform preference stores initially; project JSON 
 - Camera / video preview on Record
 - Forced alignment of captions to audio
 - Phrase replacement (Phase 5)
+- Reading-position restore (next slice)
 
 ## Validation
 
 - Edit script in Scripts → Teleprompter preview updates without leaving Creator.
-- Change speed/size/spacing under Teleprompter → Record studio teleprompter matches after navigating to Record.
+- Change speed/size/spacing/pre-roll under Teleprompter → restart app → values restore.
+- Record studio teleprompter matches Creator Teleprompter settings after navigate.
 - Record screen does not scroll as a page; teleprompter region is large.
 - Record start starts scroll; pause stops scroll and recording together; stop ends both.
-- Android and Windows CI green; manual device checks for scroll/pause coupling.
+- Android and Windows CI green; manual device checks for scroll/pause coupling and pref restore.
