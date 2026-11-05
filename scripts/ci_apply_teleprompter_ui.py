@@ -130,83 +130,192 @@ def ensure_windows_cs():
     print("Injected SyncStudioTeleprompterFromCreator")
 
 
+def fix_android_forward_refs(text: str) -> str:
+    """Fix Kotlin forward-reference compile errors in MainActivity.onCreate."""
+    old_block = (
+        "                    if (teleprompterSelected) {\n"
+        "                        val text = creatorBodyInput.text?.toString().orEmpty().ifBlank {\n"
+        '                            "Write a script under Scripts to preview it here."\n'
+        "                        }\n"
+        "                        creatorTeleprompterPreview.text = text\n"
+        "                        teleprompterScriptView?.text = text\n"
+        "                    }"
+    )
+    new_block = (
+        "                    if (teleprompterSelected) {\n"
+        "                        // creatorBodyInput / creatorTeleprompterPreview are declared later in onCreate.\n"
+        "                        // Script mirror is maintained by the text watcher after those views exist.\n"
+        "                        teleprompterScriptView?.let { view ->\n"
+        "                            val mirrored = view.text?.toString().orEmpty()\n"
+        "                            if (mirrored.isBlank()) {\n"
+        '                                view.text = "Write a script under Scripts to preview it here."\n'
+        "                            }\n"
+        "                        }\n"
+        "                    }"
+    )
+    if old_block in text:
+        text = text.replace(old_block, new_block, 1)
+        print("Fixed teleprompterSelected forward refs")
+    elif "creatorBodyInput.text" in text.split("val creatorBodyInput")[0]:
+        raise SystemExit("teleprompterSelected still references creatorBodyInput before declaration")
+
+    old_scroll = (
+        "                    screenScroll.setOnTouchListener { _, _ -> target === recordSection }\n"
+    )
+    if old_scroll in text:
+        text = text.replace(
+            old_scroll,
+            "                    recordScrollLocked = target === recordSection\n",
+            1,
+        )
+        print("Replaced early screenScroll touch lock with recordScrollLocked flag")
+
+    if "var recordScrollLocked" not in text and "recordScrollLocked =" in text:
+        # Declare flag near navigation setup
+        inserted = False
+        for anchor in (
+            "        val navItems",
+            "        fun navButton",
+            "        listOf(\n            navButton(\"Record\"",
+        ):
+            if anchor in text:
+                text = text.replace(anchor, "        var recordScrollLocked = false\n" + anchor, 1)
+                inserted = True
+                print("Declared recordScrollLocked")
+                break
+        if not inserted:
+            raise SystemExit("Could not declare recordScrollLocked near nav setup")
+
+    old_sv = (
+        "        val screenScroll = ScrollView(this).apply {\n"
+        "            isFillViewport = true\n"
+        "            clipToPadding = false\n"
+        "            setBackgroundColor(Color.rgb(16, 18, 24))\n"
+        "            addView(root, ViewGroup.LayoutParams(\n"
+        "                ViewGroup.LayoutParams.MATCH_PARENT,\n"
+        "                ViewGroup.LayoutParams.WRAP_CONTENT\n"
+        "            ))\n"
+        "        }"
+    )
+    new_sv = (
+        "        val screenScroll = ScrollView(this).apply {\n"
+        "            isFillViewport = true\n"
+        "            clipToPadding = false\n"
+        "            setBackgroundColor(Color.rgb(16, 18, 24))\n"
+        "            setOnTouchListener { _, _ -> recordScrollLocked }\n"
+        "            addView(root, ViewGroup.LayoutParams(\n"
+        "                ViewGroup.LayoutParams.MATCH_PARENT,\n"
+        "                ViewGroup.LayoutParams.WRAP_CONTENT\n"
+        "            ))\n"
+        "        }"
+    )
+    if old_sv in text and "setOnTouchListener { _, _ -> recordScrollLocked }" not in text:
+        text = text.replace(old_sv, new_sv, 1)
+        print("Wired screenScroll touch listener after declaration")
+
+    # Guard: no creatorBodyInput before its declaration line
+    if "val creatorBodyInput" in text:
+        before, _, _ = text.partition("val creatorBodyInput")
+        if "creatorBodyInput" in before:
+            raise SystemExit("creatorBodyInput still referenced before declaration")
+    if "val creatorTeleprompterPreview" in text:
+        before, _, _ = text.partition("val creatorTeleprompterPreview")
+        if "creatorTeleprompterPreview" in before:
+            raise SystemExit("creatorTeleprompterPreview still referenced before declaration")
+    if "val screenScroll" in text:
+        before, _, _ = text.partition("val screenScroll")
+        # allow recordScrollLocked only
+        if "screenScroll" in before:
+            raise SystemExit("screenScroll still referenced before declaration")
+
+    return text
+
+
 def ensure_android_mainactivity():
     ma = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
     text = ma.read_text(encoding="utf-8")
-    if "studioTeleprompterHeight" in text and "creatorTeleprompterPanel" in text:
-        print("MainActivity already has teleprompter layout changes")
-        return
+    original = text
 
-    print("Applying Android teleprompter layout transforms in Python")
-    if "val creatorTeleprompterPanel" not in text:
-        text = text.replace(
-            "        val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n",
-            "        val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n"
-            "        val creatorTeleprompterPanel = LinearLayout(this).apply {\n"
-            "            orientation = LinearLayout.VERTICAL\n"
-            "            visibility = ViewGroup.GONE\n"
-            "        }\n",
-            1,
-        )
+    # Always apply compile fixes first (safe if already applied)
+    text = fix_android_forward_refs(text)
 
-    old_attach = (
-        "        // Attach teleprompter views only after their local declarations are initialized.\n"
-        "        recordSection.addView(teleprompterHeading, matchWidth())\n"
-        "        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(\n"
-        "            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)\n"
-        "        ))\n"
-        "        recordSection.addView(teleprompterCountdown, matchWidth())\n"
-        "        recordSection.addView(teleprompterSpeedLabel, matchWidth())\n"
-        "        recordSection.addView(teleprompterSpeed, matchWidth())\n"
-        "        recordSection.addView(teleprompterFontSizeLabel, matchWidth())\n"
-        "        recordSection.addView(teleprompterFontSize, matchWidth())\n"
-        "        recordSection.addView(teleprompterLineSpacingLabel, matchWidth())\n"
-        "        recordSection.addView(teleprompterLineSpacing, matchWidth())\n"
-        "        recordSection.addView(teleprompterControls, matchWidth())\n"
-        "        recordSection.addView(teleprompterCountdownStatus, matchWidth())\n"
-    )
-    new_attach = (
-        "        // Studio teleprompter: maximize height; settings live under Creator Teleprompter.\n"
-        '        teleprompterHeading.text = "STUDIO TELEPROMPTER"\n'
-        "        val studioTeleprompterHeight = (resources.displayMetrics.heightPixels * 0.52f).toInt().coerceAtLeast(dp(280))\n"
-        "        recordSection.addView(teleprompterHeading, matchWidth())\n"
-        "        recordSection.addView(TextView(this).apply {\n"
-        '            text = "Script and settings come from Creator Teleprompter."\n'
-        "            textSize = 11f\n"
-        "            setTextColor(Color.rgb(174, 185, 204))\n"
-        "            setPadding(0, 0, 0, dp(6))\n"
-        "        }, matchWidth())\n"
-        "        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(\n"
-        "            ViewGroup.LayoutParams.MATCH_PARENT, studioTeleprompterHeight\n"
-        "        ))\n"
-        "        recordSection.addView(teleprompterCountdown, matchWidth())\n"
-        '        teleprompterStart.text = "Pre-roll + record"\n'
-        '        teleprompterPause.text = "Pause"\n'
-        "        recordSection.addView(teleprompterControls, matchWidth())\n"
-        "        recordSection.addView(teleprompterCountdownStatus, matchWidth())\n"
-    )
-    if old_attach in text:
-        text = text.replace(old_attach, new_attach, 1)
-
-    text = text.replace(
-        "if (startTeleprompter) startTeleprompterScroll()",
-        "startTeleprompterScroll()",
-        1,
-    )
-
-    if "creatorWorkspaceContent.addView(creatorTeleprompterPanel" not in text:
-        text = text.replace(
-            "creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())\n",
-            "creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())\n"
-            "        creatorWorkspaceContent.addView(creatorTeleprompterPanel, matchWidth())\n",
-            1,
-        )
-
-    ma.write_text(text, encoding="utf-8")
-    text = ma.read_text(encoding="utf-8")
     if "studioTeleprompterHeight" not in text:
-        raise SystemExit("studioTeleprompterHeight still missing after transform")
-    print("Wrote Android MainActivity teleprompter updates")
+        print("Applying Android teleprompter layout transforms in Python")
+        if "val creatorTeleprompterPanel" not in text:
+            text = text.replace(
+                "        val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n",
+                "        val creatorScriptsPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n"
+                "        val creatorTeleprompterPanel = LinearLayout(this).apply {\n"
+                "            orientation = LinearLayout.VERTICAL\n"
+                "            visibility = ViewGroup.GONE\n"
+                "        }\n",
+                1,
+            )
+
+        old_attach = (
+            "        // Attach teleprompter views only after their local declarations are initialized.\n"
+            "        recordSection.addView(teleprompterHeading, matchWidth())\n"
+            "        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(\n"
+            "            ViewGroup.LayoutParams.MATCH_PARENT, dp(300)\n"
+            "        ))\n"
+            "        recordSection.addView(teleprompterCountdown, matchWidth())\n"
+            "        recordSection.addView(teleprompterSpeedLabel, matchWidth())\n"
+            "        recordSection.addView(teleprompterSpeed, matchWidth())\n"
+            "        recordSection.addView(teleprompterFontSizeLabel, matchWidth())\n"
+            "        recordSection.addView(teleprompterFontSize, matchWidth())\n"
+            "        recordSection.addView(teleprompterLineSpacingLabel, matchWidth())\n"
+            "        recordSection.addView(teleprompterLineSpacing, matchWidth())\n"
+            "        recordSection.addView(teleprompterControls, matchWidth())\n"
+            "        recordSection.addView(teleprompterCountdownStatus, matchWidth())\n"
+        )
+        new_attach = (
+            "        // Studio teleprompter: maximize height; settings live under Creator Teleprompter.\n"
+            '        teleprompterHeading.text = "STUDIO TELEPROMPTER"\n'
+            "        val studioTeleprompterHeight = (resources.displayMetrics.heightPixels * 0.52f).toInt().coerceAtLeast(dp(280))\n"
+            "        recordSection.addView(teleprompterHeading, matchWidth())\n"
+            "        recordSection.addView(TextView(this).apply {\n"
+            '            text = "Script and settings come from Creator Teleprompter."\n'
+            "            textSize = 11f\n"
+            "            setTextColor(Color.rgb(174, 185, 204))\n"
+            "            setPadding(0, 0, 0, dp(6))\n"
+            "        }, matchWidth())\n"
+            "        recordSection.addView(teleprompterScroll, LinearLayout.LayoutParams(\n"
+            "            ViewGroup.LayoutParams.MATCH_PARENT, studioTeleprompterHeight\n"
+            "        ))\n"
+            "        recordSection.addView(teleprompterCountdown, matchWidth())\n"
+            '        teleprompterStart.text = "Pre-roll + record"\n'
+            '        teleprompterPause.text = "Pause"\n'
+            "        recordSection.addView(teleprompterControls, matchWidth())\n"
+            "        recordSection.addView(teleprompterCountdownStatus, matchWidth())\n"
+        )
+        if old_attach in text:
+            text = text.replace(old_attach, new_attach, 1)
+
+        text = text.replace(
+            "if (startTeleprompter) startTeleprompterScroll()",
+            "startTeleprompterScroll()",
+            1,
+        )
+
+        if "creatorWorkspaceContent.addView(creatorTeleprompterPanel" not in text:
+            text = text.replace(
+                "creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())\n",
+                "creatorWorkspaceContent.addView(creatorScriptsPanel, matchWidth())\n"
+                "        creatorWorkspaceContent.addView(creatorTeleprompterPanel, matchWidth())\n",
+                1,
+            )
+
+    if text != original:
+        ma.write_text(text, encoding="utf-8")
+        print("Wrote Android MainActivity fixes")
+    else:
+        print("MainActivity already compile-clean for teleprompter forward refs")
+
+    text = ma.read_text(encoding="utf-8")
+    if "creatorBodyInput.text" in text.split("val creatorBodyInput")[0]:
+        raise SystemExit("creatorBodyInput still used before declaration after fix")
+    if "screenScroll.setOnTouchListener" in text.split("val screenScroll")[0]:
+        raise SystemExit("screenScroll still used before declaration after fix")
 
 
 def main():
