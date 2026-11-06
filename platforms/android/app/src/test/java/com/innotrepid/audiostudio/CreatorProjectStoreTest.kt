@@ -126,6 +126,62 @@ class CreatorProjectStoreTest {
     }
 
     @Test
+    fun validSectionLinkedTakeRoundTrips() {
+        val (context, root) = isolatedContext()
+        try {
+            val store = CreatorProjectStore(context)
+            val project = store.loadOrCreate()
+            val script = project.scripts.first()
+            val section = script.sections.first()
+            val take = org.json.JSONObject()
+                .put("takeId", "linked-take-1")
+                .put("sourcePath", "/recordings/section-linked.wav")
+                .put("durationMs", 2500)
+                .put("sampleRateHz", 48000)
+                .put("channels", 1)
+                .put("scriptId", script.scriptId)
+                .put("sectionId", section.sectionId)
+                .put("status", "recorded")
+
+            store.save(project.copy(takes = project.takes + take))
+            val loaded = CreatorProjectStore(context).loadOrCreate()
+            assertEquals(1, loaded.takes.size)
+            assertEquals("linked-take-1", loaded.takes[0].getString("takeId"))
+            assertEquals(script.scriptId, loaded.takes[0].getString("scriptId"))
+            assertEquals(section.sectionId, loaded.takes[0].getString("sectionId"))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun sectionLinkedTakeWithoutScriptIdIsRejected() {
+        val (context, root) = isolatedContext()
+        try {
+            val store = CreatorProjectStore(context)
+            val project = store.loadOrCreate()
+            val sectionId = project.scripts.first().sections.first().sectionId
+            val invalidTake = org.json.JSONObject()
+                .put("takeId", "orphan-section-take")
+                .put("sourcePath", "/recordings/orphan.wav")
+                .put("durationMs", 1000)
+                .put("sampleRateHz", 48000)
+                .put("channels", 1)
+                .put("sectionId", sectionId)
+
+            var failed = false
+            try {
+                store.save(project.copy(takes = project.takes + invalidTake))
+            } catch (_: IllegalArgumentException) {
+                failed = true
+            }
+            assertTrue("A section-linked take must also reference its script.", failed)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun invalidCaptionTimingIsRejected() {
         val (context, root) = isolatedContext()
         try {
