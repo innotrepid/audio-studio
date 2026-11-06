@@ -1,1 +1,226 @@
-PLACEHOLDER
+name: Native Core and Android CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-core:
+    name: C++ core (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Fetch and verify pinned transcription models
+        run: python scripts/fetch_transcription_models.py --output build/transcription-models
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check out pinned noise cancellation engine
+        uses: actions/checkout@v4
+        with:
+          repository: R-6167/noise-cancellation-model
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
+          path: vendor/noise-cancellation-model
+          persist-credentials: false
+      - name: Build RNNoise and DeepFilterNet3 C ABI
+        working-directory: vendor/noise-cancellation-model
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build shared core
+        run: cmake --build build --config Release --parallel
+      - name: Run core tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  windows-core:
+    name: C++ core (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch and verify pinned Silero recorded-speech fixture
+        if: runner.os == 'Windows'
+        run: python scripts/fetch_silero_test_fixture.py --output build/test-data
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Apply Creator teleprompter Windows UI fixes
+        shell: bash
+        run: python scripts/ci_apply_teleprompter_ui.py windows
+      - name: Apply teleprompter reading-position wiring
+        shell: bash
+        run: python scripts/ci_apply_reading_position.py windows
+      - name: Apply teleprompter section navigation wiring
+        shell: bash
+        run: python scripts/ci_apply_section_nav.py windows
+      - name: Fetch and verify pinned transcription models
+        run: python scripts/fetch_transcription_models.py --output build/transcription-models
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Check out pinned noise cancellation engine
+        uses: actions/checkout@v4
+        with:
+          repository: R-6167/noise-cancellation-model
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
+          path: vendor/noise-cancellation-model
+          persist-credentials: false
+      - name: Install DirectML x64 link library
+        shell: pwsh
+        run: |
+          nuget install Microsoft.AI.DirectML -OutputDirectory packages -NonInteractive
+          $libs = @(Get-ChildItem packages -Filter DirectML.lib -Recurse)
+          $lib = $libs | Where-Object { $_.FullName -match '[\\/]x64(-win)?[\\/]' } | Select-Object -First 1
+          if (-not $lib) {
+            $libs | Select-Object -ExpandProperty FullName
+            throw "An x64 DirectML.lib was not found in the Microsoft.AI.DirectML package."
+          }
+          "DIRECTML_LIBRARY=$($lib.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Using x64 DirectML library: $($lib.FullName)"
+      - name: Stage pinned ONNX Runtime 1.23.2 native package
+        shell: pwsh
+        run: |
+          nuget install Microsoft.ML.OnnxRuntime -Version 1.23.2 -OutputDirectory packages -NonInteractive
+          $root = Join-Path $env:GITHUB_WORKSPACE "packages/Microsoft.ML.OnnxRuntime.1.23.2"
+          $headers = Join-Path $root "build/native/include/onnxruntime_cxx_api.h"
+          $library = Join-Path $root "runtimes/win-x64/native/onnxruntime.lib"
+          $runtime = Join-Path $root "runtimes/win-x64/native/onnxruntime.dll"
+          $missing = @($headers, $library, $runtime) | Where-Object { -not (Test-Path $_ -PathType Leaf) }
+          if ($missing.Count -gt 0) {
+            Write-Host "Inspected ONNX Runtime package root: $root"
+            Get-ChildItem $root -Recurse -File | Select-Object -ExpandProperty FullName
+            throw "ONNX Runtime 1.23.2 package is missing expected native files: $($missing -join ', ')"
+          }
+          "ONNXRUNTIME_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Verified ONNX Runtime headers, x64 import library, and runtime DLL."
+      - name: Build RNNoise and DeepFilterNet3 C ABI
+        working-directory: vendor/noise-cancellation-model
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DDIRECTML_LIBRARY="$env:DIRECTML_LIBRARY" -DONNXRUNTIME_ROOT="$env:ONNXRUNTIME_ROOT"
+      - name: Build shared core
+        run: cmake --build build --config Release --parallel
+      - name: Run core tests
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Run Windows Creator persistence tests
+        run: dotnet run --project platforms/windows/AudioStudio.Tests/AudioStudio.Tests.csproj --configuration Release
+      - name: Set up Visual Studio MSBuild
+        uses: microsoft/setup-msbuild@v2
+      - name: Build WinUI application shell
+        run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /p:Configuration=Release /p:Platform=x64
+      - name: Publish self-contained Windows app
+        run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
+      - name: Include native audio engine, ONNX Runtime, and offline models
+        shell: pwsh
+        run: |
+          $publish = "platforms/windows/AudioStudio/artifacts/windows-self-contained"
+          Copy-Item build/Release/audio_studio_native.dll "$publish/audio_studio_native.dll"
+          New-Item -ItemType Directory -Force -Path "$publish/models" | Out-Null
+          Copy-Item build/Release/onnxruntime.dll "$publish/onnxruntime.dll"
+          Copy-Item build/transcription-models/ggml-tiny.bin "$publish/models/ggml-tiny.bin"
+          Copy-Item build/transcription-models/silero_vad.onnx "$publish/models/silero_vad.onnx"
+      - name: Verify packaged Windows offline models
+        run: python scripts/verify_packaged_models.py --directory platforms/windows/AudioStudio/artifacts/windows-self-contained/models
+      - name: Upload self-contained Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: synvidra-windows-self-contained
+          path: platforms/windows/AudioStudio/artifacts/windows-self-contained/
+          if-no-files-found: error
+      - name: Upload Windows application shell
+        uses: actions/upload-artifact@v4
+        with:
+          name: synvidra-windows-shell
+          path: platforms/windows/AudioStudio/bin/x64/Release/net8.0-windows10.0.19041.0/
+          if-no-files-found: error
+
+  android-debug:
+    name: Android native shell and APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Apply Creator teleprompter Android UI fixes
+        shell: bash
+        run: python scripts/ci_apply_teleprompter_ui.py android
+      - name: Apply teleprompter reading-position wiring
+        shell: bash
+        run: python scripts/ci_apply_reading_position.py android
+      - name: Apply teleprompter section navigation wiring
+        shell: bash
+        run: python scripts/ci_apply_section_nav.py android
+      - name: Fetch and verify pinned transcription models
+        run: python scripts/fetch_transcription_models.py --output build/transcription-models
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
+      - name: Install Android SDK components
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.2.12479018"
+      - name: Set up Rust and Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - name: Check out pinned noise cancellation engine
+        uses: actions/checkout@v4
+        with:
+          repository: R-6167/noise-cancellation-model
+          ref: 504cf6886d7d8a9fc93417b097de19eefc280b19
+          path: vendor/noise-cancellation-model
+          persist-credentials: false
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Build RNNoise and DeepFilterNet3 for supported Android ABIs
+        working-directory: vendor/noise-cancellation-model
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: cargo ndk -t arm64-v8a -t x86_64 build --release --no-default-features --features rnnoise,deepfilternet,c-api --lib
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Run Android Creator persistence tests
+        run: gradle -p platforms/android :app:testDebugUnitTest
+      - name: Build Android debug APK
+        run: gradle -p platforms/android :app:assembleDebug
+      - name: Stage Synvidra-branded Android APK
+        run: cp platforms/android/app/build/outputs/apk/debug/app-debug.apk platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk
+      - name: Verify offline models embedded in APK
+        run: python scripts/verify_packaged_models.py --apk platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk --apk-asset-prefix assets/models
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: synvidra-android-debug
+          path: platforms/android/app/build/outputs/apk/debug/Synvidra-debug.apk
+          if-no-files-found: error
