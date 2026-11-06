@@ -123,6 +123,15 @@ jobs:
       - name: Inject Windows phrase A/B audition XAML
         shell: bash
         run: python scripts/ci_apply_windows_phrase_ab_audition_xaml.py windows
+      - name: Apply phrase assembly preview UI
+        shell: bash
+        run: python scripts/ci_apply_phrase_assembly_preview_ui.py windows
+      - name: Heal phrase assembly Windows nullable metadata
+        shell: bash
+        run: python scripts/ci_heal_phrase_assembly_windows.py
+      - name: Inject Windows phrase assembly preview XAML
+        shell: bash
+        run: python scripts/ci_apply_windows_phrase_assembly_preview_xaml.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -259,6 +268,9 @@ jobs:
       - name: Apply phrase A/B audition UI
         shell: bash
         run: python scripts/ci_apply_phrase_ab_audition_ui.py android
+      - name: Apply phrase assembly preview UI
+        shell: bash
+        run: python scripts/ci_apply_phrase_assembly_preview_ui.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
