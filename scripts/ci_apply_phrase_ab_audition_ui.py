@@ -7,6 +7,134 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+WINDOWS_METHODS = r'''
+    private CreatorProjectStore.PhraseReplacementRequestDocument? ActivePhraseForAudition()
+    {
+        var requests = _creatorProject?.PhraseReplacementRequests;
+        if (requests is null || requests.Count == 0) return null;
+        return requests.LastOrDefault(r =>
+                   r.AlignmentStatus == "manual" &&
+                   r.RangeStartMs is not null && r.RangeEndMs is not null &&
+                   !string.IsNullOrWhiteSpace(r.ReplacementTakeId))
+               ?? requests.LastOrDefault(r =>
+                   r.AlignmentStatus == "manual" &&
+                   r.RangeStartMs is not null && r.RangeEndMs is not null);
+    }
+
+    private void StopPhraseAudition()
+    {
+        try
+        {
+            _previewPlayer.Pause();
+            _previewPlayer.Source = null;
+        }
+        catch { /* ignore */ }
+    }
+
+    private async void PlayPhraseOriginalRange_Click(object sender, RoutedEventArgs e)
+    {
+        if (_creatorProject is null)
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "No Creator project is loaded.";
+            return;
+        }
+        var req = ActivePhraseForAudition();
+        if (req is null || req.RangeStartMs is null || req.RangeEndMs is null)
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Need a manual phrase with a confirmed range.";
+            return;
+        }
+        var startMs = req.RangeStartMs.Value;
+        var endMs = req.RangeEndMs.Value;
+        if (endMs <= startMs)
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Phrase range is invalid.";
+            return;
+        }
+        var take = _creatorProject.Takes?.LastOrDefault(t => t.TakeId == req.SourceTakeId)
+                   ?? _creatorProject.Takes?.LastOrDefault();
+        if (take is null || string.IsNullOrWhiteSpace(take.SourcePath) || !File.Exists(take.SourcePath))
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Could not open source take audio for audition.";
+            return;
+        }
+        try
+        {
+            StopPhraseAudition();
+            var file = await StorageFile.GetFileFromPathAsync(take.SourcePath);
+            _previewPlayer.Source = MediaSource.CreateFromStorageFile(file);
+            await Task.Delay(150);
+            _previewPlayer.PlaybackSession.Position = TimeSpan.FromMilliseconds(startMs);
+            _previewPlayer.Play();
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = $"Playing original phrase range {startMs}\u2013{endMs} ms.";
+            var duration = (int)Math.Max(50, endMs - startMs);
+            await Task.Delay(duration);
+            StopPhraseAudition();
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Original phrase range finished.";
+        }
+        catch (Exception error)
+        {
+            StopPhraseAudition();
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Could not play original range: " + error.Message;
+        }
+    }
+
+    private async void PlayPhraseReplacementTake_Click(object sender, RoutedEventArgs e)
+    {
+        if (_creatorProject is null)
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "No Creator project is loaded.";
+            return;
+        }
+        var req = ActivePhraseForAudition();
+        if (req is null || string.IsNullOrWhiteSpace(req.ReplacementTakeId))
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Link a replacement take first.";
+            return;
+        }
+        var take = _creatorProject.Takes?.LastOrDefault(t => t.TakeId == req.ReplacementTakeId);
+        if (take is null || string.IsNullOrWhiteSpace(take.SourcePath) || !File.Exists(take.SourcePath))
+        {
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Could not open replacement take audio.";
+            return;
+        }
+        try
+        {
+            StopPhraseAudition();
+            var file = await StorageFile.GetFileFromPathAsync(take.SourcePath);
+            _previewPlayer.Source = MediaSource.CreateFromStorageFile(file);
+            await Task.Delay(100);
+            _previewPlayer.Play();
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Playing replacement take.";
+        }
+        catch (Exception error)
+        {
+            StopPhraseAudition();
+            if (CreatorCaptionStatusText is not null)
+                CreatorCaptionStatusText.Text = "Could not play replacement: " + error.Message;
+        }
+    }
+
+    private void StopPhraseAudition_Click(object sender, RoutedEventArgs e)
+    {
+        StopPhraseAudition();
+        if (CreatorCaptionStatusText is not null)
+            CreatorCaptionStatusText.Text = "Phrase audition stopped.";
+    }
+
+'''
+
 
 def ensure_android() -> None:
     path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
@@ -200,149 +328,39 @@ def ensure_android() -> None:
 def ensure_windows() -> None:
     path = ROOT / "platforms/windows/AudioStudio/MainWindow.xaml.cs"
     text = path.read_text(encoding="utf-8")
+
+    # Heal incorrect MediaElement-style APIs from earlier apply
+    if "PlayPhraseOriginalRange_Click" in text and (
+        "SetSource" in text or "_previewPlayer.Position" in text or "MediaOpened" in text
+    ):
+        start = text.find("    private CreatorProjectStore.PhraseReplacementRequestDocument? ActivePhraseForAudition()")
+        if start < 0:
+            start = text.find("    private void PlayPhraseOriginalRange_Click")
+            if start < 0:
+                start = text.find("    private async void PlayPhraseOriginalRange_Click")
+        end = text.find("    private void LinkLatestTakeAsPhraseReplacement_Click", start if start >= 0 else 0)
+        if end < 0:
+            end = text.find("    private void ConfirmPhraseManualRange_Click", start if start >= 0 else 0)
+        if start >= 0 and end > start:
+            text = text[:start] + WINDOWS_METHODS + "\n" + text[end:]
+            path.write_text(text, encoding="utf-8")
+            print("Windows phrase A/B audition healed to MediaSource/PlaybackSession")
+            return
+
+    if "PlayPhraseOriginalRange_Click" in text and "MediaSource.CreateFromStorageFile" in text:
+        print("Windows phrase A/B audition already present (correct API)")
+        return
+
     if "PlayPhraseOriginalRange_Click" in text:
         print("Windows phrase A/B audition already present")
         return
 
-    methods = r'''
-    private CreatorProjectStore.PhraseReplacementRequestDocument? ActivePhraseForAudition()
-    {
-        var requests = _creatorProject?.PhraseReplacementRequests;
-        if (requests is null || requests.Count == 0) return null;
-        return requests.LastOrDefault(r =>
-                   r.AlignmentStatus == "manual" &&
-                   r.RangeStartMs is not null && r.RangeEndMs is not null &&
-                   !string.IsNullOrWhiteSpace(r.ReplacementTakeId))
-               ?? requests.LastOrDefault(r =>
-                   r.AlignmentStatus == "manual" &&
-                   r.RangeStartMs is not null && r.RangeEndMs is not null);
-    }
-
-    private void StopPhraseAudition()
-    {
-        try
-        {
-            _previewPlayer.Pause();
-            _previewPlayer.Position = TimeSpan.Zero;
-        }
-        catch { /* ignore */ }
-    }
-
-    private void PlayPhraseOriginalRange_Click(object sender, RoutedEventArgs e)
-    {
-        if (_creatorProject is null)
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "No Creator project is loaded.";
-            return;
-        }
-        var req = ActivePhraseForAudition();
-        if (req is null || req.RangeStartMs is null || req.RangeEndMs is null)
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Need a manual phrase with a confirmed range.";
-            return;
-        }
-        var startMs = req.RangeStartMs.Value;
-        var endMs = req.RangeEndMs.Value;
-        if (endMs <= startMs)
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Phrase range is invalid.";
-            return;
-        }
-        var take = _creatorProject.Takes?.LastOrDefault(t => t.TakeId == req.SourceTakeId)
-                   ?? _creatorProject.Takes?.LastOrDefault();
-        if (take is null || string.IsNullOrWhiteSpace(take.SourcePath) || !File.Exists(take.SourcePath))
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Could not open source take audio for audition.";
-            return;
-        }
-        try
-        {
-            StopPhraseAudition();
-            _previewPlayer.SetSource(new Uri(take.SourcePath));
-            _previewPlayer.MediaOpened += (_, _) =>
-            {
-                _previewPlayer.Position = TimeSpan.FromMilliseconds(startMs);
-                _previewPlayer.Play();
-                if (CreatorCaptionStatusText is not null)
-                    CreatorCaptionStatusText.Text = $"Playing original phrase range {startMs}\u2013{endMs} ms.";
-                var duration = endMs - startMs;
-                _ = DispatcherQueue.TryEnqueue(async () =>
-                {
-                    await Task.Delay((int)Math.Max(50, duration));
-                    StopPhraseAudition();
-                    if (CreatorCaptionStatusText is not null)
-                        CreatorCaptionStatusText.Text = "Original phrase range finished.";
-                });
-            };
-            _previewPlayer.Play();
-        }
-        catch (Exception error)
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Could not play original range: " + error.Message;
-        }
-    }
-
-    private void PlayPhraseReplacementTake_Click(object sender, RoutedEventArgs e)
-    {
-        if (_creatorProject is null)
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "No Creator project is loaded.";
-            return;
-        }
-        var req = ActivePhraseForAudition();
-        if (req is null || string.IsNullOrWhiteSpace(req.ReplacementTakeId))
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Link a replacement take first.";
-            return;
-        }
-        var take = _creatorProject.Takes?.LastOrDefault(t => t.TakeId == req.ReplacementTakeId);
-        if (take is null || string.IsNullOrWhiteSpace(take.SourcePath) || !File.Exists(take.SourcePath))
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Could not open replacement take audio.";
-            return;
-        }
-        try
-        {
-            StopPhraseAudition();
-            _previewPlayer.SetSource(new Uri(take.SourcePath));
-            _previewPlayer.MediaEnded += (_, _) =>
-            {
-                if (CreatorCaptionStatusText is not null)
-                    CreatorCaptionStatusText.Text = "Replacement take finished.";
-            };
-            _previewPlayer.Play();
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Playing replacement take.";
-        }
-        catch (Exception error)
-        {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Could not play replacement: " + error.Message;
-        }
-    }
-
-    private void StopPhraseAudition_Click(object sender, RoutedEventArgs e)
-    {
-        StopPhraseAudition();
-        if (CreatorCaptionStatusText is not null)
-            CreatorCaptionStatusText.Text = "Phrase audition stopped.";
-    }
-
-'''
     anchor = "    private void LinkLatestTakeAsPhraseReplacement_Click"
     if anchor not in text:
         anchor = "    private void ConfirmPhraseManualRange_Click"
     if anchor not in text:
         raise SystemExit("Cannot find phrase handlers for A/B")
-    text = text.replace(anchor, methods + "\n    " + anchor.lstrip(), 1)
+    text = text.replace(anchor, WINDOWS_METHODS + "\n    " + anchor.lstrip(), 1)
     path.write_text(text, encoding="utf-8")
     print("Windows phrase A/B audition handlers wired")
 
