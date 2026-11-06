@@ -126,6 +126,9 @@ jobs:
       - name: Apply phrase assembly preview UI
         shell: bash
         run: python scripts/ci_apply_phrase_assembly_preview_ui.py windows
+      - name: Heal phrase assembly Windows nullable metadata
+        shell: bash
+        run: python scripts/ci_heal_phrase_assembly_windows.py
       - name: Inject Windows phrase assembly preview XAML
         shell: bash
         run: python scripts/ci_apply_windows_phrase_assembly_preview_xaml.py windows
