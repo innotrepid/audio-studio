@@ -7,15 +7,34 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+ANDROID_PUT_BLOCK = """            .put("phraseReplacementRequests", JSONArray().apply {
+                project.phraseReplacementRequests.forEach { req ->
+                    put(JSONObject()
+                        .put("requestId", req.requestId)
+                        .put("phraseText", req.phraseText)
+                        .put("charStart", req.charStart ?: JSONObject.NULL)
+                        .put("charEnd", req.charEnd ?: JSONObject.NULL)
+                        .put("sourceTakeId", req.sourceTakeId ?: JSONObject.NULL)
+                        .put("alignmentStatus", req.alignmentStatus)
+                        .put("rangeStartMs", req.rangeStartMs ?: JSONObject.NULL)
+                        .put("rangeEndMs", req.rangeEndMs ?: JSONObject.NULL)
+                        .put("replacementTakeId", req.replacementTakeId ?: JSONObject.NULL)
+                        .put("assemblyStatus", req.assemblyStatus)
+                        .put("createdUtc", req.createdUtc)
+                        .put("updatedUtc", req.updatedUtc)
+                    )
+                }
+            })
+"""
+
 
 def ensure_android() -> None:
     path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/CreatorProjectStore.kt"
     text = path.read_text(encoding="utf-8")
-    if "PhraseReplacementRequest" in text and "phraseReplacementRequests" in text:
+    if "PhraseReplacementRequest" in text and "phraseReplacementRequests" in text and '"phraseReplacementRequests"' in text:
         print("Android phrase replacement store already present")
         return
 
-    # data class before Project
     if "data class PhraseReplacementRequest" not in text:
         text = text.replace(
             "    data class Project(",
@@ -25,7 +44,7 @@ def ensure_android() -> None:
         val charStart: Int? = null,
         val charEnd: Int? = null,
         val sourceTakeId: String? = null,
-        /** unverified | manual | rejected — no audio range until verified */
+        /** unverified | manual | rejected - no audio range until verified */
         val alignmentStatus: String = "unverified",
         val rangeStartMs: Long? = null,
         val rangeEndMs: Long? = null,
@@ -39,9 +58,7 @@ def ensure_android() -> None:
             1,
         )
 
-    # Project field — after productionMarkers line
-    if "phraseReplacementRequests" not in text:
-        # handle optional trailing fields from other applies
+    if "phraseReplacementRequests" not in text.split("data class Project")[1].split("private val file")[0]:
         if "val productionMarkers: List<ProductionMarker> = emptyList()\n    )" in text:
             text = text.replace(
                 "val productionMarkers: List<ProductionMarker> = emptyList()\n    )",
@@ -50,7 +67,6 @@ def ensure_android() -> None:
                 1,
             )
         elif "val productionMarkers: List<ProductionMarker> = emptyList()," in text:
-            # already has more fields after markers
             text = text.replace(
                 "val productionMarkers: List<ProductionMarker> = emptyList(),",
                 "val productionMarkers: List<ProductionMarker> = emptyList(),\n"
@@ -60,66 +76,21 @@ def ensure_android() -> None:
         else:
             raise SystemExit("Cannot find productionMarkers field on Android Project")
 
-    # encode — after productionMarkers put
     if '"phraseReplacementRequests"' not in text:
         marker = '.put("productionMarkers", JSONArray().apply { project.productionMarkers.forEach'
         idx = text.find(marker)
         if idx < 0:
             raise SystemExit("Cannot find productionMarkers encode")
-        # find end of that .put chain line(s) - next line after the productionMarkers put closes
-        # Insert new put after the productionMarkers put expression ends
-        # Search for closing of productionMarkers forEach
-        end = text.find(")\n", idx)
-        # better: find ".put(\"productionMarkers\"" block end by matching forEach close
         chunk = text[idx:]
-        # find first ")\n            .put" or ")\n" after productionMarkers - the put ends with })\n or similar
         close = chunk.find("})\n")
         if close < 0:
             close = chunk.find("})\r\n")
         if close < 0:
             raise SystemExit("Cannot end productionMarkers put")
         insert_at = idx + close + len("})\n")
-        put_block = (
-            '            .put("phraseReplacementRequests", JSONArray().apply {
-'
-            '                project.phraseReplacementRequests.forEach { req ->
-'
-            '                    put(JSONObject()
-'
-            '                        .put("requestId", req.requestId)
-'
-            '                        .put("phraseText", req.phraseText)
-'
-            '                        .put("charStart", req.charStart ?: JSONObject.NULL)
-'
-            '                        .put("charEnd", req.charEnd ?: JSONObject.NULL)
-'
-            '                        .put("sourceTakeId", req.sourceTakeId ?: JSONObject.NULL)
-'
-            '                        .put("alignmentStatus", req.alignmentStatus)
-'
-            '                        .put("rangeStartMs", req.rangeStartMs ?: JSONObject.NULL)
-'
-            '                        .put("rangeEndMs", req.rangeEndMs ?: JSONObject.NULL)
-'
-            '                        .put("replacementTakeId", req.replacementTakeId ?: JSONObject.NULL)
-'
-            '                        .put("assemblyStatus", req.assemblyStatus)
-'
-            '                        .put("createdUtc", req.createdUtc)
-'
-            '                        .put("updatedUtc", req.updatedUtc)
-'
-            '                    )
-'
-            '                }
-'
-            '            })\n'
-        )
-        text = text[:insert_at] + put_block + text[insert_at:]
+        text = text[:insert_at] + ANDROID_PUT_BLOCK + text[insert_at:]
 
-    # decode before return Project(
-    if "phraseReplacementRequests =" not in text:
+    if "phraseReplacementRequests = phraseRequests" not in text:
         text = text.replace(
             "        return Project(\n",
             """        val phraseJson = root.optJSONArray("phraseReplacementRequests") ?: JSONArray()
@@ -144,19 +115,15 @@ def ensure_android() -> None:
 """,
             1,
         )
-        # add to Project constructor call
-        if "phraseReplacementRequests = phraseRequests" not in text:
-            text = text.replace(
-                "            productionMarkers = markers\n        ).also(::validate)",
-                "            productionMarkers = markers,\n"
-                "            phraseReplacementRequests = phraseRequests\n"
-                "        ).also(::validate)",
-                1,
-            )
+        text = text.replace(
+            "            productionMarkers = markers\n        ).also(::validate)",
+            "            productionMarkers = markers,\n"
+            "            phraseReplacementRequests = phraseRequests\n"
+            "        ).also(::validate)",
+            1,
+        )
 
-    # validate
-    if "phraseReplacementRequests" in text and "Phrase replacement requestId" not in text:
-        # append validation near end of validate function - after production markers loop if any
+    if "Phrase replacement requestId" not in text:
         anchor = "        require(project.transcript.length <= maxSectionTextLength)"
         if anchor not in text:
             anchor = "        project.captions.forEach"
@@ -189,11 +156,10 @@ def ensure_android() -> None:
 def ensure_windows() -> None:
     path = ROOT / "platforms/windows/AudioStudio/CreatorProjectStore.cs"
     text = path.read_text(encoding="utf-8")
-    if "PhraseReplacementRequestDocument" in text:
+    if "PhraseReplacementRequestDocument" in text and "PhraseReplacementRequests" in text:
         print("Windows phrase replacement store already present")
         return
 
-    # Insert class after ProductionMarkerDocument or before ProjectDocument end
     doc = '''
     internal sealed class PhraseReplacementRequestDocument
     {
@@ -214,11 +180,6 @@ def ensure_windows() -> None:
     }
 '''
     if "class PhraseReplacementRequestDocument" not in text:
-        # after ProductionMarkerDocument class closing - find ProductionMarkerDocument
-        anchor = "    internal sealed class ProductionMarkerDocument"
-        if anchor not in text:
-            anchor = "    internal sealed class CaptionDocument"
-        # insert before ProjectDocument
         text = text.replace(
             "    internal sealed class ProjectDocument",
             doc + "\n    internal sealed class ProjectDocument",
@@ -233,9 +194,7 @@ def ensure_windows() -> None:
             1,
         )
 
-    # Validate in Validate method
     if "Phrase replacement requestId" not in text and "PhraseReplacementRequests" in text:
-        # find a good place - after captions validation
         needle = "        foreach (var caption in project.Captions"
         if needle not in text:
             needle = "        foreach (var marker in project.ProductionMarkers"
