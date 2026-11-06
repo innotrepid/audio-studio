@@ -41,7 +41,13 @@ def ensure_windows() -> None:
         block = match.group(0)
         if "TimingProvenance" in block:
             return block
-        return block[:-1] + "\n                TimingProvenance = CreatorProjectStore.CaptionDocument.ProvenanceManual,\n            }"
+        body = block[:-1].rstrip()
+        if not body.endswith(","):
+            body += ","
+        return (
+            body
+            + "\n                TimingProvenance = CreatorProjectStore.CaptionDocument.ProvenanceManual,\n            }"
+        )
 
     text = re.sub(
         r"new CreatorProjectStore\.CaptionDocument\s*\{[^}]+\}",
