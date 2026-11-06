@@ -2,16 +2,84 @@
 """Patch phrase assembly WAV concat to apply a short linear crossfade."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# ~15 ms at typical rates; computed from sampleRate at runtime
 CROSSFADE_MS = 15
 
 ANDROID_MARKER = "fun concatPcm16WavFiles"
 WINDOWS_MARKER = "ConcatPcm16WavFiles"
+
+
+def _windows_crossfade_body() -> str:
+    return f'''        // Soft linear crossfade (~{CROSSFADE_MS} ms) between consecutive parts
+        var frameBytes = ch * 2;
+        var crossfadeFrames = Math.Max(1, (sr * {CROSSFADE_MS}) / 1000);
+        var pcmParts = new List<byte[]>();
+        for (var i = 0; i < parts.Count; i++)
+        {{
+            var bytes = File.ReadAllBytes(parts[i]);
+            var info = infos[i];
+            var pcm = new byte[info.dataSize];
+            Buffer.BlockCopy(bytes, info.dataOffset, pcm, 0, info.dataSize);
+            pcmParts.Add(pcm);
+        }}
+        var assembled = new List<byte>(pcmParts[0]);
+        for (var i = 1; i < pcmParts.Count; i++)
+        {{
+            var prev = assembled.ToArray();
+            var next = pcmParts[i];
+            var fadeBytes = Math.Min(crossfadeFrames * frameBytes, Math.Min(prev.Length, next.Length));
+            var fadeFrames = fadeBytes / frameBytes;
+            if (fadeFrames <= 0)
+            {{
+                assembled.AddRange(next);
+                continue;
+            }}
+            var keepPrev = prev.Length - fadeFrames * frameBytes;
+            var mixed = new byte[keepPrev + next.Length];
+            Buffer.BlockCopy(prev, 0, mixed, 0, keepPrev);
+            var outPos = keepPrev;
+            for (var f = 0; f < fadeFrames; f++)
+            {{
+                var t = (f + 1f) / (fadeFrames + 1f);
+                for (var c = 0; c < ch; c++)
+                {{
+                    var pi = keepPrev + f * frameBytes + c * 2;
+                    var ni = f * frameBytes + c * 2;
+                    short a = (short)(prev[pi] | (prev[pi + 1] << 8));
+                    short b = (short)(next[ni] | (next[ni + 1] << 8));
+                    var m = (int)(a * (1f - t) + b * t);
+                    if (m > 32767) m = 32767;
+                    if (m < -32768) m = -32768;
+                    mixed[outPos++] = (byte)(m & 0xff);
+                    mixed[outPos++] = (byte)((m >> 8) & 0xff);
+                }}
+            }}
+            var nextRest = fadeFrames * frameBytes;
+            Buffer.BlockCopy(next, nextRest, mixed, outPos, next.Length - nextRest);
+            assembled = new List<byte>(mixed);
+        }}
+        var pcmOut = assembled.ToArray();
+        using var headerMs = new MemoryStream();
+        void Hx16(int v) {{ headerMs.WriteByte((byte)(v & 0xff)); headerMs.WriteByte((byte)((v >> 8) & 0xff)); }}
+        void Hx32(int v)
+        {{
+            headerMs.WriteByte((byte)(v & 0xff)); headerMs.WriteByte((byte)((v >> 8) & 0xff));
+            headerMs.WriteByte((byte)((v >> 16) & 0xff)); headerMs.WriteByte((byte)((v >> 24) & 0xff));
+        }}
+        var asciiEnc = System.Text.Encoding.ASCII;
+        headerMs.Write(asciiEnc.GetBytes("RIFF")); Hx32(36 + pcmOut.Length); headerMs.Write(asciiEnc.GetBytes("WAVE"));
+        headerMs.Write(asciiEnc.GetBytes("fmt ")); Hx32(16); Hx16(1); Hx16(ch); Hx32(sr);
+        Hx32(sr * ch * 2); Hx16(ch * 2); Hx16(16);
+        headerMs.Write(asciiEnc.GetBytes("data")); Hx32(pcmOut.Length);
+        var result = headerMs.ToArray().Concat(pcmOut).ToArray();
+        File.WriteAllBytes(outputPath, result);
+        return File.Exists(outputPath) && new FileInfo(outputPath).Length > 44;
+    }}'''
 
 
 def ensure_android() -> None:
@@ -23,7 +91,6 @@ def ensure_android() -> None:
     if ANDROID_MARKER not in text:
         raise SystemExit("concatPcm16WavFiles missing; run assembly preview apply first")
 
-    # Replace the naive per-part write loop with crossfaded join
     old = '''            parts.forEachIndexed { index, file ->
                 val bytes = file.readBytes()
                 val info = infos[index]
@@ -90,18 +157,12 @@ def ensure_android() -> None:
         }}'''
 
     if old not in text:
-        # Already patched or different formatting
         if "Soft linear crossfade" in text:
             print("Android crossfade already present")
             return
         raise SystemExit("Cannot find Android concat write loop to patch for crossfade")
 
     text = text.replace(old, new, 1)
-    # Drop the earlier naive header+write path before the loop: the function still builds `out` header
-    # Redirect: after computing totalData, skip writing header into `out` and only use crossfade path.
-    # The existing function writes header to `out` then parts — we replaced the parts loop and final write
-    # but left header on `out`. Fix by removing unused `out` header write when crossfade present is complex.
-    # Simpler approach: leave header write on `out` unused; final write uses header+pcm. OK.
     path.write_text(text, encoding="utf-8")
     print("Android phrase assembly crossfade wired")
 
@@ -109,13 +170,39 @@ def ensure_android() -> None:
 def ensure_windows() -> None:
     path = ROOT / "platforms/windows/AudioStudio/MainWindow.xaml.cs"
     text = path.read_text(encoding="utf-8")
-    if "crossfadeFrames" in text and WINDOWS_MARKER in text:
-        print("Windows phrase assembly crossfade already present")
-        return
     if WINDOWS_MARKER not in text:
         raise SystemExit("ConcatPcm16WavFiles missing; run assembly preview apply first")
 
-    old = '''        for (var i = 0; i < parts.Count; i++)
+    # Heal prior broken apply: dead header before Soft + duplicate var ascii
+    if "Soft linear crossfade" in text and "using var ms = new MemoryStream();" in text:
+        text2, n = re.subn(
+            r"\s*using var ms = new MemoryStream\(\);.*?Le32\(totalData\);\s*(?=// Soft linear crossfade)",
+            "\n",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if n:
+            text = text2
+            path.write_text(text, encoding="utf-8")
+            print("Healed dead pre-crossfade header block")
+            text = path.read_text(encoding="utf-8")
+
+    if "crossfadeFrames" in text:
+        # Ensure no remaining duplicate ascii/ms in Concat body
+        print("Windows phrase assembly crossfade already present")
+        return
+
+    # Replace from MemoryStream header construction through end of method
+    pattern = re.compile(
+        r"\s*using var ms = new MemoryStream\(\);.*?"
+        r"File\.WriteAllBytes\(outputPath, ms\.ToArray\(\)\);\s*"
+        r"return File\.Exists\(outputPath\) && new FileInfo\(outputPath\)\.Length > 44;\s*\}",
+        re.DOTALL,
+    )
+    if not pattern.search(text):
+        # Fallback: only the for-loop write
+        old = '''        for (var i = 0; i < parts.Count; i++)
         {
             var bytes = File.ReadAllBytes(parts[i]);
             var info = infos[i];
@@ -124,92 +211,23 @@ def ensure_windows() -> None:
         File.WriteAllBytes(outputPath, ms.ToArray());
         return File.Exists(outputPath) && new FileInfo(outputPath).Length > 44;
     }'''
+        if old not in text:
+            raise SystemExit("Cannot find Windows concat body to patch for crossfade")
+        text = text.replace(old, _windows_crossfade_body(), 1)
+        # Still remove dead header if left
+        text2, n = re.subn(
+            r"\s*using var ms = new MemoryStream\(\);.*?Le32\(totalData\);\s*(?=// Soft linear crossfade)",
+            "\n",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+        if n:
+            text = text2
+            print("Removed dead pre-crossfade header after loop patch")
+    else:
+        text = pattern.sub("\n" + _windows_crossfade_body(), text, count=1)
 
-    # Also handle compacted form without info variable name variants
-    if old not in text:
-        old2 = '''        for (var i = 0; i < parts.Count; i++)
-        {
-            var bytes = File.ReadAllBytes(parts[i]);
-            ms.Write(bytes, infos[i].dataOffset, infos[i].dataSize);
-        }
-        File.WriteAllBytes(outputPath, ms.ToArray());
-        return File.Exists(outputPath) && new FileInfo(outputPath).Length > 44;
-    }'''
-        if old2 in text:
-            old = old2
-        elif "Soft linear crossfade" in text:
-            print("Windows crossfade already present")
-            return
-        else:
-            raise SystemExit("Cannot find Windows concat write loop to patch for crossfade")
-
-    new = f'''        // Soft linear crossfade (~{CROSSFADE_MS} ms) between consecutive parts
-        var frameBytes = ch * 2;
-        var crossfadeFrames = Math.Max(1, (sr * {CROSSFADE_MS}) / 1000);
-        var pcmParts = new List<byte[]>();
-        for (var i = 0; i < parts.Count; i++)
-        {{
-            var bytes = File.ReadAllBytes(parts[i]);
-            var info = infos[i];
-            var pcm = new byte[info.dataSize];
-            Buffer.BlockCopy(bytes, info.dataOffset, pcm, 0, info.dataSize);
-            pcmParts.Add(pcm);
-        }}
-        var assembled = new List<byte>(pcmParts[0]);
-        for (var i = 1; i < pcmParts.Count; i++)
-        {{
-            var prev = assembled.ToArray();
-            var next = pcmParts[i];
-            var fadeBytes = Math.Min(crossfadeFrames * frameBytes, Math.Min(prev.Length, next.Length));
-            var fadeFrames = fadeBytes / frameBytes;
-            if (fadeFrames <= 0)
-            {{
-                assembled.AddRange(next);
-                continue;
-            }}
-            var keepPrev = prev.Length - fadeFrames * frameBytes;
-            var mixed = new byte[keepPrev + next.Length];
-            Buffer.BlockCopy(prev, 0, mixed, 0, keepPrev);
-            var outPos = keepPrev;
-            for (var f = 0; f < fadeFrames; f++)
-            {{
-                var t = (f + 1f) / (fadeFrames + 1f);
-                for (var c = 0; c < ch; c++)
-                {{
-                    var pi = keepPrev + f * frameBytes + c * 2;
-                    var ni = f * frameBytes + c * 2;
-                    short a = (short)(prev[pi] | (prev[pi + 1] << 8));
-                    short b = (short)(next[ni] | (next[ni + 1] << 8));
-                    var m = (int)(a * (1f - t) + b * t);
-                    if (m > 32767) m = 32767;
-                    if (m < -32768) m = -32768;
-                    mixed[outPos++] = (byte)(m & 0xff);
-                    mixed[outPos++] = (byte)((m >> 8) & 0xff);
-                }}
-            }}
-            var nextRest = fadeFrames * frameBytes;
-            Buffer.BlockCopy(next, nextRest, mixed, outPos, next.Length - nextRest);
-            assembled = new List<byte>(mixed);
-        }}
-        var pcmOut = assembled.ToArray();
-        using var header = new MemoryStream();
-        void H16(int v) {{ header.WriteByte((byte)(v & 0xff)); header.WriteByte((byte)((v >> 8) & 0xff)); }}
-        void H32(int v)
-        {{
-            header.WriteByte((byte)(v & 0xff)); header.WriteByte((byte)((v >> 8) & 0xff));
-            header.WriteByte((byte)((v >> 16) & 0xff)); header.WriteByte((byte)((v >> 24) & 0xff));
-        }}
-        var ascii = System.Text.Encoding.ASCII;
-        header.Write(ascii.GetBytes("RIFF")); H32(36 + pcmOut.Length); header.Write(ascii.GetBytes("WAVE"));
-        header.Write(ascii.GetBytes("fmt ")); H32(16); H16(1); H16(ch); H32(sr);
-        H32(sr * ch * 2); H16(ch * 2); H16(16);
-        header.Write(ascii.GetBytes("data")); H32(pcmOut.Length);
-        var result = header.ToArray().Concat(pcmOut).ToArray();
-        File.WriteAllBytes(outputPath, result);
-        return File.Exists(outputPath) && new FileInfo(outputPath).Length > 44;
-    }}'''
-
-    text = text.replace(old, new, 1)
     path.write_text(text, encoding="utf-8")
     print("Windows phrase assembly crossfade wired")
 
