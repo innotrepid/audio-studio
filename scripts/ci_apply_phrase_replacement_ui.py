@@ -11,17 +11,37 @@ ROOT = Path(__file__).resolve().parents[1]
 def ensure_android() -> None:
     path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
     text = path.read_text(encoding="utf-8")
-    if "Save phrase for replacement" in text or "fun savePhraseReplacementRequest" in text:
-        print("Android phrase replacement UI already present")
+
+    # Heal wrong binding from earlier apply
+    if "creatorTranscriptInput" in text:
+        text = text.replace("creatorTranscriptInput", "transcriptInput")
+        path.write_text(text, encoding="utf-8")
+        print("Healed creatorTranscriptInput -> transcriptInput")
+        text = path.read_text(encoding="utf-8")
+
+    if "Save phrase for replacement" in text and "fun savePhraseReplacementRequest" in text:
+        # also avoid project.transcriptTakeId if property may be missing on some intermediate patches
+        if "project.transcriptTakeId" in text and "transcriptTakeId" not in (
+            path.parent / "CreatorProjectStore.kt"
+        ).read_text(encoding="utf-8"):
+            text = text.replace(
+                "val sourceTake = project.transcriptTakeId\n"
+                "                    ?: project.takes.firstOrNull()?.optString(\"takeId\")?.takeIf { it.isNotBlank() }",
+                "val sourceTake = project.takes.firstOrNull()?.optString(\"takeId\")?.takeIf { it.isNotBlank() }",
+            )
+            path.write_text(text, encoding="utf-8")
+            print("Healed sourceTake without transcriptTakeId")
+        else:
+            print("Android phrase replacement UI already present")
         return
 
     helper = '''
         fun savePhraseReplacementRequest() {
             val store = creatorProjectStore ?: return
             val project = activeCreatorProject ?: return
-            val full = creatorTranscriptInput?.text?.toString() ?: project.transcript
-            val start = creatorTranscriptInput?.selectionStart ?: -1
-            val end = creatorTranscriptInput?.selectionEnd ?: -1
+            val full = transcriptInput.text?.toString() ?: project.transcript
+            val start = transcriptInput.selectionStart
+            val end = transcriptInput.selectionEnd
             val phrase: String
             val charStart: Int?
             val charEnd: Int?
@@ -40,8 +60,7 @@ def ensure_android() -> None:
             }
             try {
                 val now = java.time.Instant.now().toString()
-                val sourceTake = project.transcriptTakeId
-                    ?: project.takes.firstOrNull()?.optString("takeId")?.takeIf { it.isNotBlank() }
+                val sourceTake = project.takes.firstOrNull()?.optString("takeId")?.takeIf { it.isNotBlank() }
                 val req = CreatorProjectStore.PhraseReplacementRequest(
                     requestId = java.util.UUID.randomUUID().toString(),
                     phraseText = phrase,
@@ -70,13 +89,11 @@ def ensure_android() -> None:
     if "fun savePhraseReplacementRequest" not in text:
         anchor = "        fun persistCaptions(next: List<CreatorProjectStore.Caption>)"
         if anchor not in text:
-            # try linkTranscript helper area
             anchor = "        fun linkTranscriptToSelectedTake"
         if anchor not in text:
             raise SystemExit("Cannot find captions helper insertion point")
         text = text.replace(anchor, helper + anchor, 1)
 
-    # UI button near caption draft / save transcript
     if "Save phrase for replacement" not in text:
         block = '''
         creatorCaptionsPanel.addView(TextView(this).apply {
@@ -96,7 +113,6 @@ def ensure_android() -> None:
             savePhraseReplacementRequest()
         }, matchWidth())
 '''
-        # Prefer insert before CAPTION DRAFT or TRANSCRIPT → TAKE
         for key in ('text="CAPTION DRAFT"', 'text = "CAPTION DRAFT"', 'TRANSCRIPT'):
             idx = text.find(key)
             if idx > 0:
@@ -151,8 +167,7 @@ def ensure_windows() -> None:
                 return;
             }
             var now = DateTime.UtcNow.ToString("O");
-            var sourceTake = _creatorProject.TranscriptTakeId
-                ?? _creatorProject.Takes?.FirstOrDefault()?.TakeId;
+            var sourceTake = _creatorProject.Takes?.FirstOrDefault()?.TakeId;
             var req = new CreatorProjectStore.PhraseReplacementRequestDocument
             {
                 RequestId = Guid.NewGuid().ToString(),
