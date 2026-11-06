@@ -2,18 +2,35 @@
 """Wire Captions phrase assembly approve (derived WAV, assemblyStatus=approved)."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+APPROVE_BUTTON = '''
+        creatorCaptionsPanel.addView(exchangeButton("Approve phrase assembly", "Copy preview to durable WAV; assemblyStatus=approved") {
+            approvePhraseAssembly()
+        }, matchWidth())
+'''
+
 
 def ensure_android() -> None:
     path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
     text = path.read_text(encoding="utf-8")
-    if "Approve phrase assembly" in text and "fun approvePhraseAssembly" in text:
-        print("Android phrase assembly approve already present")
-        return
+
+    # Remove a previously mis-placed Approve button (matched status string, not UI button).
+    misplaced = re.search(
+        r'\n\s*creatorCaptionsPanel\.addView\(exchangeButton\("Approve phrase assembly".*?matchWidth\(\)\)\n',
+        text,
+        flags=re.DOTALL,
+    )
+    if misplaced:
+        # Keep only if it sits after the Build preview exchangeButton.
+        build_btn = text.find('exchangeButton("Build phrase assembly preview"')
+        if build_btn < 0 or misplaced.start() < build_btn:
+            text = text[: misplaced.start()] + text[misplaced.end() :]
+            print("Removed misplaced Approve phrase assembly button")
 
     helper = r'''
         fun approvePhraseAssembly() {
@@ -25,12 +42,12 @@ def ensure_android() -> None:
                     !it.replacementTakeId.isNullOrBlank()
             }
             if (req == null) {
-                captionStatus.text = "Build an assembly preview first (assemblyStatus=preview)."
+                captionStatus.text = "Run Build phrase assembly first (need assemblyStatus=preview)."
                 return
             }
             val preview = java.io.File(cacheDir, "phrase-assembly/preview-${req.requestId.take(8)}.wav")
             if (!preview.isFile || preview.length() <= 44L) {
-                captionStatus.text = "Preview WAV missing. Build phrase assembly preview again."
+                captionStatus.text = "Preview WAV missing. Rebuild the phrase assembly temp WAV."
                 return
             }
             try {
@@ -61,22 +78,27 @@ def ensure_android() -> None:
         if anchor not in text:
             raise SystemExit("Cannot find assembly helper for approve insert")
         text = text.replace(anchor, helper + anchor, 1)
+    else:
+        # Refresh helper messages to avoid ambiguous "Build phrase assembly preview" substrings
+        text = text.replace(
+            'captionStatus.text = "Build an assembly preview first (assemblyStatus=preview)."',
+            'captionStatus.text = "Run Build phrase assembly first (need assemblyStatus=preview)."',
+        )
+        text = text.replace(
+            'captionStatus.text = "Preview WAV missing. Build phrase assembly preview again."',
+            'captionStatus.text = "Preview WAV missing. Rebuild the phrase assembly temp WAV."',
+        )
 
-    if "Approve phrase assembly" not in text:
-        block = '''
-        creatorCaptionsPanel.addView(exchangeButton("Approve phrase assembly", "Copy preview to durable WAV; assemblyStatus=approved") {
-            approvePhraseAssembly()
-        }, matchWidth())
-'''
-        key = "Build phrase assembly preview"
+    if 'exchangeButton("Approve phrase assembly"' not in text:
+        key = 'exchangeButton("Build phrase assembly preview"'
         idx = text.find(key)
         if idx < 0:
-            raise SystemExit("Cannot find assembly preview button for approve insert")
+            raise SystemExit("Cannot find assembly preview exchangeButton for approve insert")
         close = text.find("matchWidth())", idx)
         if close < 0:
             raise SystemExit("Cannot find button end for approve")
         insert_at = close + len("matchWidth())")
-        text = text[:insert_at] + "\n" + block + text[insert_at:]
+        text = text[:insert_at] + "\n" + APPROVE_BUTTON + text[insert_at:]
 
     path.write_text(text, encoding="utf-8")
     print("Android phrase assembly approve wired")
@@ -105,7 +127,7 @@ def ensure_windows() -> None:
         if (req is null)
         {
             if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Build an assembly preview first (assemblyStatus=preview).";
+                CreatorCaptionStatusText.Text = "Run Build phrase assembly first (need assemblyStatus=preview).";
             return;
         }
         try
@@ -116,7 +138,7 @@ def ensure_windows() -> None:
             if (!File.Exists(preview) || new FileInfo(preview).Length <= 44)
             {
                 if (CreatorCaptionStatusText is not null)
-                    CreatorCaptionStatusText.Text = "Preview WAV missing. Build phrase assembly preview again.";
+                    CreatorCaptionStatusText.Text = "Preview WAV missing. Rebuild the phrase assembly temp WAV.";
                 return;
             }
             var outDir = Path.Combine(
