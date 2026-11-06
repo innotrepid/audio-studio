@@ -48,12 +48,9 @@ def _heal_windows_nullables() -> None:
 
 def _run_bootstrap(target: str) -> None:
     raw = urllib.request.urlopen(BOOTSTRAP_URL, timeout=60).read().decode("utf-8")
-    # Point ROOT at this workspace
-    raw = raw.replace(
-        "ROOT = Path(__file__).resolve().parents[1]",
-        f"ROOT = Path(r\"{ROOT}\")",
-        1,
-    )
+    # Point ROOT at this workspace without breaking Python string quoting
+    root_expr = "ROOT = Path(%r)" % str(ROOT)
+    raw = raw.replace("ROOT = Path(__file__).resolve().parents[1]", root_expr, 1)
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as tmp:
         tmp.write(raw)
         tmp_path = tmp.name
