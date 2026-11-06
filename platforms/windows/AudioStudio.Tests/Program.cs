@@ -152,14 +152,19 @@ static void UnsupportedSchemaIsRejectedWithoutOverwritingFile(string root)
 static void DraftsRoundTripAndRecover(string root)
 {
     Directory.CreateDirectory(root);
+    var projectRoot = Path.Combine(root, "project");
+    var script = new CreatorProjectStore(projectRoot).LoadOrCreate().Project.Scripts[0];
     var store = new CreatorDraftStore(Path.Combine(root, "drafts"));
-    var document = store.Load() ?? CreatorDraftStore.CreateEmpty();
-    var first = CreatorDraftStore.Add(document, "First draft", document.Drafts.FirstOrDefault()?.Script
-        ?? new CreatorProjectStore.ScriptDocument { Title = "Script", Sections = new() { new() { Title = "Intro", Text = "Hello" } } });
-    document = first;
-    var second = CreatorDraftStore.Add(document, "Second draft", document.Drafts[0].Script);
-    document = second;
-    var changedScript = document.Drafts.First(d => d.Name == "Second draft").Script;
+    var document = CreatorDraftStore.Create("First draft", script, null);
+    document = CreatorDraftStore.Create("Second draft", script, document);
+    store.Save(document);
+
+    var changedScript = new CreatorProjectStore.ScriptDocument
+    {
+        ScriptId = script.ScriptId,
+        Title = "Updated script",
+        Sections = script.Sections
+    };
     CreatorDraftStore.Update(document, document.ActiveDraftId, "Renamed second", changedScript);
     store.Save(document);
 
