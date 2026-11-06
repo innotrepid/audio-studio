@@ -129,6 +129,9 @@ jobs:
       - name: Apply phrase assembly preview UI
         shell: bash
         run: python scripts/ci_apply_phrase_assembly_preview_ui.py windows
+      - name: Apply phrase assembly soft crossfade
+        shell: bash
+        run: python scripts/ci_apply_phrase_assembly_crossfade.py windows
       - name: Heal phrase assembly Windows nullable metadata
         shell: bash
         run: python scripts/ci_heal_phrase_assembly_windows.py
@@ -289,6 +292,9 @@ jobs:
       - name: Apply phrase assembly preview UI
         shell: bash
         run: python scripts/ci_apply_phrase_assembly_preview_ui.py android
+      - name: Apply phrase assembly soft crossfade
+        shell: bash
+        run: python scripts/ci_apply_phrase_assembly_crossfade.py android
       - name: Apply phrase assembly approve UI
         shell: bash
         run: python scripts/ci_apply_phrase_assembly_approve_ui.py android
