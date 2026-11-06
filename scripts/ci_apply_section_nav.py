@@ -1,11 +1,65 @@
 #!/usr/bin/env python3
-"""Wire Prev/Next section navigation on Record studio teleprompter."""
+"""Wire Prev/Next section navigation on Record studio teleprompter.
+
+Runs after ci_apply_reading_position.py so save/restore helpers exist.
+Also restores MainWindow.xaml from the branch base when the working copy is truncated.
+"""
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Redesign tip that had a full MainWindow.xaml when this branch was cut.
+XAML_RESTORE_SHA = "ebccf66112441468d533bb80ed450c8e7257b909"
+XAML_REL = "platforms/windows/AudioStudio/MainWindow.xaml"
+
+
+def restore_windows_xaml_if_needed() -> None:
+    path = ROOT / XAML_REL
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    if "<Window" in text and "PauseTeleprompterButton" in text and len(text) > 10_000:
+        return
+    print("MainWindow.xaml is truncated; restoring from", XAML_RESTORE_SHA)
+    result = subprocess.run(
+        ["git", "show", f"{XAML_RESTORE_SHA}:{XAML_REL}"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    path.write_text(result.stdout, encoding="utf-8")
+    print("Restored MainWindow.xaml bytes:", len(result.stdout))
+
+
+def ensure_windows_xaml_buttons() -> None:
+    path = ROOT / XAML_REL
+    text = path.read_text(encoding="utf-8")
+    if "TeleprompterPrevSectionButton" in text:
+        print("Windows XAML section-nav buttons already present")
+        return
+    old = (
+        '                            <Button x:Name="PauseTeleprompterButton" Content="Pause" '
+        'Click="PauseTeleprompter_Click" IsEnabled="False"/>\n'
+        '                            <ComboBox x:Name="TeleprompterCountdownComboBox"'
+    )
+    new = (
+        '                            <Button x:Name="PauseTeleprompterButton" Content="Pause" '
+        'Click="PauseTeleprompter_Click" IsEnabled="False"/>\n'
+        '                            <Button x:Name="TeleprompterPrevSectionButton" Content="\u25c0 Section" '
+        'Click="TeleprompterPrevSection_Click" ToolTipService.ToolTip="Previous script section"/>\n'
+        '                            <TextBlock x:Name="TeleprompterSectionLabel" Text="Section" '
+        'VerticalAlignment="Center" Foreground="#AEB9CC" FontSize="12" MinWidth="120"/>\n'
+        '                            <Button x:Name="TeleprompterNextSectionButton" Content="Section \u25b6" '
+        'Click="TeleprompterNextSection_Click" ToolTipService.ToolTip="Next script section"/>\n'
+        '                            <ComboBox x:Name="TeleprompterCountdownComboBox"'
+    )
+    if old not in text:
+        raise SystemExit("Cannot find PauseTeleprompterButton row to inject section nav")
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+    print("Injected Windows XAML section-nav buttons")
 
 
 def ensure_android() -> None:
@@ -17,7 +71,6 @@ def ensure_android() -> None:
         print("Android section-nav hooks already present")
         return
 
-    # Ensure section id is a class field (reading-position apply may already promote it)
     if "private var selectedCreatorSectionId" not in text:
         anchor = "    private var selectedCreatorScriptId: String? = null\n"
         if anchor in text:
@@ -69,24 +122,17 @@ def ensure_android() -> None:
             statusText.text = "Add a script section under Creator before navigating."
             return
         }
-        if ("saveTeleprompterReadingPosition" in "" /* marker */) Unit
-        try {
-            // Prefer reading-position helper when CI applied it
-            val save = this::class.java.getDeclaredMethod("saveTeleprompterReadingPosition")
-            save.isAccessible = true
-            save.invoke(this)
-        } catch (_: Exception) {
-            // optional
-        }
+        runCatching { saveTeleprompterReadingPosition() }
         val currentId = selectedCreatorSectionId
         val currentIndex = ordered.indexOfFirst { it.sectionId == currentId }.let { if (it < 0) 0 else it }
         val nextIndex = (currentIndex + delta).coerceIn(0, ordered.lastIndex)
-        if (nextIndex == currentIndex && ordered.size == 1) {
-            teleprompterCountdownText?.text = "Only one section in this script."
-            return
-        }
         if (nextIndex == currentIndex) {
-            teleprompterCountdownText?.text = if (delta < 0) "Already at the first section." else "Already at the last section."
+            teleprompterCountdownText?.text = if (delta < 0) {
+                "Already at the first section."
+            } else {
+                "Already at the last section."
+            }
+            refreshTeleprompterSectionChrome()
             return
         }
         val section = ordered[nextIndex]
@@ -95,20 +141,16 @@ def ensure_android() -> None:
             s.sections.any { it.sectionId == section.sectionId }
         }
         selectedCreatorScriptId = script?.scriptId ?: selectedCreatorScriptId
-        val body = section.text.trim().ifBlank { "This section is empty. Add text under Creator \u2192 Scripts." }
-        teleprompterScriptView?.text = body
-        teleprompterSectionLabel?.text = "Section ${'$'}{nextIndex + 1} / ${'$'}{ordered.size} \u00b7 ${'$'}{section.title}"
-        teleprompterPrevSectionButton?.isEnabled = nextIndex > 0
-        teleprompterNextSectionButton?.isEnabled = nextIndex < ordered.lastIndex
-        try {
-            val restore = this::class.java.getDeclaredMethod("restoreTeleprompterReadingPosition")
-            restore.isAccessible = true
-            restore.invoke(this)
-        } catch (_: Exception) {
-            teleprompterScrollView?.scrollTo(0, 0)
+        val body = section.text.trim().ifBlank {
+            "This section is empty. Add text under Creator \u2192 Scripts."
         }
-        teleprompterCountdownText?.text = "Showing section \u201c${'$'}{section.title}\u201d (${'$'}{nextIndex + 1}/${'$'}{ordered.size})."
-        statusText.text = "Teleprompter section: ${'$'}{section.title}"
+        teleprompterScriptView?.text = body
+        runCatching { restoreTeleprompterReadingPosition() }
+            .onFailure { teleprompterScrollView?.scrollTo(0, 0) }
+        refreshTeleprompterSectionChrome()
+        teleprompterCountdownText?.text =
+            "Showing section \u201c${section.title}\u201d (${nextIndex + 1}/${ordered.size})."
+        statusText.text = "Teleprompter section: ${section.title}"
     }
 
     private fun refreshTeleprompterSectionChrome() {
@@ -122,41 +164,13 @@ def ensure_android() -> None:
         val currentId = selectedCreatorSectionId
         val index = ordered.indexOfFirst { it.sectionId == currentId }.let { if (it < 0) 0 else it }
         val section = ordered[index]
-        teleprompterSectionLabel?.text = "Section ${'$'}{index + 1} / ${'$'}{ordered.size} \u00b7 ${'$'}{section.title}"
+        teleprompterSectionLabel?.text =
+            "Section ${index + 1} / ${ordered.size} \u00b7 ${section.title}"
         teleprompterPrevSectionButton?.isEnabled = index > 0
         teleprompterNextSectionButton?.isEnabled = index < ordered.lastIndex
     }
 
 '''
-
-    # Fix helpers: reflection is ugly; call save/restore by name if present after string inject
-    helpers = helpers.replace(
-        '''        if ("saveTeleprompterReadingPosition" in "" /* marker */) Unit
-        try {
-            // Prefer reading-position helper when CI applied it
-            val save = this::class.java.getDeclaredMethod("saveTeleprompterReadingPosition")
-            save.isAccessible = true
-            save.invoke(this)
-        } catch (_: Exception) {
-            // optional
-        }
-''',
-        """        // Reading-position helper is injected by ci_apply_reading_position when present.
-        runCatching { saveTeleprompterReadingPosition() }
-""",
-    ).replace(
-        '''        try {
-            val restore = this::class.java.getDeclaredMethod("restoreTeleprompterReadingPosition")
-            restore.isAccessible = true
-            restore.invoke(this)
-        } catch (_: Exception) {
-            teleprompterScrollView?.scrollTo(0, 0)
-        }
-''',
-        """        runCatching { restoreTeleprompterReadingPosition() }
-            .onFailure { teleprompterScrollView?.scrollTo(0, 0) }
-""",
-    )
 
     if "private fun navigateTeleprompterSection" not in text:
         insert_at = text.find("    private fun startTeleprompterTake(")
@@ -167,8 +181,7 @@ def ensure_android() -> None:
         text = text[:insert_at] + helpers + text[insert_at:]
         print("Injected Android section-nav helpers")
 
-    # UI: section row after teleprompterControls
-    if "teleprompterPrevSectionButton" not in text or "Section nav" not in text:
+    if "teleprompterSectionNav" not in text:
         ui = '''
         val teleprompterSectionNav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -191,15 +204,19 @@ def ensure_android() -> None:
             setTextColor(Color.rgb(190, 198, 214))
             setPadding(dp(8), 0, dp(8), 0)
         }.also { teleprompterSectionLabel = it }
-        teleprompterSectionNav.addView(teleprompterPrevSection, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginEnd = dp(4)
-        })
-        teleprompterSectionNav.addView(teleprompterSectionStatus, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f))
-        teleprompterSectionNav.addView(teleprompterNextSection, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginStart = dp(4)
-        })
+        teleprompterSectionNav.addView(
+            teleprompterPrevSection,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(4) },
+        )
+        teleprompterSectionNav.addView(
+            teleprompterSectionStatus,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.4f),
+        )
+        teleprompterSectionNav.addView(
+            teleprompterNextSection,
+            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(4) },
+        )
 '''
-        # insert before recordSection.addView(teleprompterControls
         needle = "        recordSection.addView(teleprompterControls, matchWidth())\n"
         if needle not in text:
             raise SystemExit("Cannot find teleprompterControls addView")
@@ -210,14 +227,17 @@ def ensure_android() -> None:
         )
         print("Injected Android section-nav UI")
 
-    # Refresh chrome when creator sections refresh
     if "refreshTeleprompterSectionChrome()" not in text:
-        text = text.replace(
-            "            teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { \"This section is empty. Add text under Creator \u2192 Scripts.\" }\n",
-            "            teleprompterScriptView?.text = creatorBodyInput.text?.toString().orEmpty().ifBlank { \"This section is empty. Add text under Creator \u2192 Scripts.\" }\n"
-            "            refreshTeleprompterSectionChrome()\n",
-            1,
+        marker = (
+            "            teleprompterScriptView?.text = creatorBodyInput.text?.toString()"
+            ".orEmpty().ifBlank { \"This section is empty. Add text under Creator \u2192 Scripts.\" }\n"
         )
+        if marker in text:
+            text = text.replace(
+                marker,
+                marker + "            refreshTeleprompterSectionChrome()\n",
+                1,
+            )
 
     if text != original:
         path.write_text(text, encoding="utf-8")
@@ -227,12 +247,15 @@ def ensure_android() -> None:
 
 
 def ensure_windows() -> None:
+    restore_windows_xaml_if_needed()
+    ensure_windows_xaml_buttons()
+
     path = ROOT / "platforms/windows/AudioStudio/MainWindow.xaml.cs"
     text = path.read_text(encoding="utf-8")
     original = text
 
     if "NavigateTeleprompterSection" in text:
-        print("Windows section-nav hooks already present")
+        print("Windows section-nav code-behind already present")
         return
 
     methods = '''
@@ -246,7 +269,7 @@ def ensure_windows() -> None:
             return;
         }
 
-        try { SaveTeleprompterReadingPosition(); } catch { /* optional */ }
+        try { SaveTeleprompterReadingPosition(); } catch { /* optional until reading-position apply */ }
 
         var ordered = script.Sections.OrderBy(section => section.Order).ToList();
         var index = CreatorSectionComboBox?.SelectedIndex ?? 0;
@@ -275,10 +298,8 @@ def ensure_windows() -> None:
             TeleprompterScriptText.Text = string.IsNullOrWhiteSpace(section.Text)
                 ? "This section is empty. Add text under Creator \u2192 Scripts."
                 : section.Text;
-        try { RestoreTeleprompterReadingPosition(); } catch
-        {
-            TeleprompterScriptScroll?.ChangeView(null, 0, null, true);
-        }
+        try { RestoreTeleprompterReadingPosition(); }
+        catch { TeleprompterScriptScroll?.ChangeView(null, 0, null, true); }
         UpdateTeleprompterSectionChrome();
         if (TeleprompterStatusText != null)
             TeleprompterStatusText.Text = $"Showing section \u201c{section.Title}\u201d ({next + 1}/{ordered.Count}).";
@@ -287,7 +308,8 @@ def ensure_windows() -> None:
     private void UpdateTeleprompterSectionChrome()
     {
         var script = SelectedCreatorScript;
-        var ordered = script?.Sections?.OrderBy(section => section.Order).ToList() ?? new List<CreatorProjectStore.SectionDocument>();
+        var ordered = script?.Sections?.OrderBy(section => section.Order).ToList()
+            ?? new List<CreatorProjectStore.SectionDocument>();
         var index = CreatorSectionComboBox?.SelectedIndex ?? 0;
         if (ordered.Count == 0)
         {
@@ -310,9 +332,11 @@ def ensure_windows() -> None:
             TeleprompterNextSectionButton.IsEnabled = index < ordered.Count - 1;
     }
 
-    private void TeleprompterPrevSection_Click(object sender, RoutedEventArgs e) => NavigateTeleprompterSection(-1);
+    private void TeleprompterPrevSection_Click(object sender, RoutedEventArgs e) =>
+        NavigateTeleprompterSection(-1);
 
-    private void TeleprompterNextSection_Click(object sender, RoutedEventArgs e) => NavigateTeleprompterSection(1);
+    private void TeleprompterNextSection_Click(object sender, RoutedEventArgs e) =>
+        NavigateTeleprompterSection(1);
 
 '''
 
@@ -328,7 +352,6 @@ def ensure_windows() -> None:
     else:
         raise SystemExit("Cannot find Windows teleprompter anchor")
 
-    # Refresh chrome when sections refresh
     if "UpdateTeleprompterSectionChrome();" not in text:
         text = text.replace(
             "        TeleprompterScriptText.Text = ordered[index].Text;\n",
