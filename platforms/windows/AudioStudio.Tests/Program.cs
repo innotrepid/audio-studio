@@ -8,10 +8,13 @@ try
     RecoveryRestoresLastValidGeneration(Path.Combine(root, "recovery"));
     InvalidPrimaryIsPreserved(Path.Combine(root, "invalid"));
     InvalidTakeReferencesAreRejected(Path.Combine(root, "validation"));
+    ValidSectionLinkedTakeRoundTrips(Path.Combine(root, "section-linked"));
+    SectionLinkedTakeWithoutScriptIdIsRejected(Path.Combine(root, "section-without-script"));
+    UnsupportedSchemaIsRejectedWithoutOverwritingFile(Path.Combine(root, "schema"));
     DraftsRoundTripAndRecover(Path.Combine(root, "draft-recovery"));
     InvalidDraftPrimaryIsPreserved(Path.Combine(root, "draft-invalid"));
     CaptionTimingAndExportAreValidated(Path.Combine(root, "captions"));
-    Console.WriteLine("Creator project, named-draft, and caption persistence tests passed (7 scenarios).");
+    Console.WriteLine("Creator project, named-draft, and caption persistence tests passed (10 scenarios).");
 }
 finally
 {
@@ -59,7 +62,7 @@ static void InvalidPrimaryIsPreserved(string root)
     try { new CreatorProjectStore(root).LoadOrCreate(); }
     catch (InvalidDataException) { threw = true; }
 
-    Assert(threw, "Malformed project without backup should fail safely.");
+    Assert(threw, "Malformed primary without backup should fail safely.");
     Assert(File.ReadAllText(primary) == malformed, "Malformed source file should remain available for diagnosis.");
 }
 
@@ -69,9 +72,13 @@ static void InvalidTakeReferencesAreRejected(string root)
     var project = store.LoadOrCreate().Project;
     project.Takes.Add(new CreatorProjectStore.TakeDocument
     {
-        TakeId = Guid.NewGuid().ToString(), SourcePath = Path.Combine(root, "take.wav"),
-        DurationMs = 1200, SampleRateHz = 48000, Channels = 1,
-        ScriptId = "missing-script", SectionId = "missing-section"
+        TakeId = "test-take",
+        SourcePath = "/recordings/take.wav",
+        DurationMs = 1200,
+        SampleRateHz = 48000,
+        Channels = 1,
+        ScriptId = "missing-script",
+        SectionId = "missing-section",
     });
 
     var threw = false;
@@ -80,21 +87,79 @@ static void InvalidTakeReferencesAreRejected(string root)
     Assert(threw, "A take referencing a missing script must be rejected.");
 }
 
+static void ValidSectionLinkedTakeRoundTrips(string root)
+{
+    var store = new CreatorProjectStore(root);
+    var project = store.LoadOrCreate().Project;
+    var script = project.Scripts[0];
+    var section = script.Sections[0];
+    project.Takes.Add(new CreatorProjectStore.TakeDocument
+    {
+        TakeId = "linked-take-1",
+        SourcePath = "/recordings/section-linked.wav",
+        DurationMs = 2500,
+        SampleRateHz = 48000,
+        Channels = 1,
+        ScriptId = script.ScriptId,
+        SectionId = section.SectionId,
+        Status = "recorded",
+    });
+    store.Save(project);
+
+    var loaded = new CreatorProjectStore(root).LoadOrCreate().Project;
+    Assert(loaded.Takes.Count == 1, "Section-linked take did not persist.");
+    Assert(loaded.Takes[0].TakeId == "linked-take-1", "Take id did not round-trip.");
+    Assert(loaded.Takes[0].ScriptId == script.ScriptId, "Take script id did not round-trip.");
+    Assert(loaded.Takes[0].SectionId == section.SectionId, "Take section id did not round-trip.");
+}
+
+static void SectionLinkedTakeWithoutScriptIdIsRejected(string root)
+{
+    var store = new CreatorProjectStore(root);
+    var project = store.LoadOrCreate().Project;
+    var sectionId = project.Scripts[0].Sections[0].SectionId;
+    project.Takes.Add(new CreatorProjectStore.TakeDocument
+    {
+        TakeId = "orphan-section-take",
+        SourcePath = "/recordings/orphan.wav",
+        DurationMs = 1000,
+        SampleRateHz = 48000,
+        Channels = 1,
+        SectionId = sectionId,
+    });
+
+    var threw = false;
+    try { store.Save(project); }
+    catch (InvalidDataException) { threw = true; }
+    Assert(threw, "A section-linked take must also reference its script.");
+}
+
+static void UnsupportedSchemaIsRejectedWithoutOverwritingFile(string root)
+{
+    Directory.CreateDirectory(root);
+    var primary = Path.Combine(root, "default-project.json");
+    const string unsupported = "{\"schemaVersion\":99}";
+    File.WriteAllText(primary, unsupported);
+
+    var threw = false;
+    try { new CreatorProjectStore(root).LoadOrCreate(); }
+    catch (InvalidDataException) { threw = true; }
+
+    Assert(threw, "Unknown schema versions must be rejected.");
+    Assert(File.ReadAllText(primary) == unsupported, "Unsupported schema primary must be preserved.");
+}
+
 static void DraftsRoundTripAndRecover(string root)
 {
     Directory.CreateDirectory(root);
-    var projectRoot = Path.Combine(root, "project");
-    var script = new CreatorProjectStore(projectRoot).LoadOrCreate().Project.Scripts[0];
     var store = new CreatorDraftStore(Path.Combine(root, "drafts"));
-    var document = CreatorDraftStore.Create("First draft", script, null);
-    document = CreatorDraftStore.Create("Second draft", script, document);
-    store.Save(document);
-
-    var changedScript = new CreatorProjectStore.ScriptDocument
-    {
-        ScriptId = script.ScriptId, Title = "Updated script",
-        Sections = script.Sections
-    };
+    var document = store.Load() ?? CreatorDraftStore.CreateEmpty();
+    var first = CreatorDraftStore.Add(document, "First draft", document.Drafts.FirstOrDefault()?.Script
+        ?? new CreatorProjectStore.ScriptDocument { Title = "Script", Sections = new() { new() { Title = "Intro", Text = "Hello" } } });
+    document = first;
+    var second = CreatorDraftStore.Add(document, "Second draft", document.Drafts[0].Script);
+    document = second;
+    var changedScript = document.Drafts.First(d => d.Name == "Second draft").Script;
     CreatorDraftStore.Update(document, document.ActiveDraftId, "Renamed second", changedScript);
     store.Save(document);
 
