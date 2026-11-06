@@ -7,15 +7,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+DECLS = '''
+        val phraseRangeStartInput = EditText(this).apply {
+            hint = "Phrase range start (ms)"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(140, 150, 170))
+        }
+        val phraseRangeEndInput = EditText(this).apply {
+            hint = "Phrase range end (ms)"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.rgb(140, 150, 170))
+        }
+'''
 
-def ensure_android() -> None:
-    path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
-    text = path.read_text(encoding="utf-8")
-    if "Confirm phrase range (manual)" in text and "fun confirmPhraseManualRange" in text:
-        print("Android phrase manual range UI already present")
-        return
-
-    helper = '''
+HELPER = '''
         fun confirmPhraseManualRange() {
             val store = creatorProjectStore ?: return
             val project = activeCreatorProject ?: return
@@ -32,7 +39,6 @@ def ensure_android() -> None:
             }
             try {
                 val now = java.time.Instant.now().toString()
-                // Update the latest unverified request, else the last request.
                 val targetId = requests.lastOrNull { it.alignmentStatus == "unverified" }?.requestId
                     ?: requests.last().requestId
                 val updated = requests.map { req ->
@@ -54,35 +60,8 @@ def ensure_android() -> None:
         }
 
 '''
-    if "fun confirmPhraseManualRange" not in text:
-        anchor = "        fun savePhraseReplacementRequest()"
-        if anchor not in text:
-            raise SystemExit("Cannot find savePhraseReplacementRequest — run phrase selection apply first")
-        text = text.replace(anchor, helper + anchor, 1)
 
-    if "phraseRangeStartInput" not in text:
-        # declare inputs near transcriptInput or captionStatus
-        decl_anchor = "        val captionStatus = TextView(this).apply { textSize = 12f; setTextColor(Color.rgb(190, 198, 214)) }"
-        if decl_anchor not in text:
-            raise SystemExit("Cannot find captionStatus declaration")
-        decls = '''
-        val phraseRangeStartInput = EditText(this).apply {
-            hint = "Phrase range start (ms)"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.rgb(140, 150, 170))
-        }
-        val phraseRangeEndInput = EditText(this).apply {
-            hint = "Phrase range end (ms)"
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
-            setTextColor(Color.WHITE)
-            setHintTextColor(Color.rgb(140, 150, 170))
-        }
-'''
-        text = text.replace(decl_anchor, decl_anchor + "\n" + decls, 1)
-
-    if "Confirm phrase range (manual)" not in text:
-        block = '''
+PANEL = '''
         creatorCaptionsPanel.addView(TextView(this).apply {
             text = "MANUAL AUDIO RANGE"
             textSize = 11f
@@ -102,19 +81,41 @@ def ensure_android() -> None:
             confirmPhraseManualRange()
         }, matchWidth())
 '''
-        # After Save phrase for replacement button if present
-        key = 'Save phrase for replacement'
+
+
+def ensure_android() -> None:
+    path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
+    text = path.read_text(encoding="utf-8")
+
+    # Always ensure val declarations exist (helper text alone is not a declaration)
+    if "val phraseRangeStartInput" not in text:
+        decl_anchor = (
+            "        val captionStatus = TextView(this).apply { "
+            "textSize = 12f; setTextColor(Color.rgb(190, 198, 214)) }"
+        )
+        if decl_anchor not in text:
+            raise SystemExit("Cannot find captionStatus declaration")
+        text = text.replace(decl_anchor, decl_anchor + "\n" + DECLS, 1)
+        print("Declared phraseRangeStartInput/EndInput")
+
+    if "fun confirmPhraseManualRange" not in text:
+        anchor = "        fun savePhraseReplacementRequest()"
+        if anchor not in text:
+            raise SystemExit("Cannot find savePhraseReplacementRequest — run phrase selection apply first")
+        text = text.replace(anchor, HELPER + anchor, 1)
+        print("Inserted confirmPhraseManualRange")
+
+    if "Confirm phrase range (manual)" not in text:
+        key = "Save phrase for replacement"
         idx = text.find(key)
         if idx < 0:
             raise SystemExit("Cannot find Save phrase for replacement UI")
-        # find end of that addView call - rough: insert after the exchangeButton line containing the key
-        line_end = text.find("\n", idx)
-        # find closing of exchangeButton - next matchWidth()) after idx
         close = text.find("matchWidth())", idx)
         if close < 0:
             raise SystemExit("Cannot find end of Save phrase button")
         insert_at = close + len("matchWidth())")
-        text = text[:insert_at] + "\n" + block + text[insert_at:]
+        text = text[:insert_at] + "\n" + PANEL + text[insert_at:]
+        print("Inserted manual range panel")
 
     path.write_text(text, encoding="utf-8")
     print("Android phrase manual range UI wired")
