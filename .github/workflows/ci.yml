@@ -96,6 +96,15 @@ jobs:
       - name: Inject Windows Captions transcript-take buttons
         shell: bash
         run: python scripts/ci_apply_windows_transcript_take_buttons.py windows
+      - name: Apply phrase replacement store
+        shell: bash
+        run: python scripts/ci_apply_phrase_replacement_store.py windows
+      - name: Apply phrase replacement UI
+        shell: bash
+        run: python scripts/ci_apply_phrase_replacement_ui.py windows
+      - name: Inject Windows phrase replacement button
+        shell: bash
+        run: python scripts/ci_apply_windows_phrase_replacement_button.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -217,6 +226,12 @@ jobs:
       - name: Apply transcript take link UI
         shell: bash
         run: python scripts/ci_apply_transcript_take_link_ui.py android
+      - name: Apply phrase replacement store
+        shell: bash
+        run: python scripts/ci_apply_phrase_replacement_store.py android
+      - name: Apply phrase replacement UI
+        shell: bash
+        run: python scripts/ci_apply_phrase_replacement_ui.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
