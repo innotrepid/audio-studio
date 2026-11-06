@@ -63,6 +63,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+      - name: Restore full MainWindow.xaml when truncated
+        shell: bash
+        run: python scripts/ci_restore_mainwindow_xaml.py
       - name: Apply Creator teleprompter Windows UI fixes
         shell: bash
         run: python scripts/ci_apply_teleprompter_ui.py windows
