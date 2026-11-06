@@ -7,13 +7,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-ALLOWED = ("recorded", "review", "approved", "rejected")
 
-ANDROID_HELPER = '''
+def ensure_android() -> None:
+    path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
+    text = path.read_text(encoding="utf-8")
+    if "refreshTakeApprovals" in text and "TAKE APPROVAL" in text:
+        print("Android take approval already present")
+        return
+
+    list_decl = "        val productionMarkerList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n"
+    if "val takeApprovalList" not in text:
+        if list_decl not in text:
+            raise SystemExit("Cannot find productionMarkerList declaration")
+        text = text.replace(
+            list_decl,
+            list_decl + "        val takeApprovalList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n",
+            1,
+        )
+
+    helper = '''
         fun cycleTakeStatus(current: String?): String {
             val order = listOf("recorded", "review", "approved", "rejected")
             val idx = order.indexOf((current ?: "recorded").lowercase())
-            return order[(idx + 1).coerceAtLeast(0) % order.size]
+            return order[(maxOf(idx, 0) + 1) % order.size]
         }
 
         fun refreshTakeApprovals() {
@@ -40,18 +56,18 @@ ANDROID_HELPER = '''
                     }
                 }
                 row.addView(TextView(this).apply {
-                    text = "Take ${index + 1} · $status"
+                    text = "Take ${index + 1} \u00b7 $status"
                     textSize = 13f
                     setTextColor(Color.WHITE)
                 })
                 if (sectionId.isNotBlank()) {
                     row.addView(TextView(this).apply {
-                        text = "Section id: ${sectionId.take(8)}…"
+                        text = "Section: ${sectionId.take(12)}"
                         textSize = 11f
                         setTextColor(Color.rgb(160, 190, 255))
                     })
                 }
-                row.addView(exchangeButton("Cycle status ($status)", "Cycle recorded → review → approved → rejected") {
+                row.addView(exchangeButton("Cycle status", "recorded \u2192 review \u2192 approved \u2192 rejected") {
                     try {
                         val project = activeCreatorProject ?: return@exchangeButton
                         val store = creatorProjectStore ?: return@exchangeButton
@@ -73,13 +89,15 @@ ANDROID_HELPER = '''
                 takeApprovalList.addView(Space(this).apply { minimumHeight = dp(6) })
             }
         }
-'''
 
-ANDROID_VIEWS = '''
-        val takeApprovalList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 '''
+    if "fun cycleTakeStatus" not in text:
+        anchor = "        fun refreshProductionMarkers()"
+        if anchor not in text:
+            raise SystemExit("Cannot find refreshProductionMarkers")
+        text = text.replace(anchor, helper + anchor, 1)
 
-ANDROID_PANEL = '''
+    panel = '''
         creatorProductionPanel.addView(TextView(this).apply {
             text = "TAKE APPROVAL"
             textSize = 11f
@@ -88,7 +106,7 @@ ANDROID_PANEL = '''
             setPadding(0, dp(16), 0, dp(4))
         })
         creatorProductionPanel.addView(TextView(this).apply {
-            text = "Cycle each linked take: recorded → review → approved → rejected. Audio files are never changed."
+            text = "Cycle each linked take: recorded \u2192 review \u2192 approved \u2192 rejected. Audio files are never changed."
             textSize = 12f
             setTextColor(Color.rgb(174, 185, 204))
             setPadding(0, 0, 0, dp(8))
@@ -96,50 +114,13 @@ ANDROID_PANEL = '''
         creatorProductionPanel.addView(takeApprovalList, matchWidth())
         refreshTakeApprovals()
 '''
-
-
-def ensure_android() -> None:
-    path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
-    text = path.read_text(encoding="utf-8")
-    if "refreshTakeApprovals" in text and "TAKE APPROVAL" in text:
-        print("Android take approval already present")
-        return
-
-    # declare list near productionMarkerList
-    if "val takeApprovalList" not in text:
-        anchor = "        val productionMarkerList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }"
-        if anchor not in text:
-            # alternate
-            alt = "productionMarkerList"
-            idx = text.find("fun refreshProductionMarkers")
-            if idx < 0:
-                raise SystemExit("Cannot find production markers on Android")
-            # insert helper + list before refreshProductionMarkers
-            text = text[:idx] + ANDROID_VIEWS + "\n" + ANDROID_HELPER + text[idx:]
-        else:
-            text = text.replace(anchor, anchor + "\n" + ANDROID_VIEWS, 1)
-            # insert helpers after refreshProductionMarkers function ends is hard; put before fun refreshProductionMarkers
-            idx = text.find("        fun refreshProductionMarkers")
-            if idx < 0:
-                raise SystemExit("Cannot find refreshProductionMarkers")
-            text = text[:idx] + ANDROID_HELPER + text[idx:]
-
     if "TAKE APPROVAL" not in text:
         mark = "        creatorProductionPanel.addView(productionMarkerList,matchWidth())"
         if mark not in text:
             mark = "        creatorProductionPanel.addView(productionMarkerList, matchWidth())"
         if mark not in text:
             raise SystemExit("Cannot find productionMarkerList panel add")
-        text = text.replace(mark, mark + "\n" + ANDROID_PANEL, 1)
-
-    # refresh when switching to production tab if possible
-    if "refreshTakeApprovals()" in text and "productionSelected" in text:
-        if "if (productionSelected) refreshTakeApprovals()" not in text:
-            text = text.replace(
-                "if (productionSelected)",
-                "if (productionSelected) { refreshTakeApprovals()\n                    }\n                    if (productionSelected)",
-                1,
-            )
+        text = text.replace(mark, mark + panel, 1)
 
     path.write_text(text, encoding="utf-8")
     print("Android take approval wired")
@@ -148,7 +129,7 @@ def ensure_android() -> None:
 def ensure_windows() -> None:
     path = ROOT / "platforms/windows/AudioStudio/MainWindow.xaml.cs"
     text = path.read_text(encoding="utf-8")
-    if "RefreshTakeApprovals" in text and "CycleTakeStatus" in text:
+    if "AppendTakeApprovalRows" in text:
         print("Windows take approval already present")
         return
 
@@ -162,82 +143,101 @@ def ensure_windows() -> None:
         return order[(idx + 1) % order.Length];
     }
 
-    private void RefreshTakeApprovals()
+    private void AppendTakeApprovalRows()
     {
         if (CreatorProductionMarkerListPanel is null) return;
-        // Append take rows after markers by rebuilding a dedicated section in status text for simplicity.
-        var takes = _creatorProject?.Takes ?? new List<CreatorProjectStore.TakeDocument>();
-        if (CreatorProductionStatusText is not null && takes.Count > 0)
+        CreatorProductionMarkerListPanel.Children.Add(new TextBlock
         {
-            var summary = string.Join(" · ", takes.Select((t, i) =>
-                $"#{i + 1} {(string.IsNullOrWhiteSpace(t.Status) ? "recorded" : t.Status)}"));
-            // Keep existing marker status; take summary is shown when cycling.
-            _ = summary;
-        }
-    }
+            Text = "Take approval",
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Margin = new Thickness(0, 16, 0, 4),
+        });
+        CreatorProductionMarkerListPanel.Children.Add(new TextBlock
+        {
+            Text = "Cycle recorded \u2192 review \u2192 approved \u2192 rejected. Audio files are never changed.",
+            Opacity = 0.8,
+            Margin = new Thickness(0, 0, 0, 8),
+        });
 
-    private void CreatorCycleTakeStatus_Click(object sender, RoutedEventArgs e)
-    {
-        if (_creatorProject is null || _creatorStore is null)
+        var takes = _creatorProject?.Takes ?? new List<CreatorProjectStore.TakeDocument>();
+        if (takes.Count == 0)
         {
-            if (CreatorProductionStatusText is not null)
-                CreatorProductionStatusText.Text = "No Creator project is loaded.";
+            CreatorProductionMarkerListPanel.Children.Add(new TextBlock
+            {
+                Text = "No linked takes yet. Record a studio take to review it here.",
+                Opacity = 0.75,
+            });
             return;
         }
-        if (_creatorProject.Takes is null || _creatorProject.Takes.Count == 0)
+
+        for (var index = 0; index < takes.Count; index++)
         {
-            if (CreatorProductionStatusText is not null)
-                CreatorProductionStatusText.Text = "No linked takes to approve yet.";
-            return;
-        }
-        try
-        {
-            // Cycle the first non-approved take, or the first take if all approved.
-            var target = _creatorProject.Takes.FirstOrDefault(t =>
-                             !string.Equals(t.Status, "approved", StringComparison.OrdinalIgnoreCase))
-                         ?? _creatorProject.Takes[0];
-            target.Status = CycleTakeStatus(target.Status);
-            _creatorStore.Save(_creatorProject);
-            if (CreatorTakesSummaryText is not null)
-                CreatorTakesSummaryText.Text = $"Linked takes: {_creatorProject.Takes.Count}";
-            if (CreatorProductionStatusText is not null)
-                CreatorProductionStatusText.Text =
-                    $"Take {(target.TakeId.Length > 8 ? target.TakeId[..8] : target.TakeId)}… → {target.Status}.";
-            RefreshTakeApprovals();
-        }
-        catch (Exception error)
-        {
-            if (CreatorProductionStatusText is not null)
-                CreatorProductionStatusText.Text = "Could not update take: " + error.Message;
+            var take = takes[index];
+            var status = string.IsNullOrWhiteSpace(take.Status) ? "recorded" : take.Status!;
+            var row = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = $"Take {index + 1} \u00b7 {status}" });
+            if (!string.IsNullOrWhiteSpace(take.SectionId))
+                row.Children.Add(new TextBlock { Text = $"Section: {take.SectionId[..Math.Min(12, take.SectionId.Length)]}", Opacity = 0.75, FontSize = 12 });
+
+            var button = new Button { Content = "Cycle status", Tag = take.TakeId };
+            button.Click += (_, _) =>
+            {
+                if (_creatorProject is null || _creatorStore is null) return;
+                var target = _creatorProject.Takes.FirstOrDefault(item => item.TakeId == take.TakeId);
+                if (target is null) return;
+                try
+                {
+                    target.Status = CycleTakeStatus(target.Status);
+                    _creatorStore.Save(_creatorProject);
+                    if (CreatorTakesSummaryText is not null)
+                        CreatorTakesSummaryText.Text = $"Linked takes: {_creatorProject.Takes.Count}";
+                    if (CreatorProductionStatusText is not null)
+                        CreatorProductionStatusText.Text = $"Take marked {target.Status}.";
+                    RefreshCreatorProductionMarkers();
+                }
+                catch (Exception error)
+                {
+                    if (CreatorProductionStatusText is not null)
+                        CreatorProductionStatusText.Text = "Could not update take: " + error.Message;
+                }
+            };
+            row.Children.Add(button);
+            CreatorProductionMarkerListPanel.Children.Add(row);
         }
     }
 
 '''
 
-    if "private void CreatorCycleTakeStatus_Click" not in text:
-        # insert before AssociateVerifiedTake or after RefreshCreatorProductionMarkers
+    if "private static string CycleTakeStatus" not in text:
         anchor = "    private void CreatorProductionAdd_Click"
         if anchor not in text:
-            anchor = "    private string AssociateVerifiedTake"
-        if anchor not in text:
-            raise SystemExit("Cannot find insertion point for Windows take approval methods")
+            raise SystemExit("Cannot find CreatorProductionAdd_Click")
         text = text.replace(anchor, methods + "\n    " + anchor.lstrip(), 1)
 
-    # Call RefreshTakeApprovals when production workspace opens
-    if "RefreshTakeApprovals();" not in text:
-        text = text.replace(
-            "if (isProduction) RefreshCreatorProductionMarkers();",
-            "if (isProduction) { RefreshCreatorProductionMarkers(); RefreshTakeApprovals(); }",
-            1,
-        )
+    text = text.replace(
+        """            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = "No production markers yet." });
+            return;
+""",
+        """            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = "No production markers yet." });
+            AppendTakeApprovalRows();
+            return;
+""",
+        1,
+    )
 
-    # Wire cycle from Production add flow: add a status cycle after successful marker add is weak.
-    # Instead, extend CreatorProductionAdd_Click is wrong. Use existing export production button? 
-    # Prefer: when AssociateVerifiedTake succeeds, keep status recorded (already).
-    # Add click handler attachment via duplicate of production status update - hook into production workspace notice.
+    start = text.find("private void RefreshCreatorProductionMarkers")
+    end = text.find("private void CreatorProductionAdd_Click", start)
+    if start > 0 and end > start:
+        region = text[start:end]
+        if "AppendTakeApprovalRows();" not in region:
+            old = region.rstrip()
+            if old.endswith("}"):
+                new_region = old[:-1] + "\n        AppendTakeApprovalRows();\n    }\n"
+                text = text[:start] + new_region + text[end:]
+                print("Injected AppendTakeApprovalRows at end of marker refresh")
 
     path.write_text(text, encoding="utf-8")
-    print("Windows take approval methods wired")
+    print("Windows take approval wired")
 
 
 def main() -> int:
