@@ -12,7 +12,16 @@ def ensure_android() -> None:
     path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
     text = path.read_text(encoding="utf-8")
     if "refreshTakeApprovals" in text and "TAKE APPROVAL" in text:
-        print("Android take approval already present")
+        # heal older apply that used bare Space(this)
+        if "takeApprovalList.addView(Space(this)" in text:
+            text = text.replace(
+                "takeApprovalList.addView(Space(this)",
+                "takeApprovalList.addView(android.widget.Space(this)",
+            )
+            path.write_text(text, encoding="utf-8")
+            print("Android take approval healed Space reference")
+        else:
+            print("Android take approval already present")
         return
 
     list_decl = "        val productionMarkerList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }\n"
@@ -86,7 +95,7 @@ def ensure_android() -> None:
                     }
                 })
                 takeApprovalList.addView(row, matchWidth())
-                takeApprovalList.addView(Space(this).apply { minimumHeight = dp(6) })
+                takeApprovalList.addView(android.widget.Space(this).apply { minimumHeight = dp(6) })
             }
         }
 
@@ -129,8 +138,41 @@ def ensure_android() -> None:
 def ensure_windows() -> None:
     path = ROOT / "platforms/windows/AudioStudio/MainWindow.xaml.cs"
     text = path.read_text(encoding="utf-8")
+
+    # Heal: ensure non-empty marker path also appends take rows
     if "AppendTakeApprovalRows" in text:
-        print("Windows take approval already present")
+        # After marker foreach, ensure Append is always invoked once at end of refresh
+        bad_early = (
+            "            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = \"No production markers yet.\" });\n"
+            "            AppendTakeApprovalRows();\n"
+            "            return;\n"
+        )
+        good_early = (
+            "            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = \"No production markers yet.\" });\n"
+        )
+        if bad_early in text:
+            text = text.replace(bad_early, good_early, 1)
+            print("Removed early-return after empty markers so takes always append")
+
+        # Ensure single Append at end of RefreshCreatorProductionMarkers
+        start = text.find("private void RefreshCreatorProductionMarkers")
+        end = text.find("private static string CycleTakeStatus", start)
+        if end < 0:
+            end = text.find("private void AppendTakeApprovalRows", start)
+        if start > 0 and end > start:
+            region = text[start:end]
+            if region.count("AppendTakeApprovalRows();") == 0:
+                old = region.rstrip()
+                if old.endswith("}"):
+                    new_region = old[:-1] + "\n        AppendTakeApprovalRows();\n    }\n"
+                    text = text[:start] + new_region + text[end:]
+                    print("Injected AppendTakeApprovalRows at end of marker refresh")
+            elif region.count("AppendTakeApprovalRows();") > 1:
+                # leave first only at end
+                print("Append already present in refresh")
+
+        path.write_text(text, encoding="utf-8")
+        print("Windows take approval healed/present")
         return
 
     methods = r'''
@@ -214,19 +256,20 @@ def ensure_windows() -> None:
             raise SystemExit("Cannot find CreatorProductionAdd_Click")
         text = text.replace(anchor, methods + "\n    " + anchor.lstrip(), 1)
 
+    # Empty markers: do not return early without takes section
     text = text.replace(
         """            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = "No production markers yet." });
             return;
 """,
         """            CreatorProductionMarkerListPanel.Children.Add(new TextBlock { Text = "No production markers yet." });
-            AppendTakeApprovalRows();
-            return;
 """,
         1,
     )
 
     start = text.find("private void RefreshCreatorProductionMarkers")
-    end = text.find("private void CreatorProductionAdd_Click", start)
+    end = text.find("private static string CycleTakeStatus", start)
+    if end < 0:
+        end = text.find("private void CreatorProductionAdd_Click", start)
     if start > 0 and end > start:
         region = text[start:end]
         if "AppendTakeApprovalRows();" not in region:
