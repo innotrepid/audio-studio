@@ -230,6 +230,16 @@ def ensure_android() -> None:
 def ensure_windows() -> None:
     path = ROOT / "platforms/windows/AudioStudio/MainWindow.xaml.cs"
     text = path.read_text(encoding="utf-8")
+    # Heal ulong -> long assignment from earlier apply
+    if "totalFrames = _waveformTotalFrames;" in text:
+        text = text.replace(
+            "totalFrames = _waveformTotalFrames;",
+            "totalFrames = (long)Math.Min(_waveformTotalFrames, (ulong)long.MaxValue);",
+            1,
+        )
+        path.write_text(text, encoding="utf-8")
+        print("Healed totalFrames ulong cast")
+        text = path.read_text(encoding="utf-8")
     if "BuildPhraseAssemblyPreview_Click" in text:
         print("Windows phrase assembly preview already present")
         return
@@ -367,12 +377,12 @@ def ensure_windows() -> None:
                 _waveformSampleRate > 0 && _waveformTotalFrames > 1)
             {
                 sampleRate = _waveformSampleRate;
-                totalFrames = _waveformTotalFrames;
+                totalFrames = (long)Math.Min(_waveformTotalFrames, (ulong)long.MaxValue);
             }
             else if (sourceTake.SampleRateHz > 0 && sourceTake.DurationMs > 0)
             {
                 sampleRate = sourceTake.SampleRateHz;
-                totalFrames = (long)Math.Round(sourceTake.DurationMs * sampleRate / 1000.0);
+                totalFrames = (long)Math.Round(sourceTake.DurationMs * (double)sampleRate / 1000.0);
             }
 
             if (sampleRate <= 0 || totalFrames <= 0)
