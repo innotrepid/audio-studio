@@ -111,6 +111,12 @@ jobs:
       - name: Inject Windows phrase manual range XAML
         shell: bash
         run: python scripts/ci_apply_windows_phrase_manual_range_xaml.py windows
+      - name: Apply phrase replacement take link UI
+        shell: bash
+        run: python scripts/ci_apply_phrase_replacement_take_link_ui.py windows
+      - name: Inject Windows phrase replacement take button
+        shell: bash
+        run: python scripts/ci_apply_windows_phrase_replacement_take_button.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -168,7 +174,7 @@ jobs:
       - name: Build WinUI application shell
         run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /p:Configuration=Release /p:Platform=x64
       - name: Publish self-contained Windows app
-        run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
+        run: msbuild platforms/windows/AudioStudio/AudioStudio.csproj /restore /m /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true /p:PublishDir=artifacts/windows-self-contained/
       - name: Include native audio engine, ONNX Runtime, and offline models
         shell: pwsh
         run: |
@@ -241,6 +247,9 @@ jobs:
       - name: Apply phrase manual range UI
         shell: bash
         run: python scripts/ci_apply_phrase_manual_range_ui.py android
+      - name: Apply phrase replacement take link UI
+        shell: bash
+        run: python scripts/ci_apply_phrase_replacement_take_link_ui.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
