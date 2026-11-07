@@ -1,42 +1,37 @@
 # App-wide theme (Hybrid Studio Phase E)
 
-**Status:** Contract on tip  
+**Status:** Runtime apply on Android (window chrome + Settings radios)  
 **Principle:** Theme restyles chrome; it **never removes** destinations, controls, or functions.
-
-## Goal
-
-A consistent **dark studio** look across Record, Editor, Creator, Library, and Settings, with an explicit preference for **System default** vs **Dark studio** (Settings Appearance section).
-
-## Token story
-
-| Role | Intent |
-|------|--------|
-| **Background** | Charcoal / near-black panels |
-| **Surface** | Slightly elevated panels for cards and lists |
-| **Accent** | Blue for primary actions |
-| **Live / healthy** | Mint for level meters and positive status |
-| **Warn / clip** | Warm amber/red for clipping and errors |
-| **Text** | High-contrast primary; muted secondary |
-
-Exact hex values may already exist in platform code; this phase **documents** the shared language and preference surface rather than forcing a one-shot color rewrite that risks compile breaks.
 
 ## Preference
 
 | Choice | Behavior |
 |--------|----------|
-| **System default** | Follow OS light/dark when platform supports it |
-| **Dark studio** | Force studio dark chrome |
+| **System default** | Outer window / system bars follow OS light/dark; panels stay studio surfaces |
+| **Dark studio** | Force charcoal status/nav/window backgrounds |
 
-Persistence belongs with app preferences (see Settings / preference contracts). Appearance radios in Settings are the UI entry; wiring may be incremental per platform.
+Stored in SharedPreferences `synvidra_app_preferences` / `theme_mode` (`0` system, `1` dark).
 
-## Non-goals
+## Implementation
 
-- No removal of workspaces or controls.
-- No Android mid-file theme engine inject into `MainActivity.kt`.
-- No change to capture, DSP, or file safety.
+| File | Role |
+|------|------|
+| `StudioTheme.kt` | Tokens, resolve, `applyWindowChrome` |
+| `SettingsScreen.kt` | Appearance radios → `setMode` + `onThemeChanged` |
+| `ci_apply_theme_apply_runtime.py` | Early apply in `onCreate`, root background, Settings callback |
+
+## Token story
+
+| Role | Dark studio |
+|------|-------------|
+| Window | `#101218` |
+| Surface | `#1C222D` |
+| Status / nav | `#0C0E14` |
+
+Full per-control light palette rewrite is **out of scope** for this slice (avoids MainActivity color churn).
 
 ## Acceptance
 
-- [ ] Product docs describe System vs Dark studio.
-- [ ] Settings Appearance section remains the theme control surface.
-- [ ] CI green.
+- [ ] Cold start applies stored mode to system bars and root background
+- [ ] Toggling Appearance radios updates chrome immediately
+- [ ] CI green

@@ -14,17 +14,15 @@ import android.widget.TextView
 import android.widget.Toast
 
 /**
- * Additive Settings destination content for Hybrid Studio Phase G.
+ * Additive Settings destination content for Hybrid Studio.
  * Built outside MainActivity so CI can wire navigation without mid-builder injects.
  */
 object SettingsScreen {
-    private const val PREFS = "synvidra_app_preferences"
-    private const val KEY_THEME = "theme_mode" // 0 = system, 1 = dark studio
-
     fun build(
         context: Context,
         density: Float,
         onResetProcessingToNatural: () -> Unit,
+        onThemeChanged: (mode: Int) -> Unit = {},
     ): LinearLayout {
         fun dp(v: Int): Int = (v * density + 0.5f).toInt()
 
@@ -32,7 +30,7 @@ object SettingsScreen {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(18), dp(18), dp(18))
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.rgb(28, 34, 45))
+                setColor(StudioTheme.darkStudio.surface)
                 cornerRadius = 22f
             }
         }
@@ -94,9 +92,11 @@ object SettingsScreen {
         )
 
         root.addView(sectionLabel("APPEARANCE"), matchWidth)
-        root.addView(body("Theme preference for studio chrome."), matchWidth)
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val themeMode = prefs.getInt(KEY_THEME, 0)
+        root.addView(
+            body("System follows the device light/dark setting for the outer shell. Dark studio always uses charcoal chrome."),
+            matchWidth,
+        )
+        val themeMode = StudioTheme.storedMode(context)
         val themeGroup = RadioGroup(context).apply { orientation = RadioGroup.VERTICAL }
         val systemRadio = RadioButton(context).apply {
             text = "System default"
@@ -110,10 +110,15 @@ object SettingsScreen {
         }
         themeGroup.addView(systemRadio)
         themeGroup.addView(darkRadio)
-        themeGroup.check(if (themeMode == 1) darkRadio.id else systemRadio.id)
+        themeGroup.check(if (themeMode == StudioTheme.MODE_DARK_STUDIO) darkRadio.id else systemRadio.id)
         themeGroup.setOnCheckedChangeListener { _, checkedId ->
-            val mode = if (checkedId == darkRadio.id) 1 else 0
-            prefs.edit().putInt(KEY_THEME, mode).apply()
+            val mode = if (checkedId == darkRadio.id) {
+                StudioTheme.MODE_DARK_STUDIO
+            } else {
+                StudioTheme.MODE_SYSTEM
+            }
+            StudioTheme.setMode(context, mode)
+            onThemeChanged(mode)
         }
         root.addView(themeGroup, matchWidth)
 
@@ -132,14 +137,14 @@ object SettingsScreen {
         return root
     }
 
-    /** Optional scroll wrapper when embedding in the main content column. */
     fun buildScrollable(
         context: Context,
         density: Float,
         onResetProcessingToNatural: () -> Unit,
+        onThemeChanged: (mode: Int) -> Unit = {},
     ): ScrollView {
         val scroll = ScrollView(context)
-        scroll.addView(build(context, density, onResetProcessingToNatural))
+        scroll.addView(build(context, density, onResetProcessingToNatural, onThemeChanged))
         return scroll
     }
 }
