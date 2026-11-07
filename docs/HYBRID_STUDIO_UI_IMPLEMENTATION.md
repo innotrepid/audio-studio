@@ -1,7 +1,7 @@
 # Hybrid Studio UI — Implementation Plan
 
-**Status:** Planning + Settings surface (additive)  
-**Principle:** Redesign is **app-wide** and **non-destructive to UX surface area** — do not hide screens, remove buttons, or disable functions as part of visual redesign. Navigation may *focus* a destination; every primary destination remains reachable.
+**Status:** Phase A (Settings plan + NOTICE) merged; **Phase B Record hierarchy in progress**  
+**Principle:** Redesign is **app-wide** and **non-destructive** — do not hide screens, remove buttons, or disable functions. Navigation may focus a destination; every primary destination remains reachable.
 
 ## 1. Modern hybrid studio patterns
 
@@ -17,24 +17,26 @@
 
 ## 2. Non-hiding rule
 
-- UI redesign **adds or restyles**; it does not `GONE`-away entire workspaces permanently.
-- Settings must not leave the user unable to return to Record/Editor/Creator/Library.
+- UI redesign **adds or restyles**; it does not permanently hide workspaces.
+- Settings must not strand the user away from Record/Editor/Creator/Library.
 - CI apply scripts must not strip existing controls.
 
-## 3. Settings (current)
+## 3. Settings (Phase A)
 
-Sections: Recording (info) · Processing (reset affordance) · Appearance (UI radios) · Models & offline · About & copyright.
+- Plan + `NOTICE.md` on tip.
+- Windows: additive Settings entry/panel where applied.
+- Android: full Settings chrome deferred until a safe destination-switch anchor exists (no mid-expression injects).
 
 ## 4. Phases
 
-| Phase | Work |
-|-------|------|
-| A | Settings additive entry + sections |
-| B | Record hierarchy polish |
-| C | Editor preset-first chrome |
-| D | Library source/derived badges |
-| E | Theme applied app-wide |
-| F | Full a11y pass |
+| Phase | Work | Status |
+|-------|------|--------|
+| A | Settings plan + notices; additive entry where safe | Done (Android UI deferred) |
+| B | Record hierarchy polish | **This change** — see `docs/RECORD_HIERARCHY.md` |
+| C | Editor preset-first chrome | Next |
+| D | Library source/derived badges | Open |
+| E | Theme applied app-wide | Open |
+| F | Full a11y pass | Open |
 
 ## 5. Licensing
 
