@@ -165,6 +165,9 @@ jobs:
       - name: Apply Editor preset-first polish
         shell: bash
         run: python scripts/ci_apply_editor_preset_first.py windows
+      - name: Apply Library source/derived polish
+        shell: bash
+        run: python scripts/ci_apply_library_source_derived.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -331,6 +334,9 @@ jobs:
       - name: Apply Editor preset-first polish
         shell: bash
         run: python scripts/ci_apply_editor_preset_first.py android
+      - name: Apply Library source/derived polish
+        shell: bash
+        run: python scripts/ci_apply_library_source_derived.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
