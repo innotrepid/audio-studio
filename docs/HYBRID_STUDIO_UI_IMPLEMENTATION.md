@@ -1,43 +1,34 @@
 # Hybrid Studio UI — Implementation Plan
 
-**Status:** Phase A (Settings plan + NOTICE) merged; **Phase B Record hierarchy in progress**  
-**Principle:** Redesign is **app-wide** and **non-destructive** — do not hide screens, remove buttons, or disable functions. Navigation may focus a destination; every primary destination remains reachable.
+**Status:** Phases A–B merged; **Phase C Editor preset-first in progress**  
+**Principle:** Redesign is **app-wide** and **non-destructive** — do not hide screens, remove buttons, or disable functions.
 
-## 1. Modern hybrid studio patterns
+## 1. Patterns
 
 | Pattern | Synvidra mapping |
 |---------|------------------|
 | Few primary destinations | Record · Editor · Creator · Library |
-| Secondary settings | Settings entry — not a replacement for primary tabs |
-| Hero surface per mode | Teleprompter on Record; waveform on Editor |
+| Secondary settings | Settings entry — not a peer tab |
+| Hero surface | Teleprompter (Record); waveform (Editor) |
 | Presets before pro | Processing presets → advanced |
 | Source vs derived | Never silent overwrite |
-| Dark studio chrome | Charcoal + blue + mint live |
-| Attribution | `NOTICE.md` (Innotrepid + third parties) |
+| Attribution | `NOTICE.md` |
 
 ## 2. Non-hiding rule
 
-- UI redesign **adds or restyles**; it does not permanently hide workspaces.
-- Settings must not strand the user away from Record/Editor/Creator/Library.
-- CI apply scripts must not strip existing controls.
+UI redesign adds or restyles; CI apply scripts must not strip existing controls.
 
-## 3. Settings (Phase A)
-
-- Plan + `NOTICE.md` on tip.
-- Windows: additive Settings entry/panel where applied.
-- Android: full Settings chrome deferred until a safe destination-switch anchor exists (no mid-expression injects).
-
-## 4. Phases
+## 3. Phases
 
 | Phase | Work | Status |
 |-------|------|--------|
-| A | Settings plan + notices; additive entry where safe | Done (Android UI deferred) |
-| B | Record hierarchy polish | **This change** — see `docs/RECORD_HIERARCHY.md` |
-| C | Editor preset-first chrome | Next |
-| D | Library source/derived badges | Open |
-| E | Theme applied app-wide | Open |
+| A | Settings plan + NOTICE | Done (Android Settings chrome deferred) |
+| B | Record hierarchy | Done — `docs/RECORD_HIERARCHY.md` |
+| C | Editor preset-first | **This change** — `docs/EDITOR_PRESET_FIRST.md` |
+| D | Library source/derived badges | Next |
+| E | Theme app-wide | Open |
 | F | Full a11y pass | Open |
 
-## 5. Licensing
+## 4. Licensing
 
-See repository root **`NOTICE.md`**: Synvidra © Innotrepid (all rights reserved by default); third-party MIT/Apache/BSD components listed with upstream links.
+See **`NOTICE.md`**: Synvidra © Innotrepid; third-party MIT/Apache/BSD components listed.
