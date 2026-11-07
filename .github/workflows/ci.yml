@@ -162,6 +162,9 @@ jobs:
       - name: Apply Record hierarchy polish
         shell: bash
         run: python scripts/ci_apply_record_hierarchy.py windows
+      - name: Apply Editor preset-first polish
+        shell: bash
+        run: python scripts/ci_apply_editor_preset_first.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -325,6 +328,9 @@ jobs:
       - name: Apply Record hierarchy polish
         shell: bash
         run: python scripts/ci_apply_record_hierarchy.py android
+      - name: Apply Editor preset-first polish
+        shell: bash
+        run: python scripts/ci_apply_editor_preset_first.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
