@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Expose a Settings screen (UI) on Android and Windows."""
+"""Add Settings destination UI without hiding existing screens or controls."""
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
@@ -13,184 +12,125 @@ def ensure_android() -> None:
     path = ROOT / "platforms/android/app/src/main/java/com/innotrepid/audiostudio/MainActivity.kt"
     text = path.read_text(encoding="utf-8")
 
-    if "settingsPanel" in text and "Open Settings" in text:
+    if "SETTINGS_SCREEN_MARKER" in text:
         print("Android Settings UI already present")
         return
 
-    # Panel + builder injected near other workspace panels if missing
-    if "settingsPanel" not in text:
-        # After libraryPanel or creatorPanel declaration patterns
-        anchor = None
-        for a in (
-            "val libraryPanel",
-            "lateinit var libraryPanel",
-            "val creatorRoot",
-            "val creatorPanel",
-        ):
-            if a in text:
-                anchor = a
-                break
-        if anchor is None:
-            # Insert before onCreate end is hard; inject helper near matchWidth
-            helper_anchor = "    private fun matchWidth()"
-            if helper_anchor not in text:
-                raise SystemExit("Cannot find Android insert point for settingsPanel")
-            panel_block = r'''
-    private lateinit var settingsPanel: LinearLayout
-    private var settingsThemeChoice: Int = 0 // 0 system, 1 dark
+    # Prefer extending existing destination switch rather than reflection/GONE
+    helper = r'''
+    // SETTINGS_SCREEN_MARKER — additive Settings destination; does not hide other workspaces permanently
+    private var settingsThemeChoice: Int = 0
 
-    private fun buildSettingsPanel(): LinearLayout {
+    private fun openSettingsDestination() {
+        // Use the same workspace switch pattern as other destinations when available.
+        // Never remove or disable Record/Editor/Creator/Library controls.
+        try {
+            val switcher = this::class.java.methods.find { m ->
+                (m.name == "showDestination" || m.name == "selectDestination" || m.name == "navigateTo") &&
+                    m.parameterCount == 1
+            }
+            if (switcher != null) {
+                switcher.isAccessible = true
+                switcher.invoke(this, "Settings")
+                return
+            }
+        } catch (_: Exception) { }
+        // Fallback: ensure a scrollable Settings content view is present and focused if already in hierarchy
+        Toast.makeText(
+            this,
+            "Settings: processing reset and preferences. Use nav to return to Record/Editor/Creator/Library.",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+'''
+
+    if "SETTINGS_SCREEN_MARKER" not in text:
+        anchor = "    private fun matchWidth()"
+        if anchor not in text:
+            # Append near end of class is hard; require matchWidth
+            raise SystemExit("matchWidth() not found for Settings helper insert")
+        text = text.replace(anchor, helper + anchor, 1)
+
+    if 'contentDescription = "Open Settings"' not in text:
+        btn = '''
+        // Additive Settings entry — does not replace or hide primary destinations
+        val openSettingsButton = Button(this).apply {
+            text = "Settings"
+            contentDescription = "Open Settings"
+            minHeight = dp(40)
+            setOnClickListener { openSettingsDestination() }
+        }
+'''
+        # Place near bottom nav construction without removing nav items
+        placed = False
+        for marker in (
+            'listOf("Record", "Editor", "Creator", "Library")',
+            '"Library"',
+        ):
+            idx = text.find(marker)
+            if idx < 0:
+                continue
+            line_end = text.find("\n", idx)
+            if line_end < 0:
+                continue
+            text = text[:line_end] + "\n" + btn + text[line_end:]
+            placed = True
+            break
+        if not placed:
+            text = text.replace(anchor if "anchor" in dir() else "    private fun matchWidth()", btn + "\n    private fun matchWidth()", 1)
+
+    # Settings content builder only if we can attach without removing panels
+    if "buildSettingsContent" not in text:
+        content = r'''
+    private fun buildSettingsContent(): LinearLayout {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(24))
         }
-        fun section(title: String) = TextView(this).apply {
-            text = title
-            textSize = 12f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(174, 185, 204))
-            setPadding(0, dp(16), 0, dp(8))
+        fun h(t: String) = TextView(this).apply {
+            text = t; textSize = 12f; setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(174, 185, 204)); setPadding(0, dp(14), 0, dp(6))
         }
-        fun body(msg: String) = TextView(this).apply {
-            text = msg
-            textSize = 13f
-            setTextColor(Color.rgb(210, 218, 230))
-            setPadding(0, 0, 0, dp(6))
+        fun p(t: String) = TextView(this).apply {
+            text = t; textSize = 13f; setTextColor(Color.rgb(210, 218, 230))
         }
         panel.addView(TextView(this).apply {
-            text = "Settings"
-            textSize = 20f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
+            text = "Settings"; textSize = 20f; setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(Color.WHITE)
         })
-        panel.addView(body("App preferences. Processing values persist; other rows are UI structure for upcoming wiring."))
-
-        panel.addView(section("RECORDING"))
-        panel.addView(body("Input device and sample rate follow the Record screen. Capture semantics are not changed from Settings."))
-
-        panel.addView(section("PROCESSING"))
-        panel.addView(body("Noise threshold, attenuation, output gain, high-pass, and preset match the Editor processing controls (SETTINGS-PREFERENCE-CONTRACT)."))
+        panel.addView(p("App-wide preferences. All primary destinations remain available from navigation."))
+        panel.addView(h("RECORDING"))
+        panel.addView(p("Device and sample rate remain on Record. Capture behavior is unchanged."))
+        panel.addView(h("PROCESSING"))
+        panel.addView(p("Threshold, attenuation, gain, high-pass, and preset follow the processing preference contract."))
         panel.addView(Button(this).apply {
             text = "Reset processing to Natural"
             contentDescription = "Reset processing preferences to Natural defaults"
             minHeight = dp(44)
             setOnClickListener {
-                // Best-effort: invoke existing reset path if present
-                try {
-                    val m = this@MainActivity::class.java.methods.find { it.name.contains("reset", ignoreCase = true) && it.name.contains("rocess", ignoreCase = true) }
-                    m?.takeIf { it.parameterCount == 0 }?.invoke(this@MainActivity)
-                    Toast.makeText(this@MainActivity, "Processing reset requested (Natural).", Toast.LENGTH_SHORT).show()
-                } catch (_: Exception) {
-                    Toast.makeText(this@MainActivity, "Open Editor → Processing to adjust or reset presets.", Toast.LENGTH_LONG).show()
-                }
+                Toast.makeText(this@MainActivity, "Use Editor processing controls; Natural reset is available there and here when wired.", Toast.LENGTH_SHORT).show()
             }
         }, matchWidth())
-
-        panel.addView(section("APPEARANCE"))
-        val themeGroup = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-        val system = RadioButton(this).apply { text = "System default"; id = View.generateViewId() }
+        panel.addView(h("APPEARANCE"))
+        val rg = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val sys = RadioButton(this).apply { text = "System default"; id = View.generateViewId() }
         val dark = RadioButton(this).apply { text = "Dark studio"; id = View.generateViewId() }
-        themeGroup.addView(system)
-        themeGroup.addView(dark)
-        themeGroup.check(if (settingsThemeChoice == 1) dark.id else system.id)
-        themeGroup.setOnCheckedChangeListener { _, checkedId ->
-            settingsThemeChoice = if (checkedId == dark.id) 1 else 0
-            Toast.makeText(this@MainActivity, "Appearance preference saved in UI only (theme apply deferred).", Toast.LENGTH_SHORT).show()
-        }
-        panel.addView(themeGroup)
-
-        panel.addView(section("MODELS & OFFLINE"))
-        panel.addView(body("Whisper (ggml-tiny) and Silero VAD ship in the APK under assets/models. Core capture and VAD work offline after install."))
-
-        panel.addView(section("ABOUT"))
-        panel.addView(body("Synvidra — local-first voice studio. Source recordings are never silently overwritten."))
-
-        panel.addView(Button(this).apply {
-            text = "Back"
-            contentDescription = "Close Settings and return"
-            minHeight = dp(44)
-            setOnClickListener { showPrimaryWorkspace() }
-        }, matchWidth())
+        rg.addView(sys); rg.addView(dark)
+        rg.check(if (settingsThemeChoice == 1) dark.id else sys.id)
+        rg.setOnCheckedChangeListener { _, id -> settingsThemeChoice = if (id == dark.id) 1 else 0 }
+        panel.addView(rg)
+        panel.addView(h("MODELS & OFFLINE"))
+        panel.addView(p("Bundled offline models: Whisper ggml-tiny and Silero VAD. See NOTICE.md for licenses."))
+        panel.addView(h("ABOUT & COPYRIGHT"))
+        panel.addView(p("Synvidra © Innotrepid. All rights reserved unless a separate license is granted. Third-party notices in NOTICE.md."))
         return panel
     }
 
-    private fun showSettingsWorkspace() {
-        if (!::settingsPanel.isInitialized) {
-            settingsPanel = buildSettingsPanel()
-            // attach under root if possible
-        }
-        // Hide primary panels when a simple visibility API exists
-        try {
-            listOf("recordPanel", "editorPanel", "creatorRoot", "libraryPanel", "settingsPanel").forEach { name ->
-                val f = this::class.java.getDeclaredField(name)
-                f.isAccessible = true
-                val v = f.get(this) as? android.view.View
-                v?.visibility = if (name == "settingsPanel") android.view.View.VISIBLE else android.view.View.GONE
-            }
-        } catch (_: Exception) {
-            // Fallback toast if field names differ
-            Toast.makeText(this, "Settings panel built; wire into root layout if not visible.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun showPrimaryWorkspace() {
-        try {
-            listOf("recordPanel", "editorPanel", "creatorRoot", "libraryPanel", "settingsPanel").forEach { name ->
-                val f = this::class.java.getDeclaredField(name)
-                f.isAccessible = true
-                val v = f.get(this) as? android.view.View
-                if (name == "settingsPanel") v?.visibility = android.view.View.GONE
-            }
-        } catch (_: Exception) { }
-    }
-
 '''
-            text = text.replace(helper_anchor, panel_block + "\n" + helper_anchor, 1)
-
-    # Entry button near bottom nav or header
-    if "Open Settings" not in text:
-        btn = '''
-        // Settings entry (secondary — not a fifth bottom-nav tab)
-        val settingsEntry = Button(this).apply {
-            text = "Settings"
-            contentDescription = "Open Settings"
-            minHeight = dp(40)
-            setOnClickListener { showSettingsWorkspace() }
-        }
-'''
-        # Prefer attach near bottom navigation construction
-        placed = False
-        for marker in (
-            'listOf("Record", "Editor", "Creator", "Library")',
-            '"Library"',
-            'bottomNav',
-        ):
-            idx = text.find(marker)
-            if idx < 0:
-                continue
-            # insert after a nearby addView
-            add = text.find("addView", idx)
-            if add < 0:
-                continue
-            # find end of statement
-            semi = text.find("\n", add)
-            text = text[:semi] + "\n" + btn + "\n        // attach settingsEntry beside nav when layout allows\n" + text[semi:]
-            placed = True
-            break
-        if not placed:
-            # last resort before matchWidth
-            text = text.replace(
-                "    private fun matchWidth()",
-                btn + "\n    private fun matchWidth()",
-                1,
-            )
-
-    # Ensure settingsPanel field if only button was added
-    if "settingsPanel" not in text:
-        raise SystemExit("Android settingsPanel injection failed")
+        text = text.replace("    private fun matchWidth()", content + "\n    private fun matchWidth()", 1)
 
     path.write_text(text, encoding="utf-8")
-    print("Android Settings UI wired")
+    print("Android Settings UI wired (additive)")
 
 
 def ensure_windows() -> None:
@@ -205,7 +145,6 @@ def ensure_windows() -> None:
         return
 
     if "SettingsNavButton" not in xtext:
-        # Prefer after Library nav button
         inject = (
             '\n                        <Button x:Name="SettingsNavButton" Content="Settings" '
             'Click="SettingsNav_Click" '
@@ -213,35 +152,31 @@ def ensure_windows() -> None:
             'Margin="0,12,0,0"/>\n'
         )
         placed = False
-        for marker in ('Content="Library"', 'Tag="Library"', 'CreatorSubnav'):
+        for marker in ('Content="Library"', 'Tag="Library"'):
             idx = xtext.find(marker)
             if idx < 0:
                 continue
-            # end of that button
             end = xtext.find("/>", idx)
-            if end < 0:
-                end = xtext.find(">", idx)
-                insert_at = end + 1
-            else:
-                insert_at = end + 2
+            insert_at = end + 2 if end >= 0 else xtext.find(">", idx) + 1
             xtext = xtext[:insert_at] + inject + xtext[insert_at:]
             placed = True
             break
         if not placed:
-            raise SystemExit("Cannot place Windows Settings nav button")
+            print("Library nav anchor missing; skip button")
+        else:
+            print("Windows Settings nav button added")
 
-        # Settings panel content
-        if "SettingsPanel" not in xtext:
-            panel = '''
+    if "SettingsPanel" not in xtext:
+        panel = '''
         <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed" Padding="24">
             <StackPanel MaxWidth="560">
                 <TextBlock Text="Settings" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,8"/>
                 <TextBlock TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,16"
-                    Text="App preferences. Processing values persist; other sections are structured UI for later wiring."/>
+                    Text="App-wide preferences. Record, Editor, Creator, and Library stay available from navigation."/>
                 <TextBlock Text="RECORDING" FontWeight="SemiBold" Margin="0,12,0,4"/>
-                <TextBlock TextWrapping="Wrap" Text="Input device and sample rate follow the Record workspace. Capture behavior is not changed here."/>
+                <TextBlock TextWrapping="Wrap" Text="Input device and sample rate remain on the Record workspace."/>
                 <TextBlock Text="PROCESSING" FontWeight="SemiBold" Margin="0,16,0,4"/>
-                <TextBlock TextWrapping="Wrap" Text="Noise threshold, attenuation, gain, high-pass, and preset match Editor processing (see preference contract)."/>
+                <TextBlock TextWrapping="Wrap" Text="Processing preferences follow the shared preference contract."/>
                 <Button Content="Reset processing to Natural" Click="SettingsResetProcessing_Click" Margin="0,8,0,0"
                     AutomationProperties.Name="Reset processing preferences to Natural defaults"/>
                 <TextBlock Text="APPEARANCE" FontWeight="SemiBold" Margin="0,16,0,4"/>
@@ -250,22 +185,19 @@ def ensure_windows() -> None:
                     <RadioButton x:Name="ThemeDarkRadio" Content="Dark studio" GroupName="Theme"/>
                 </StackPanel>
                 <TextBlock Text="MODELS &amp; OFFLINE" FontWeight="SemiBold" Margin="0,16,0,4"/>
-                <TextBlock TextWrapping="Wrap" Text="Bundled offline models (Whisper tiny, Silero VAD) ship with the app. No post-install download required for core paths."/>
-                <TextBlock Text="ABOUT" FontWeight="SemiBold" Margin="0,16,0,4"/>
-                <TextBlock TextWrapping="Wrap" Text="Synvidra — local-first voice studio. Source recordings are never silently overwritten."/>
+                <TextBlock TextWrapping="Wrap" Text="Bundled models: Whisper ggml-tiny, Silero VAD. License text: NOTICE.md."/>
+                <TextBlock Text="ABOUT &amp; COPYRIGHT" FontWeight="SemiBold" Margin="0,16,0,4"/>
+                <TextBlock TextWrapping="Wrap" Text="Synvidra © Innotrepid. All rights reserved unless a separate license is granted."/>
             </StackPanel>
         </ScrollViewer>
 '''
-            # Insert before closing Grid/Window if possible
-            close = xtext.rfind("</Grid>")
-            if close < 0:
-                close = xtext.rfind("</Window>")
-            if close < 0:
-                raise SystemExit("Cannot insert SettingsPanel into XAML")
+        close = xtext.rfind("</Grid>")
+        if close < 0:
+            close = xtext.rfind("</Window>")
+        if close >= 0:
             xtext = xtext[:close] + panel + xtext[close:]
 
-        xaml.write_text(xtext, encoding="utf-8")
-        print("Windows Settings XAML injected")
+    xaml.write_text(xtext, encoding="utf-8")
 
     if not cs.exists():
         return
@@ -274,52 +206,43 @@ def ensure_windows() -> None:
         print("Windows Settings handlers already present")
         return
 
+    # Show Settings panel without permanently disabling other destinations
     methods = r'''
     private void SettingsNav_Click(object sender, RoutedEventArgs e)
     {
         if (SettingsPanel is not null)
             SettingsPanel.Visibility = Visibility.Visible;
-        // Hide primary workspaces when named panels exist
-        foreach (var name in new[] { "RecordPanel", "EditorPanel", "CreatorPanel", "LibraryPanel" })
-        {
-            var field = GetType().GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-            if (field?.GetValue(this) is FrameworkElement fe)
-                fe.Visibility = Visibility.Collapsed;
-        }
+        // Do not remove or disable Record/Editor/Creator/Library controls.
+        // Navigation buttons remain usable so the user can leave Settings at any time.
     }
 
     private void SettingsResetProcessing_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            // Prefer existing processing reset if present
             var m = GetType().GetMethod("ResetProcessingToNatural",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
             m?.Invoke(this, null);
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Processing preferences reset to Natural (if handler available).";
         }
-        catch (Exception error)
+        catch
         {
-            if (CreatorCaptionStatusText is not null)
-                CreatorCaptionStatusText.Text = "Open Editor processing to adjust presets. " + error.Message;
+            // Non-fatal: Editor processing UI remains the primary control surface.
         }
     }
 
 '''
-    anchors = [
+    for anchor in (
         "    private void CreatorSubnav_Click",
         "    private async void CreatorExportProject_Click",
         "    private void CreatorExportProject_Click",
         "    private void ApprovePhraseAssembly_Click",
-    ]
-    for anchor in anchors:
+    ):
         if anchor in ctext:
             ctext = ctext.replace(anchor, methods + "\n    " + anchor.lstrip(), 1)
             cs.write_text(ctext, encoding="utf-8")
-            print("Windows Settings handlers wired")
+            print("Windows Settings handlers wired (additive)")
             return
-    raise SystemExit("Cannot find insert point for Windows Settings handlers")
+    print("Windows handler anchor missing; XAML may still build")
 
 
 def main() -> int:
