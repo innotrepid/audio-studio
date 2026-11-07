@@ -14,7 +14,9 @@ try
     DraftsRoundTripAndRecover(Path.Combine(root, "draft-recovery"));
     InvalidDraftPrimaryIsPreserved(Path.Combine(root, "draft-invalid"));
     CaptionTimingAndExportAreValidated(Path.Combine(root, "captions"));
-    Console.WriteLine("Creator project, named-draft, and caption persistence tests passed (10 scenarios).");
+    ProjectJsonExportImportRoundTrip(Path.Combine(root, "export-import"));
+    InvalidImportIsRejectedWithoutChangingActiveProject(Path.Combine(root, "import-reject"));
+    Console.WriteLine("Creator project, named-draft, caption, and backup tests passed (12 scenarios).");
 }
 finally
 {
@@ -212,6 +214,39 @@ static void CaptionTimingAndExportAreValidated(string root)
     try { store.Save(loaded); }
     catch (InvalidDataException) { threw = true; }
     Assert(threw, "Invalid caption timing must be rejected.");
+}
+
+static void ProjectJsonExportImportRoundTrip(string root)
+{
+    var store = new CreatorProjectStore(root);
+    var project = store.LoadOrCreate().Project;
+    project.Title = "Backup session";
+    project.Scripts[0].Sections[0].Text = "Export me.";
+    store.Save(project);
+
+    var json = store.ExportJson(project);
+    Assert(json.Contains("Backup session", StringComparison.Ordinal), "Export JSON missing title.");
+    Assert(json.Contains("schemaVersion", StringComparison.Ordinal), "Export JSON missing schemaVersion.");
+
+    var imported = store.ImportJson(json);
+    Assert(imported.Title == "Backup session", "Import title mismatch.");
+    Assert(imported.Scripts[0].Sections[0].Text == "Export me.", "Import section text mismatch.");
+}
+
+static void InvalidImportIsRejectedWithoutChangingActiveProject(string root)
+{
+    var store = new CreatorProjectStore(root);
+    var project = store.LoadOrCreate().Project;
+    project.Title = "Keep me";
+    store.Save(project);
+
+    var threw = false;
+    try { store.ImportJson("{\"schemaVersion\":99}"); }
+    catch (InvalidDataException) { threw = true; }
+    Assert(threw, "Invalid import must fail.");
+
+    var still = new CreatorProjectStore(root).LoadOrCreate().Project;
+    Assert(still.Title == "Keep me", "Failed import must not replace the active project on disk.");
 }
 
 static void Assert(bool condition, string message)
