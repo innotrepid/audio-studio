@@ -1,6 +1,6 @@
 # Settings preference contract
 
-Status: processing preference persistence is implemented; a dedicated Settings screen remains gated on focused automated tests.
+Status: processing preference persistence is implemented; a **Settings screen is exposed** for review/reset and structured sections (see `docs/HYBRID_STUDIO_UI_IMPLEMENTATION.md`). Appearance and recording rows are UI structure until wired.
 
 ## Scope
 
@@ -12,7 +12,7 @@ The first durable preference set is the existing processing configuration only:
 - High-pass position (Off or an existing cutoff).
 - Last explicitly applied preset label: Natural, Voice clarity, or Rumble cut.
 
-No account, cloud sync, cross-device sync, microphone selection, library folder, output location, theme, delete/rename, or DSP-engine options are included.
+No account, cloud sync, cross-device sync, microphone selection, library folder, output location, full theme application, delete/rename, or DSP-engine options are included yet.
 
 ## Defaults and units
 
@@ -40,10 +40,12 @@ Windows stores preferences in `%LOCALAPPDATA%/AudioStudio/processing-preferences
 - Processing passes the chosen values to the native engine at operation start; changing controls later does not mutate an already-started operation.
 - No preferences are synced or written into audio folders.
 
-## Reset contract for the future Settings surface
+## Settings screen
 
-Reset must restore the four Natural values and Natural label through an explicit user action. It must not delete or alter recordings, processed/trimmed WAVs, library folder selections, or diagnostics.
+- Secondary destination (not a fifth primary tab).
+- Sections: Recording (informational), Processing (reset to Natural), Appearance (UI-only theme radios), Models & offline (read-only), About.
+- Reset restores the four Natural values and Natural label through an explicit user action. It must not delete or alter recordings, processed/trimmed WAVs, library folder selections, or diagnostics.
 
-## Validation gate before a Settings screen
+## Validation
 
-Add focused automated coverage for fresh defaults, numeric clamping, persistence across restart, unknown preset labels preserving custom values, reset isolation, and stable processing snapshots. Then add a minimal Settings surface for reviewing/resetting preferences without duplicating Processing sliders. CI must pass for Android APK, Linux C++ core, and Windows core/app shell. Manual runtime checks on Android and Windows remain separate from CI; Windows runtime testing is still pending the user's Windows environment.
+Focused automated coverage for fresh defaults, numeric clamping, persistence across restart, unknown preset labels preserving custom values, and reset isolation remains required as coverage expands. CI must pass for Android APK, Linux C++ core, and Windows core/app shell. Manual runtime checks on Android and Windows remain separate from CI.
