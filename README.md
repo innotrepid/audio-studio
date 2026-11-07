@@ -1,47 +1,51 @@
 # Synvidra
 
 **Product name:** Synvidra  
-**Status:** Native Android and Windows application with an established shared C++ audio core; Creator Studio capabilities are planned in staged delivery  
+**Status:** Native Android and Windows application with a shared C++ audio core; **Creator Studio is implemented through Phase 7.4** on the redesign branch (polish and release validation continue)  
 **Targets:** Android and Windows  
 **Product direction:** A local-first voice recording and narration production studio.
 
-Synvidra is intended to help a creator move from a script to clean, edited, publish-ready narration using their own voice—even when their recording environment is less than ideal.
+Synvidra helps a creator move from a script to clean, edited, publish-ready narration using their own voice—even when the recording environment is imperfect.
 
-The product roadmap covers dependable recording, speech cleanup, intelligent retakes, transcript-aware editing, script and teleprompter tools, optional AI narration, captions, and production handoff tools. The first release will focus on a reliable recording foundation rather than a large collection of unfinished features.
-
-Synvidra is the product name. The repository name remains unchanged to preserve the established source and automation URLs.
+Synvidra is the product name. The repository name remains unchanged to preserve source and automation URLs.
 
 ## Technology decision
 
-The app will **not use Flutter**. The audio workload is central enough that we are choosing a native architecture:
+The app does **not use Flutter**. The audio workload is central enough that we use a native architecture:
 
 - **Shared C++ core:** audio types, DSP, project/audio processing logic, quality checks, and reusable algorithms.
 - **Android:** Kotlin UI and lifecycle/permissions, Android NDK, and Google's Oboe for native low-latency audio capture/playback.
 - **Windows:** C# with WinUI 3 for the desktop UI, plus a native C++ audio layer using Windows audio APIs (including WASAPI where appropriate).
 - **Build system:** CMake for the shared C++ core; platform-native build tooling for Android and Windows.
-- **Testing:** deterministic C++ unit tests and platform integration tests. Audio quality must also be checked with test recordings and listening tests.
-
-This shares the code where sharing is valuable without pretending Android and Windows have identical audio-device, lifecycle, or permission behavior.
+- **Testing:** deterministic C++ unit tests, Creator store unit tests, and platform integration tests. Audio quality must also be checked with test recordings and listening tests.
 
 ## Product principles
 
 - **Voice first:** preserve natural speech; avoid metallic or over-processed sound.
 - **Local first:** core recording, project storage, basic editing, and export should work offline wherever platform capabilities allow.
-- **Non-destructive:** preserve original recordings; keep edits reversible.
+- **Non-destructive:** preserve original recordings; keep edits reversible. Phrase assembly writes **derived** WAVs only.
 - **Reliable before clever:** protect against dropouts, clipping, lost takes, and corrupt projects.
 - **Native where it matters:** use platform audio APIs and lifecycle handling rather than routing real-time audio through UI code.
 - **Optional cloud:** transcription, synthetic narration, and cloud assistance are integrations—not prerequisites for recording.
 - **Evidence-led quality:** evaluate audio with repeatable tests, measurements, and listening—not marketing claims.
 
-## Roadmap at a glance
+## Capabilities (redesign branch tip)
 
-1. **Record:** native capture, input monitoring, WAV finalization, and interrupted-recording recovery.
-2. **Editor:** waveform analysis, precise non-destructive trim, offline processing, and original/processed review.
+### Record / Editor / Library
+
+1. **Record:** native capture (Oboe / WASAPI path), input monitoring, WAV finalization, clipping feedback, interrupted-recording recovery.
+2. **Editor:** waveform analysis, precise non-destructive trim, offline processing (RNNoise, DeepFilterNet3 BETA, classic gate), original vs derived review.
 3. **Library:** discover recordings and derived WAV outputs using platform-appropriate file access.
-4. **Creator Studio (planned):** projects, scripts, teleprompter, transcript/caption editing, and production markers.
-5. **Advanced workflows (planned):** verified phrase replacement, non-destructive assembly, and optional AI integrations.
 
-See [the Synvidra product and build naming contract](docs/SYNVIDRA-PRODUCT-AND-BUILD-NAMING.md), [the roadmap](docs/ROADMAP.md), [hardening backlog](docs/HARDENING_BACKLOG.md), [product requirements](docs/PRODUCT_REQUIREMENTS.md), and [architecture](docs/ARCHITECTURE.md).
+### Creator Studio (implemented)
+
+4. **Projects & scripts:** versioned project JSON, atomic save, recovery generations, section-linked takes, take approval states.
+5. **Teleprompter:** Creator settings (speed, font, spacing, countdown), reading-position persistence, section navigation; Record-screen studio teleprompter bound to Creator data; record starts scroll, pause pauses both.
+6. **Captions & production:** draft captions with timing provenance, transcript–take link, production markers.
+7. **Phrase replacement:** manual range → link replacement take → A/B audition → assembly preview (soft ~15 ms crossfade) → approve (`derivedPath`) or discard; **source takes never overwritten**.
+8. **Backup:** export/import validated project JSON (take paths only; no audio packaging). Invalid import leaves the active project unchanged.
+
+See [Creator redesign blueprint](docs/CREATOR_STUDIO_REDESIGN.md), [Phase 7 readiness](docs/PHASE7_RELEASE_READINESS.md), and [roadmap](docs/ROADMAP.md).
 
 ## Repository structure
 
@@ -51,25 +55,24 @@ platforms/android/      Android application (Kotlin + NDK/Oboe)
 platforms/windows/      Windows application (C# + WinUI 3 + native bridge)
 docs/                   Product, architecture, privacy, and testing documentation
 tests/                  C++ unit tests and later platform/audio integration tests
+scripts/                CI apply helpers (large-file safe UI/store patches)
 .github/workflows/      Continuous integration
 ```
 
-The platform folders contain the native applications and shared engine. Avoid adding a dependency before checking its maintenance, licensing, platform support, and measurable benefit.
-
 ## Development status
 
-The repository contains an Android Kotlin/NDK application using Oboe and a Windows WinUI 3 application connected to the shared native C++ engine through a C ABI bridge. The shared engine includes WAV validation/decoding, waveform analysis, precise trim, and offline processing paths. Android and Windows include native recording workflows. CI validates the Android native shell/APK and Linux/Windows C++ core (and Windows shell where configured). These applications are still evolving; CI and real-device/manual validation are both required before describing a workflow as release-ready.
+CI validates the Android native shell/APK and Linux/Windows C++ core (and Windows shell where configured), including Creator persistence tests. CI success is not proof of visual usability or listening quality; physical-device and desktop manual checks remain required before release claims.
 
 ## Processing status
 
-The shared C++ core supports common mono/stereo PCM 8/16/24/32-bit and IEEE float32 WAV input, plus standard WAVE_FORMAT_EXTENSIBLE PCM/float wrappers for waveform analysis, trim, and supported processing paths. Waveform analysis uses bounded reads and produces a min/max envelope; trim uses frame-accurate selections and exports a new WAV. Processing uses bounded blocks, reports progress, supports cancellation, and writes a separate output without replacing the source. Android's processing workflow includes RNNoise, DeepFilterNet3 (BETA), and a classic noise-gate option. RNNoise is the recommended lightweight neural option; DeepFilterNet3 is experimental and may use more CPU. Neural enhancement is offline processing, not a live filter in the recording callback. The classic gate attenuates quieter sections and is not spectral noise cancellation or dereverberation. Quality and performance still require physical-device listening tests.
+The shared C++ core supports common mono/stereo PCM and IEEE float32 WAV input for waveform analysis, trim, and supported processing paths. Processing uses bounded blocks, reports progress, supports cancellation, and writes a separate output without replacing the source. Neural enhancement is offline processing, not a live filter in the recording callback.
 
 ## Licensing
 
-No project license has been selected yet. Third-party dependencies will be reviewed individually before adoption. In particular, we will not adopt a framework whose licensing obligations conflict with the intended distribution model.
+No project license has been selected yet. Third-party dependencies are reviewed individually before adoption.
 
 Until a license is added, do not assume that the project source is available for reuse, redistribution, or commercial use.
 
 ## Experience direction
 
-The planned UI direction is **Hybrid Studio**: approachable Record and Creator workflows alongside precise Editor and Processing workspaces. The visual foundation uses near-black/charcoal surfaces, blue as the primary interactive accent, and mint for live/healthy audio feedback. Android and Windows share product concepts but retain native, platform-appropriate layouts. See [the redesign blueprint](docs/CREATOR_STUDIO_REDESIGN.md), [screen architecture](docs/SCREEN_ARCHITECTURE.md), and [UI roadmap](docs/UI-ROADMAP.md).
+**Hybrid Studio:** approachable Record and Creator workflows alongside precise Editor and Processing workspaces. Near-black/charcoal surfaces, blue primary accent, mint for live/healthy audio feedback. Android and Windows share product concepts but retain native layouts.
