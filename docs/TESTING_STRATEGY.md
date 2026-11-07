@@ -8,6 +8,7 @@
 - C++ unit/regression tests on Linux and Windows.
 - Android Gradle/Kotlin/NDK build and native integration checks configured in CI.
 - Windows WinUI/.NET/native bridge build checks configured in CI.
+- Creator project/draft persistence unit tests on Android and Windows.
 - Dependency and license review when dependencies change.
 - Do not list Flutter or Dart checks: the product uses native Kotlin/Android and C++ plus C#/WinUI on Windows.
 
@@ -31,15 +32,16 @@
 - Processing from a selected file, cancellation, output validation, and source preservation.
 - UI navigation, selection/state retention, scrolling, and incremental updates.
 
-### Creator tests (as features are implemented)
+### Creator tests
 
-- Project schema validation, migration, atomic save, autosave, and recovery.
+- Project schema validation, atomic save, autosave, and recovery.
 - Script/section create, edit, reorder, and reload.
-- Teleprompter pace/font/spacing persistence, automatic scroll, manual scroll, pause/resume, and section navigation.
-- Transcript segment and caption cue timing validation.
+- Teleprompter pace/font/spacing persistence, reading position, pause/resume, and section navigation.
+- Transcript/caption timing validation and provenance.
 - SRT/WebVTT export ordering, timestamps, encoding, and round-trip behavior.
 - Production marker persistence and references.
-- Phrase replacement requires verified audio-frame/time anchors and must preserve original and replacement source takes.
+- Phrase replacement: assembly preview/approve/discard preserve original and replacement source takes; derived output only on approve.
+- Project JSON export/import round-trip; invalid import does not replace the active project.
 
 ## Recording hardening checklist
 
@@ -54,12 +56,16 @@ Before treating Android capture as hardened on a device, verify:
 
 These checks require a physical Android device; CI does not validate hardware microphone behavior.
 
+## Phase 7 release smoke
+
+For redesign-branch release candidates, also complete [PHASE7_MANUAL_SMOKE.md](PHASE7_MANUAL_SMOKE.md) (Creator → Record teleprompter, phrase path, packaging model verification).
+
 ## Audio quality and performance tests
 
 - Known test signals for sample format, channels, duration, and clipping.
 - Repeatable speech fixtures for noise-reduction comparisons.
 - Regression checks for unexpected silence, truncation, distortion, or channel swapping.
-- Structured listening evaluation for naturalness and intelligibility.
+- Structured listening evaluation for naturalness and intelligibility—especially phrase assembly joins.
 - Capture dropouts, buffer underruns, CPU/memory under sustained recording, startup/stop latency, processing duration, and Android battery impact where applicable.
 
 ## Manual hardware matrix
@@ -91,5 +97,6 @@ At minimum, test a real Android device and a real Windows computer before claimi
 - Audio artifacts and limitations are documented.
 - Original recordings remain intact after processing, trim, and assembly.
 - Project versioning and migration behavior are tested when project formats change.
+- Packaged offline models are present and verified in APK and Windows publish output.
 
 A green CI run proves only the checks executed by CI passed. It does not establish microphone quality, noise-removal quality, visual usability, or real-device reliability.
