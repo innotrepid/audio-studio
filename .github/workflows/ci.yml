@@ -174,6 +174,9 @@ jobs:
       - name: Apply a11y full pass polish
         shell: bash
         run: python scripts/ci_apply_a11y_full_pass.py windows
+      - name: Apply Phase G Android Settings parity
+        shell: bash
+        run: python scripts/ci_apply_phase_g_android_settings.py windows
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Rust
@@ -349,6 +352,9 @@ jobs:
       - name: Apply a11y full pass polish
         shell: bash
         run: python scripts/ci_apply_a11y_full_pass.py android
+      - name: Apply Phase G Android Settings parity
+        shell: bash
+        run: python scripts/ci_apply_phase_g_android_settings.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
