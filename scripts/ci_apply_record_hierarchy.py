@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
-"""Phase B: Record hierarchy label polish — never remove controls."""
+"""Phase B: Record hierarchy polish — docs-driven; Android code no-op.
+
+A previous Android pass inserted `contentDescription = ...` next to
+`text = "Record"` outside a View.apply block, causing:
+  Unresolved reference 'contentDescription'
+Android therefore only strips any such orphan lines. Windows may still set
+AutomationProperties.Name on XAML Content= attributes when safe.
+"""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -16,32 +24,29 @@ def ensure_android() -> None:
     text = path.read_text(encoding="utf-8")
     original = text
 
-    # Only set contentDescription on known unique string literals for transport — additive attributes.
-    replacements = [
-        (
-            'text = "Record"\n',
-            'text = "Record"\n            contentDescription = "Start recording"\n',
-        ),
-        (
-            'text = "Stop"\n',
-            'text = "Stop"\n            contentDescription = "Stop recording"\n',
-        ),
-        (
-            'text = "Pause"\n',
-            'text = "Pause"\n            contentDescription = "Pause recording and teleprompter"\n',
-        ),
-    ]
-    for old, new in replacements:
-        if old in text and "contentDescription" not in text[text.find(old) : text.find(old) + len(old) + 80]:
-            # Avoid double-apply
-            if new not in text:
-                text = text.replace(old, new, 1)
+    # Remove orphan contentDescription lines that are not inside a clear apply block context.
+    # Only strip lines we may have injected in the failed hierarchy pass.
+    text = re.sub(
+        r"\n\s*contentDescription = \"Start recording\"\n",
+        "\n",
+        text,
+    )
+    text = re.sub(
+        r"\n\s*contentDescription = \"Stop recording\"\n",
+        "\n",
+        text,
+    )
+    text = re.sub(
+        r"\n\s*contentDescription = \"Pause recording and teleprompter\"\n",
+        "\n",
+        text,
+    )
 
     if text != original:
         path.write_text(text, encoding="utf-8")
-        print("Android: Record transport contentDescription polish")
+        print("Android: stripped orphan Record contentDescription lines")
     else:
-        print("Android: no Record label anchors changed (safe no-op)")
+        print("Android: Record hierarchy no-op (docs-only)")
 
 
 def ensure_windows() -> None:
@@ -55,16 +60,20 @@ def ensure_windows() -> None:
         return
     original = text
 
-    # Add AutomationProperties.Name on Record-related buttons missing names
     pairs = [
         ('Content="Record"', 'Content="Record" AutomationProperties.Name="Start recording"'),
         ('Content="Stop"', 'Content="Stop" AutomationProperties.Name="Stop recording"'),
         ('Content="Pause"', 'Content="Pause" AutomationProperties.Name="Pause recording and teleprompter"'),
     ]
     for old, new in pairs:
-        if old in text and "AutomationProperties.Name" not in text[text.find(old) : text.find(old) + 120]:
-            if new not in text:
-                text = text.replace(old, new, 1)
+        idx = text.find(old)
+        if idx < 0:
+            continue
+        window = text[idx : idx + 160]
+        if "AutomationProperties.Name" in window:
+            continue
+        if new not in text:
+            text = text.replace(old, new, 1)
 
     if text != original:
         xaml.write_text(text, encoding="utf-8")
