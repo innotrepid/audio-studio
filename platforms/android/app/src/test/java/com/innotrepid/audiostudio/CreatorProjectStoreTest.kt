@@ -56,6 +56,58 @@ class CreatorProjectStoreTest {
     }
 
     @Test
+    fun projectJsonExportImportRoundTrip() {
+        val (context, root) = isolatedContext()
+        try {
+            val store = CreatorProjectStore(context)
+            val created = store.loadOrCreate()
+            val changed = created.copy(
+                title = "Backup session",
+                scripts = created.scripts.map { script ->
+                    script.copy(sections = script.sections.map { it.copy(text = "Export me.") })
+                }
+            )
+            store.save(changed)
+            val json = store.exportJson(changed)
+            assertTrue(json.contains("Backup session"))
+            assertTrue(json.contains("schemaVersion"))
+
+            val imported = store.importJson(json)
+            assertEquals("Backup session", imported.title)
+            assertEquals("Export me.", imported.scripts.first().sections.first().text)
+
+            // Import must not mutate disk until save
+            val stillDisk = CreatorProjectStore(context).loadOrCreate()
+            assertEquals("Backup session", stillDisk.title)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun invalidImportIsRejectedWithoutChangingActiveProject() {
+        val (context, root) = isolatedContext()
+        try {
+            val store = CreatorProjectStore(context)
+            val active = store.loadOrCreate()
+            store.save(active.copy(title = "Keep me"))
+
+            var failed = false
+            try {
+                store.importJson("{\"schemaVersion\":99}")
+            } catch (_: IOException) {
+                failed = true
+            }
+            assertTrue("Invalid import must fail", failed)
+
+            val still = CreatorProjectStore(context).loadOrCreate()
+            assertEquals("Keep me", still.title)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun malformedPrimaryRecoversLastValidGeneration() {
         val (context, root) = isolatedContext()
         try {
