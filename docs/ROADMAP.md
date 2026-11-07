@@ -2,9 +2,9 @@
 
 ## Current baseline
 
-Audio Studio is a native Android and Windows application with a shared C++ audio core. The initial native foundation, recording workflows, WAV handling, waveform analysis, non-destructive trim, and offline processing capabilities have progressed beyond the early roadmap phases. Check the platform READMEs and CI for the exact implementation and validation status of individual capabilities.
+Audio Studio (product name **Synvidra**) is a native Android and Windows application with a shared C++ audio core. Recording, WAV handling, waveform analysis, non-destructive trim, offline processing, and Creator Studio through Phase 7.6 documentation are on `Redesign,-Teleprompter,-captions-&-more`. Check CI and `docs/PHASE7_MANUAL_SMOKE.md` for validation status; green CI alone is not a release claim.
 
-**Creator Studio (2026-11 tip):** Phases 5–6 of the redesign blueprint are implemented on `Redesign,-Teleprompter,-captions-&-more` (captions production depth, phrase replacement through approve/discard, soft assembly crossfade). **Phase 7 (release readiness)** is in progress — see `docs/PHASE7_RELEASE_READINESS.md`.
+**Creator Studio (2026-11 tip):** Phases 3–6 implemented; Phase 7 docs/checklists complete; **manual device/desktop evidence and listening fixtures still open** — see `docs/PHASE7_RELEASE_READINESS.md`.
 
 ## Phase 0 — Hybrid Studio design foundation
 
@@ -20,10 +20,10 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 
 ## Phase 1 — Existing workflow refinement
 
-- Refine Record hierarchy, input monitoring, recording state, clipping warnings, and post-save actions.
-- Refine Editor waveform, selection, preview, and non-destructive trim feedback.
-- Refine processing entry points and original vs derived presentation.
-- Refine Library grouping without changing discovery boundaries.
+- [ ] Refine Record hierarchy, input monitoring, recording state, clipping warnings, and post-save actions.
+- [ ] Refine Editor waveform, selection, preview, and non-destructive trim feedback.
+- [ ] Refine processing entry points and original vs derived presentation.
+- [ ] Refine Library grouping without changing discovery boundaries.
 
 ## Phase 2–4 — Creator foundation, script, teleprompter
 
@@ -42,14 +42,17 @@ Audio Studio is a native Android and Windows application with a shared C++ audio
 - [x] Non-destructive assembly preview and approve (derived WAV + `derivedPath`).
 - [x] Discard assembly (`assemblyStatus=discarded`).
 - [x] Soft linear crossfade (~15 ms) at splice joins.
-- [ ] Structured listening fixtures / boundary artifact tests (still open).
+- [ ] Structured listening fixtures / boundary artifact tests.
 
 ## Phase 7 — Cross-platform polish and release readiness
 
-- [ ] Accessibility and keyboard pass on Creator / Record teleprompter.
-- [ ] Project backup/restore contract and tests.
-- [ ] README / changelog / testing strategy aligned with shipped Creator flows.
-- [ ] Manual Android device + Windows desktop smoke evidence.
-- [ ] Green CI and release packaging verification.
+- [x] Accessibility labels on Creator / Record teleprompter controls (contentDescription / AutomationProperties.Name).
+- [ ] Broader accessibility: keyboard focus order, font scaling, full screen-reader pass.
+- [x] Project backup/restore contract and tests (JSON export/import; invalid import does not replace active project).
+- [x] README / changelog / testing strategy aligned with shipped Creator flows.
+- [x] Manual smoke checklist and packaging notes documented (`docs/PHASE7_MANUAL_SMOKE.md`).
+- [ ] Manual Android device + Windows desktop smoke **evidence** recorded against that checklist.
+- [x] CI packaging path verifies offline models in APK / Windows publish output.
+- [ ] Green CI on a chosen release commit plus filled smoke results (release gate).
 
 See `docs/PHASE7_RELEASE_READINESS.md` and `docs/CREATOR_STUDIO_REDESIGN.md`.
