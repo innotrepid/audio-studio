@@ -1,15 +1,15 @@
 # Phase 7 — Cross-platform polish and release readiness
 
-**Status:** Started  
+**Status:** In progress  
 **Branch:** `Redesign,-Teleprompter,-captions-&-more`  
-**Depends on:** Phase 5 (captions/production) and Phase 6 (phrase replacement) complete on tip
+**Depends on:** Phase 5–6 complete on tip (including soft assembly crossfade)
 
 ## Done upstream (Phases 5–6)
 
 - Caption timing provenance, take approval, transcript–take link
 - Phrase replacement: select → manual range → link take → A/B → assembly preview → approve / discard
 - Optional `derivedPath` on approved assemblies; source takes never overwritten
-- Soft linear crossfade (~15 ms) at assembly splice joins (this PR)
+- Soft linear crossfade (~15 ms) at assembly splice joins
 
 ## Phase 7 goals
 
@@ -19,15 +19,20 @@
 4. **Docs** — README, changelog, architecture, testing strategy, roadmap match shipped behavior
 5. **Release packaging** — green CI; models still verified in APK / Windows publish output
 
-## First slices (ordered)
+## Slices
 
-| Slice | Outcome |
-|-------|---------|
-| 7.1 Soft crossfade on phrase assembly | Done in this change |
-| 7.2 Docs sync (this file + ROADMAP + redesign status) | This change |
-| 7.3 Accessibility pass on Creator Captions / Record teleprompter controls | Next |
-| 7.4 Project backup/restore contract + tests | Next |
-| 7.5 Changelog + README Creator section | After 7.3–7.4 |
+| Slice | Outcome | Status |
+|-------|---------|--------|
+| 7.1 Soft crossfade on phrase assembly | ~15 ms linear joins | Done |
+| 7.2 Docs sync | ROADMAP + redesign status + this file | Done |
+| 7.3 Accessibility pass | Creator Captions / Record teleprompter labels | **This change** |
+| 7.4 Project backup/restore | Harden import/export + tests | Next |
+| 7.5 Changelog + README Creator section | After 7.3–7.4 | Open |
+
+## Notes for 7.3
+
+- Android: `exchangeButton` already sets `contentDescription`; studio teleprompter Start/Pause and scroll-speed SeekBar get explicit descriptions.
+- Windows: after XAML restore/injects, `AutomationProperties.Name` is applied to Creator and phrase-related buttons that lacked names.
 
 ## Exit gate (from CREATOR_STUDIO_REDESIGN)
 
