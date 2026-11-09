@@ -144,6 +144,7 @@ if(WIN32)
         add_executable(audio_studio_live_capture_vad_tests
             engine/tests/live_capture_vad_test.cpp
             engine/src/live_capture_vad.cpp
+            engine/src/wav_audio_reader.cpp
             engine/src/capture_pcm_ring.cpp
             engine/src/capture_vad_worker.cpp
             engine/src/capture_vad_controller.cpp
@@ -163,7 +164,8 @@ if(WIN32)
         endif()
         add_test(NAME audio_studio_live_capture_vad_tests
             COMMAND audio_studio_live_capture_vad_tests
-                "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx")
+                "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx"
+                "${CMAKE_BINARY_DIR}/test-data/silero-test.wav")
         set_tests_properties(audio_studio_live_capture_vad_tests PROPERTIES
             TIMEOUT 60
             ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
