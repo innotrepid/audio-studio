@@ -139,7 +139,7 @@ if(BUILD_TESTING)
     add_test(NAME audio_studio_transcription_integration_tests
         COMMAND audio_studio_transcription_integration_tests
             "${CMAKE_BINARY_DIR}/transcription-models/ggml-tiny.bin"
-            "${CMAKE_BINARY_DIR}/test-data/silero-test.wav")
+            "${CMAKE_BINARY_DIR}/test-data/whisper-speech.wav")
 
     add_executable(audio_studio_wav_audio_reader_tests tests/wav_audio_reader_test.cpp)
     target_link_libraries(audio_studio_wav_audio_reader_tests PRIVATE audio_studio_core)
