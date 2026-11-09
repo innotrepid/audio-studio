@@ -15,7 +15,7 @@ EXPECTED_GIT_BLOB_SHA1 = "3184d372cd2f8b804d3a540c70ec50d927b335d2"
 
 
 def git_blob_sha1(data: bytes) -> str:
-    return hashlib.sha1(f"blob {len(data)}\\0".encode("ascii") + data).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + bytes([0]) + data).hexdigest()
 
 
 def main() -> int:
