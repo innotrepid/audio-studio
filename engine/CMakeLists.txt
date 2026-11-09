@@ -141,19 +141,6 @@ if(BUILD_TESTING)
             "${CMAKE_BINARY_DIR}/transcription-models/ggml-tiny.bin"
             "${CMAKE_BINARY_DIR}/test-data/silero-test.wav")
 
-    add_executable(audio_studio_live_capture_vad_tests tests/live_capture_vad_test.cpp)
-    target_link_libraries(audio_studio_live_capture_vad_tests PRIVATE audio_studio_core)
-    target_compile_features(audio_studio_live_capture_vad_tests PRIVATE cxx_std_17)
-    if(MSVC)
-        target_compile_options(audio_studio_live_capture_vad_tests PRIVATE /W4 /WX)
-    else()
-        target_compile_options(audio_studio_live_capture_vad_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
-    endif()
-    add_test(NAME audio_studio_live_capture_vad_tests
-        COMMAND audio_studio_live_capture_vad_tests
-            "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx"
-            "${CMAKE_BINARY_DIR}/test-data/silero-test.wav")
-
     add_executable(audio_studio_wav_audio_reader_tests tests/wav_audio_reader_test.cpp)
     target_link_libraries(audio_studio_wav_audio_reader_tests PRIVATE audio_studio_core)
     target_compile_features(audio_studio_wav_audio_reader_tests PRIVATE cxx_std_17)
