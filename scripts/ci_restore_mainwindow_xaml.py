@@ -1,43 +1,79 @@
 #!/usr/bin/env python3
-"""Restore platforms/windows/AudioStudio/MainWindow.xaml when truncated.
+"""Restore platforms/windows/AudioStudio/MainWindow.xaml when truncated or wrong shell.
 
-The section-nav merge left a stub XAML on Redesign. Teleprompter UI apply
-expects a full Window document. Restore from the last known-good commit and
-optionally inject Record section-nav controls.
+The Redesign branch often had a stub or incomplete Window. Restore from known-good
+SHA via git show or HTTPS raw, then inject section-nav controls if needed.
 """
 from __future__ import annotations
 
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 XAML_REL = "platforms/windows/AudioStudio/MainWindow.xaml"
-# Pre-section-nav Redesign tip with a full MainWindow.xaml
 GOOD_SHA = "ebccf66112441468d533bb80ed450c8e7257b909"
+RAW_URL = (
+    "https://raw.githubusercontent.com/innotrepid/audio-studio/"
+    f"{GOOD_SHA}/{XAML_REL}"
+)
+
+
+def load_good_xaml() -> str:
+    try:
+        blob = subprocess.check_output(
+            ["git", "show", f"{GOOD_SHA}:{XAML_REL}"],
+            cwd=ROOT,
+            stderr=subprocess.DEVNULL,
+        )
+        return blob.decode("utf-8")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    try:
+        subprocess.check_call(
+            ["git", "fetch", "--depth=1", "origin", GOOD_SHA],
+            cwd=ROOT,
+            stderr=subprocess.DEVNULL,
+        )
+        blob = subprocess.check_output(
+            ["git", "show", f"{GOOD_SHA}:{XAML_REL}"],
+            cwd=ROOT,
+        )
+        return blob.decode("utf-8")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    print(f"Fetching {RAW_URL}")
+    with urllib.request.urlopen(RAW_URL, timeout=60) as resp:
+        return resp.read().decode("utf-8")
+
+
+def needs_restore(text: str) -> bool:
+    if "<Window" not in text:
+        return True
+    if len(text) < 20_000:
+        return True
+    # Code-behind expects these names (not a minimal shell).
+    required = (
+        "NavigateRecordButton",
+        "RecordToggleButton",
+        "PauseTeleprompterButton",
+        "RecordingElapsedText",
+        "TeleprompterScriptText",
+    )
+    return any(name not in text for name in required)
 
 
 def main() -> int:
     path = ROOT / XAML_REL
     text = path.read_text(encoding="utf-8") if path.exists() else ""
-    if "<Window" not in text or "PauseTeleprompterButton" not in text or len(text) < 10_000:
+    if needs_restore(text):
         print(f"Restoring {XAML_REL} from {GOOD_SHA} (was {len(text)} bytes)")
-        # Prefer local history; fall back to fetch from origin
-        try:
-            blob = subprocess.check_output(
-                ["git", "show", f"{GOOD_SHA}:{XAML_REL}"],
-                cwd=ROOT,
-            )
-        except subprocess.CalledProcessError:
-            subprocess.check_call(
-                ["git", "fetch", "--depth=1", "origin", GOOD_SHA],
-                cwd=ROOT,
-            )
-            blob = subprocess.check_output(
-                ["git", "show", f"{GOOD_SHA}:{XAML_REL}"],
-                cwd=ROOT,
-            )
-        text = blob.decode("utf-8")
+        text = load_good_xaml()
+        if needs_restore(text):
+            # Good SHA should always pass; still write what we got for debugging.
+            path.write_text(text, encoding="utf-8")
+            raise SystemExit("Could not load a full MainWindow.xaml matching code-behind")
         path.write_text(text, encoding="utf-8")
         print("Restored bytes:", len(text))
 
@@ -60,12 +96,16 @@ def main() -> int:
         )
         if old not in text:
             raise SystemExit("Restored XAML is missing PauseTeleprompterButton row")
-        path.write_text(text.replace(old, new, 1), encoding="utf-8")
+        text = text.replace(old, new, 1)
+        path.write_text(text, encoding="utf-8")
         print("Injected section-nav buttons into MainWindow.xaml")
     else:
         print("MainWindow.xaml already has section-nav buttons")
 
-    print("ci_restore_mainwindow_xaml: OK")
+    final = path.read_text(encoding="utf-8")
+    if needs_restore(final):
+        raise SystemExit(f"MainWindow.xaml still invalid ({len(final)} bytes)")
+    print("ci_restore_mainwindow_xaml: OK", len(final), "bytes")
     return 0
 
 

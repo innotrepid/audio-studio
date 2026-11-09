@@ -1,1 +1,119 @@
-<!-- restored in follow-up; see scripts -->
+<Window
+    x:Class="AudioStudio.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Synvidra">
+
+    <Grid Background="#0C0C14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#141422" Padding="16,12" BorderBrush="#252538" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Synvidra" FontSize="20" FontWeight="SemiBold" Foreground="#F2F4F8" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="EngineStatusText" Text="Engine: …" Foreground="#AEB9CC" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="NavRecordButton" Content="Record" Click="NavRecord_Click"/>
+                    <Button x:Name="NavEditButton" Content="Editor" Click="NavEdit_Click"/>
+                    <Button x:Name="NavCreatorButton" Content="Creator" Click="NavCreator_Click"/>
+                    <Button x:Name="NavLibraryButton" Content="Library" Click="NavLibrary_Click"/>
+                    <Button x:Name="NavSettingsButton" Content="Settings" Click="NavSettings_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" x:Name="MainScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="MainContent" Padding="16" Spacing="16">
+                <!-- Sections are populated/shown from code-behind; keep shell stable. -->
+                <Border x:Name="RecordSection" Background="#141422" CornerRadius="8" Padding="16" BorderBrush="#252538" BorderThickness="1">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Record" FontSize="18" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <TextBlock x:Name="StatusText" Text="Ready." TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <TextBlock x:Name="RecordingTimerText" Text="00:00" FontSize="28" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <ProgressBar x:Name="InputMeter" Minimum="0" Maximum="100" Height="8"/>
+                        <TextBlock x:Name="InputMeterLabel" Text="Input level" Foreground="#AEB9CC" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="RecordToggleButton" Content="Record" Click="RecordToggle_Click"/>
+                            <Button x:Name="ProcessButton" Content="Process" Click="Process_Click" IsEnabled="False"/>
+                            <Button x:Name="OpenLatestTakeButton" Content="Open latest take" Click="OpenLatestTake_Click" IsEnabled="False"/>
+                        </StackPanel>
+                        <TextBlock Text="Studio teleprompter" FontWeight="SemiBold" Foreground="#F2F4F8" Margin="0,8,0,0"/>
+                        <ScrollViewer x:Name="StudioTeleprompterScroll" Height="220" Background="#0C0C14" BorderBrush="#252538" BorderThickness="1">
+                            <TextBlock x:Name="StudioTeleprompterText" Text="" TextWrapping="Wrap" Padding="12" FontSize="22" Foreground="#F2F4F8"/>
+                        </ScrollViewer>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="StartTeleprompterButton" Content="Start scroll" Click="StartTeleprompter_Click"/>
+                            <Button x:Name="PauseTeleprompterButton" Content="Pause" Click="PauseTeleprompter_Click" IsEnabled="False"/>
+                            <Button x:Name="TeleprompterPrevSectionButton" Content="◀ Section" Click="TeleprompterPrevSection_Click" ToolTipService.ToolTip="Previous script section"/>
+                            <TextBlock x:Name="TeleprompterSectionLabel" Text="Section" VerticalAlignment="Center" Foreground="#AEB9CC" FontSize="12" MinWidth="120"/>
+                            <Button x:Name="TeleprompterNextSectionButton" Content="Section ▶" Click="TeleprompterNextSection_Click" ToolTipService.ToolTip="Next script section"/>
+                            <ComboBox x:Name="TeleprompterCountdownComboBox" Width="120"/>
+                        </StackPanel>
+                        <TextBlock x:Name="TeleprompterCountdownText" Text="" Foreground="#AEB9CC" FontSize="12"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="EditSection" Background="#141422" CornerRadius="8" Padding="16" BorderBrush="#252538" BorderThickness="1" Visibility="Collapsed">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Editor" FontSize="18" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <TextBlock x:Name="EditStatusText" Text="Select a WAV to process or transcribe." TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="PickWavButton" Content="Pick WAV" Click="PickWav_Click"/>
+                            <Button x:Name="WaveformButton" Content="Waveform" Click="Waveform_Click"/>
+                            <Button x:Name="TranscribeWavButton" Content="Transcribe WAV" Click="TranscribeWav_Click"/>
+                        </StackPanel>
+                        <TextBlock x:Name="TranscriptionStatusText" Text="" TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <TextBlock x:Name="WaveformStatusText" Text="" TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="CreatorSection" Background="#141422" CornerRadius="8" Padding="16" BorderBrush="#252538" BorderThickness="1" Visibility="Collapsed">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Creator Studio" FontSize="18" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <TextBlock x:Name="CreatorStatusText" Text="Scripts, teleprompter, captions, and takes." TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <TextBox x:Name="CreatorScriptBodyBox" AcceptsReturn="True" TextWrapping="Wrap" Height="160" Header="Script"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="CreatorSaveScriptButton" Content="Save script" Click="CreatorSaveScript_Click"/>
+                            <Button x:Name="CreatorRefreshButton" Content="Refresh" Click="CreatorRefresh_Click"/>
+                        </StackPanel>
+                        <TextBlock Text="Teleprompter preview" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <ScrollViewer Height="160" Background="#0C0C14" BorderBrush="#252538" BorderThickness="1">
+                            <TextBlock x:Name="CreatorTeleprompterPreview" Text="" TextWrapping="Wrap" Padding="12" Foreground="#F2F4F8"/>
+                        </ScrollViewer>
+                        <TextBlock x:Name="CreatorCaptionsStatusText" Text="" TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="LibrarySection" Background="#141422" CornerRadius="8" Padding="16" BorderBrush="#252538" BorderThickness="1" Visibility="Collapsed">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Library" FontSize="18" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <TextBlock x:Name="LibraryStatusText" Text="Recordings and derived files." TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <Button x:Name="LibraryRefreshButton" Content="Refresh library" Click="LibraryRefresh_Click"/>
+                        <ListView x:Name="LibraryListView" MinHeight="200"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="SettingsSection" Background="#141422" CornerRadius="8" Padding="16" BorderBrush="#252538" BorderThickness="1" Visibility="Collapsed">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Settings" FontSize="18" FontWeight="SemiBold" Foreground="#F2F4F8"/>
+                        <TextBlock x:Name="SettingsStatusText" Text="Processing, appearance, models, about." TextWrapping="Wrap" Foreground="#AEB9CC"/>
+                        <Button x:Name="SettingsOpenButton" Content="Open settings panel" Click="SettingsOpen_Click"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Background="#141422" Padding="12,8" BorderBrush="#252538" BorderThickness="0,1,0,0">
+            <TextBlock x:Name="FooterStatusText" Text="Synvidra" Foreground="#7E8A9E" FontSize="11"/>
+        </Border>
+    </Grid>
+</Window>
