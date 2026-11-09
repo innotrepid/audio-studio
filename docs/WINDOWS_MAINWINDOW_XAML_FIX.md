@@ -3,28 +3,34 @@
 ## Symptom
 
 ```
-Synvidra could not open its main window.
-Microsoft.UI.Xaml.Markup.XamlParseException: XAML parsing failed.
+XamlParseException: XAML parsing failed.
+at MainWindow.InitializeComponent()
 ```
 
-## Cause
+Path in the log like `D:\a\audio-studio\...` means a **GitHub Actions** build artifact.
 
-On the Redesign branch, `platforms/windows/AudioStudio/MainWindow.xaml` was
-committed as a **44-byte placeholder** (`<!-- restored in follow-up; see scripts -->`).
-WinUI cannot parse that as a `Window`, so the app never opens.
+## Causes seen on this branch
 
-CI ran `scripts/ci_restore_mainwindow_xaml.py` before build, so CI could pass while
-local / published builds from the raw tree still failed.
+1. **44-byte stub** placeholder instead of a real `<Window>`.
+2. **Minimal shell (~9 KB)** committed in #168 with `Click="NavRecord_Click"` etc.
+   Those handlers **do not exist** in `MainWindow.xaml.cs`. WinUI resolves Click at
+   **LoadComponent** time → `XamlParseException` (same dialog you see).
+3. Section-nav buttons injected **without** matching `_Click` methods in code-behind.
 
-## Fix
+## Fix direction
 
-1. Restore script now falls back to **HTTPS raw** fetch of known-good SHA
-   `ebccf66112441468d533bb80ed450c8e7257b909` when git history is shallow.
-2. After merge, run locally once:
-   `python scripts/ci_restore_mainwindow_xaml.py`
-   then rebuild the Windows app — or use a CI artifact.
+- `ci_restore_mainwindow_xaml.py` loads full known-good XAML from `ebccf66`
+  (git or HTTPS) and **rejects** the minimal Nav*_Click shell.
+- Section buttons + handlers only from `ci_apply_section_nav.py` (paired).
+- After merge: wait for **green Windows CI**, install **new**
+  `synvidra-windows-self-contained` artifact (not an older zip).
 
-## Verify
+## Local verify before running the EXE
 
-- `MainWindow.xaml` is **>10 KB** and contains `<Window` and `PauseTeleprompterButton`
-- App starts without the startup error dialog
+```powershell
+python scripts/ci_restore_mainwindow_xaml.py
+# MainWindow.xaml should be ~46 KB and contain NavigateRecordButton
+# and must NOT contain NavRecord_Click
+Select-String -Path platforms\windows\AudioStudio\MainWindow.xaml -Pattern "NavRecord_Click"
+Select-String -Path platforms\windows\AudioStudio\MainWindow.xaml -Pattern "NavigateRecordButton"
+```
