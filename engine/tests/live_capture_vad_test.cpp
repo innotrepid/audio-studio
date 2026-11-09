@@ -1,6 +1,8 @@
 #include "audio_studio/live_capture_vad.hpp"
 #include "audio_studio/wav_audio_reader.hpp"
 
+#include <algorithm>
+
 #include <iostream>
 #include <string>
 #include <vector>
