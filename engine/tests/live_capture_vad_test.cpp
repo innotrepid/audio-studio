@@ -64,7 +64,11 @@ int main(int argc, char** argv) {
         std::cerr << "Could not decode recorded-speech VAD fixture: " << error << "\n";
         return 9;
     }
-    auto speech_pipeline = LiveCaptureVad::create(argv[1], 16000, 1, options, error);
+    auto speech_options = options;
+    speech_options.ring_capacity_frames = speech.size() + 4096U;
+    speech_options.worker_queue_frames = speech.size() + 4096U;
+    speech_options.max_pending_regions = 128U;
+    auto speech_pipeline = LiveCaptureVad::create(argv[1], 16000, 1, speech_options, error);
     if (!speech_pipeline) {
         std::cerr << "Could not create speech VAD pipeline: " << error << "\n";
         return 10;
