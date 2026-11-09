@@ -63,7 +63,9 @@ TranscriptionResult transcribe(const TranscriptionRequest& request) {
     }
 
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
-    params.n_threads = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
+    const unsigned int available_threads = std::thread::hardware_concurrency();
+    // Avoid oversubscribing hosted CI and low-core devices.
+    params.n_threads = static_cast<int>(std::clamp(available_threads == 0U ? 2U : available_threads, 1U, 4U));
     params.translate = request.translate_to_english;
     params.no_context = true;
     params.print_progress = false;
