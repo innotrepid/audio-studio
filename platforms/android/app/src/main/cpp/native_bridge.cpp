@@ -7,6 +7,7 @@
 #include "audio_studio/wav_processing.hpp"
 #include "audio_studio/wav_recovery.hpp"
 #include "audio_studio/transcription.hpp"
+#include "audio_studio/transcription_json.hpp"
 #include "audio_studio/wav_audio_reader.hpp"
 #include "audio_studio/live_capture_vad.hpp"
 
@@ -379,31 +380,6 @@ public:
     bool vad_active() const noexcept { return static_cast<bool>(live_vad_); }
 };
 
-std::string json_escape(const std::string& value) {
-    std::string escaped;
-    escaped.reserve(value.size() + 8U);
-    for (const unsigned char ch : value) {
-        switch (ch) {
-        case '"': escaped += "\\\""; break;
-        case '\\': escaped += "\\\\"; break;
-        case '\b': escaped += "\\b"; break;
-        case '\f': escaped += "\\f"; break;
-        case '\n': escaped += "\\n"; break;
-        case '\r': escaped += "\\r"; break;
-        case '\t': escaped += "\\t"; break;
-        default:
-            if (ch < 0x20U) {
-                constexpr char hex[] = "0123456789abcdef";
-                escaped += "\\u00";
-                escaped += hex[(ch >> 4U) & 0x0fU];
-                escaped += hex[ch & 0x0fU];
-            } else {
-                escaped += static_cast<char>(ch);
-            }
-        }
-    }
-    return escaped;
-}
 
 std::mutex g_recorder_mutex;
 std::unique_ptr<AndroidRecorder> g_recorder;
