@@ -242,6 +242,9 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Run Windows Creator persistence tests
         run: dotnet run --project platforms/windows/AudioStudio.Tests/AudioStudio.Tests.csproj --configuration Release
+      - name: Heal Windows XAML orphan Click handlers
+        shell: bash
+        run: python scripts/ci_heal_windows_xaml_handlers.py
       - name: Set up Visual Studio MSBuild
         uses: microsoft/setup-msbuild@v2
       - name: Build WinUI application shell
