@@ -1,7 +1,7 @@
 #include "audio_studio/transcription.hpp"
 #include "audio_studio/wav_audio_reader.hpp"
 
-#include <cctype>
+#include <algorithm>\n#include <cmath>\n#include <cctype>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -18,6 +18,20 @@ int main(int argc, char** argv) {
     if (!load_wav_for_transcription(argv[2], pcm, &error) || pcm.empty()) {
         std::cerr << "Could not decode speech fixture for Whisper: " << error << "\n";
         return 2;
+    }
+    float peak = 0.0F;
+    long double energy = 0.0L;
+    for (const float sample : pcm) {
+        peak = std::max(peak, std::abs(sample));
+        energy += static_cast<long double>(sample) * sample;
+    }
+    const double rms = pcm.empty() ? 0.0 :
+        std::sqrt(static_cast<double>(energy / pcm.size()));
+    std::cout << "Whisper fixture PCM: samples=" << pcm.size()
+              << ", peak=" << peak << ", rms=" << rms << "\\n";
+    if (peak < 0.001F || rms < 0.0001) {
+        std::cerr << "Speech fixture decoded as near-silence.\\n";
+        return 7;
     }
     TranscriptionRequest request;
     request.model_path = argv[1];
