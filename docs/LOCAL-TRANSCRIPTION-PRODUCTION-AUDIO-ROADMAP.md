@@ -80,14 +80,14 @@ Evaluate and integrate Silero Voice Activity Detection for speech/silence region
 
 The current branch includes the ONNX-independent streaming coordinator, native-rate/channel normalization into 16 kHz mono, the Silero ONNX stream adapter, the native session wrapper, and a serialized C ABI with retained-region capacity retries. Deterministic tests exercise inference, irregular capture-like chunks, region finalization, flush, reset, and error recovery.
 
-**The application capture-to-VAD path is not yet wired.** Android Oboe and Windows WASAPI capture currently write recording audio to WAV through their existing capture workers; they do not yet own a VAD session or deliver finalized speech regions to an application consumer. Therefore, the native VAD engine and C ABI must not be represented as an end-user recording/transcription feature until the following integration work is complete:
+**Capture-to-VAD integration is now present on both platforms, but remains in validation.** Android Oboe capture submits the same mono float PCM to the WAV writer ring and the live VAD pipeline; stop flushes VAD and exposes pending/pop JNI methods. Windows WASAPI capture submits converted mono/stereo float PCM after successful WAV writes, pauses/resumes the capture client, flushes VAD on stop, and exposes region drain APIs. Model-load failure is currently treated as a soft VAD failure on Windows, while Android's VAD-start failure aborts recording startup. Do not describe speech-region delivery as release-ready until lifecycle, overflow, pause/resume, and device tests pass. Remaining validation:
 
-- Define an explicit per-recording VAD lifecycle owned by the capture worker/controller, with model path and options resolved before capture starts.
-- Feed the same captured PCM frames to recording and VAD without blocking or allocating in real-time audio callbacks; perform inference/resampling on a worker.
-- Handle pause/resume, stop/flush, capture errors, overflow, cancellation, and model-load failures with deterministic reset/destroy behavior.
-- Consume finalized regions through a bounded delivery mechanism and surface dropped-region/backpressure errors rather than silently losing them.
-- Add platform integration tests or injectable capture-worker tests for start/stop, pause/resume, error cleanup, and exact-once region delivery.
-- Confirm packaged Silero model path and offline availability on both platforms before enabling the integration in production UI.
+- Verify lifecycle ownership and model resolution at each recording start, including repeated start/stop cycles.
+- Confirm pause/resume excludes paused audio from both WAV and VAD timelines on Android and Windows.
+- Exercise stop/flush, capture errors, overflow, cancellation, and model-load failures with deterministic cleanup.
+- Verify bounded region delivery, exact-once ordering, consumer backpressure, and visible failure diagnostics.
+- Add injectable platform-capture tests for pause/resume and WAV frame parity with VAD enabled/disabled; the worker tests now cover ordered delivery and queue overflow.
+- Confirm packaged Silero model path and offline availability on both platforms in fresh install/device tests.
 
 ## Remaining feature-completion gate before audio engine work
 
