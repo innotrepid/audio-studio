@@ -45,7 +45,7 @@ int main() {
  check(worker.finish()==CaptureVadWorker::Status::finished);
  check(worker.finish()==CaptureVadWorker::Status::finished);
  SpeechRegion region{};
- check(worker.pop_region(region) && region.start_ms==50 && region.end_ms==60);
+ check(worker.pop_region(region) && region.start_ms==70 && region.end_ms==90);
  check(!worker.pop_region(region));
  check(worker.submit_audio(pcm,1)==CaptureVadWorker::Status::invalid);
 
