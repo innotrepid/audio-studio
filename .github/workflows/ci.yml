@@ -66,6 +66,19 @@ jobs:
       - name: Restore full MainWindow.xaml when truncated
         shell: bash
         run: python scripts/ci_restore_mainwindow_xaml.py
+      - name: Verify MainWindow.xaml is not the invalid minimal shell
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("platforms/windows/AudioStudio/MainWindow.xaml")
+          text = p.read_text(encoding="utf-8")
+          assert len(text) >= 20000, f"MainWindow.xaml too small: {len(text)}"
+          assert "NavigateRecordButton" in text, "missing NavigateRecordButton"
+          assert "NavRecord_Click" not in text, "invalid NavRecord_Click still present"
+          assert "TeleprompterScriptText" in text
+          print("MainWindow.xaml OK", len(text), "bytes")
+          PY
       - name: Apply Creator teleprompter Windows UI fixes
         shell: bash
         run: python scripts/ci_apply_teleprompter_ui.py windows
