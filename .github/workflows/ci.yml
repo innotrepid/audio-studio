@@ -364,6 +364,9 @@ jobs:
       - name: Apply transcribe JSON UI guard
         shell: bash
         run: python scripts/ci_apply_transcribe_json_ui_guard.py android
+      - name: Apply live VAD diagnostics
+        shell: bash
+        run: python scripts/ci_apply_live_vad_diagnostics.py android
       - name: Fetch and verify pinned transcription models
         run: python scripts/fetch_transcription_models.py --output build/transcription-models
       - name: Set up Java
