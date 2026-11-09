@@ -8,6 +8,7 @@ add_library(audio_studio_core STATIC
     src/dsp_effects.cpp
     src/wav_processing.cpp
     src/transcription.cpp
+    src/transcription_json.cpp
     src/audio_resampler.cpp
     src/wav_audio_reader.cpp
     src/vad.cpp
