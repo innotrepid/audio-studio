@@ -21,9 +21,11 @@ std::string wide_to_utf8(const wchar_t* wide) {
     if (wide == nullptr || wide[0] == L'\0') return {};
     const int needed = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
     if (needed <= 1) return {};
-    std::string out(static_cast<std::size_t>(needed - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wide, -1, out.data(), needed, nullptr, nullptr);
-    return out;
+    std::vector<char> buffer(static_cast<std::size_t>(needed), '\0');
+    const int written = WideCharToMultiByte(
+        CP_UTF8, 0, wide, -1, buffer.data(), needed, nullptr, nullptr);
+    if (written != needed) return {};
+    return std::string(buffer.data(), static_cast<std::size_t>(needed - 1));
 }
 }  // namespace
 
