@@ -72,7 +72,9 @@ TranscriptionResult transcribe(const TranscriptionRequest& request) {
     params.print_realtime = false;
     params.print_timestamps = false;
     params.language = automatic_language ? "auto" : request.language.c_str();
-    // "auto" already requests language detection. Setting detect_language=true\n    // makes whisper_full return immediately after detection without decoding speech.\n    params.detect_language = false;
+    // "auto" already requests language detection. Setting detect_language=true
+    // makes whisper_full return immediately after detection without decoding speech.
+    params.detect_language = false;
 
     const int status = whisper_full(context, params, request.mono_pcm_16khz.data(),
                                     static_cast<int>(request.mono_pcm_16khz.size()));
