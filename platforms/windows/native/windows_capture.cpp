@@ -433,8 +433,13 @@ private:
             publish_startup(false, message);
         }
         if (live_vad_) {
+            // Keep the finished pipeline alive until the next recording starts.
+            // The UI may still need to drain regions emitted by the final flush.
             live_vad_->finish();
-            live_vad_.reset();
+            if (live_vad_->failed() || vad_soft_failed_.load(std::memory_order_acquire)) {
+                std::lock_guard<std::mutex> lock(mutex_);
+                status_ += L" VAD warning: speech-region delivery was incomplete; check capture diagnostics.";
+            }
         }
         silero_model_path_.clear();
         active_.store(false);
