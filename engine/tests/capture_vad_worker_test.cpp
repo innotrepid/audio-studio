@@ -11,7 +11,7 @@ public:
   check(pcm != nullptr);
   seen += frames;
   if (emit_on_push) {
-   const auto start = static_cast<std::int64_t>(10 + push_count * 30);
+   const auto start = static_cast<std::uint64_t>(10U + push_count * 30U);
    out.push_back({start, start + 20});
   }
   ++push_count;
@@ -19,8 +19,8 @@ public:
  }
  bool flush(std::vector<SpeechRegion>& out) override {
   if (fail_flush) return false;
-  out.push_back({static_cast<std::int64_t>(10 + push_count * 30),
-                 static_cast<std::int64_t>(30 + push_count * 30)});
+  out.push_back({static_cast<std::uint64_t>(10U + push_count * 30U),
+                 static_cast<std::uint64_t>(30U + push_count * 30U)});
   return true;
  }
  void reset() noexcept override {}
