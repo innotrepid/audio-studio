@@ -145,6 +145,7 @@ if(WIN32)
             engine/tests/live_capture_vad_test.cpp
             engine/src/live_capture_vad.cpp
             engine/src/wav_audio_reader.cpp
+            engine/src/audio_decoder.cpp
             engine/src/capture_pcm_ring.cpp
             engine/src/capture_vad_worker.cpp
             engine/src/capture_vad_controller.cpp
