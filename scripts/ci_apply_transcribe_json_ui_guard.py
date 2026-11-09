@@ -14,7 +14,7 @@ def ensure_android() -> None:
         print("MainActivity missing; skip")
         return
     text = MAIN.read_text(encoding="utf-8")
-    if "malformed transcription JSON" in text or "Transcription JSON missing text" in text:
+    if "Malformed transcription JSON" in text:
         print("Transcribe UI guard already present")
         return
 
@@ -37,8 +37,9 @@ def ensure_android() -> None:
         "                if (json.has(\"error\")) throw IOException(json.optString(\"error\", \"Transcription failed.\"))\n"
         "                val transcript = json.optString(\"text\", \"\").trim()\n"
         "                if (transcript.isEmpty()) {\n"
+        "                    val brokenQuotes = payload.contains(\":)\")\n"
         "                    throw IOException(\n"
-        "                        if (payload.contains(\"\\\":)\"))\n"
+        "                        if (brokenQuotes)\n"
         "                            \"Transcription JSON missing text (engine returned a broken payload).\"\n"
         "                        else\n"
         "                            \"Whisper returned an empty transcript.\",\n"
