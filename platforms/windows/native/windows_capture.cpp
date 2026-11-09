@@ -274,9 +274,16 @@ private:
                         const int needed = WideCharToMultiByte(
                             CP_UTF8, 0, silero_model_path_.c_str(), -1, nullptr, 0, nullptr, nullptr);
                         if (needed > 1) {
-                            model_utf8.resize(static_cast<std::size_t>(needed - 1));
-                            WideCharToMultiByte(CP_UTF8, 0, silero_model_path_.c_str(), -1,
-                                model_utf8.data(), needed, nullptr, nullptr);
+                            // Include the terminating NUL in the destination capacity:
+                            // WideCharToMultiByte writes 'needed' bytes when cchWideChar is -1.
+                            std::vector<char> utf8_buffer(static_cast<std::size_t>(needed));
+                            const int converted = WideCharToMultiByte(
+                                CP_UTF8, 0, silero_model_path_.c_str(), -1,
+                                utf8_buffer.data(), needed, nullptr, nullptr);
+                            if (converted == needed) {
+                                model_utf8.assign(utf8_buffer.data(),
+                                    static_cast<std::size_t>(needed - 1));
+                            }
                         }
                         std::string vad_error;
                         audio_studio::LiveCaptureVad::Options options;
