@@ -49,26 +49,7 @@ Java_com_innotrepid_audiostudio_MainActivity_nativeTranscribe(
     env->GetFloatArrayRegion(pcm, 0, count, request.mono_pcm_16khz.data());
     if (env->ExceptionCheck()) return nullptr;
     const auto result = audio_studio::transcribe(request);
-    if (!result) {
-        // Fixed: open quote after "error": before json_escape (was ":) which broke JSON).
-        const std::string payload =
-            std::string(R"json({"error":")json") + json_escape(result.error_message) +
-            R"json("})json";
-        return env->NewStringUTF(payload.c_str());
-    }
-    // Fixed: string values must be quoted with " not closed with ).
-    std::string payload =
-        std::string(R"json({"text":")json") + json_escape(result.text) +
-        R"json(","detectedLanguage":")json" + json_escape(result.detected_language) +
-        R"json(","segments":[)json";
-    for (std::size_t i = 0; i < result.segments.size(); ++i) {
-        if (i != 0U) payload += ",";
-        const auto& segment = result.segments[i];
-        payload += R"json({"startMs":)json" + std::to_string(segment.start_ms) +
-            R"json(,"endMs":)json" + std::to_string(segment.end_ms) +
-            R"json(,"text":")json" + json_escape(segment.text) + R"json("})json";
-    }
-    payload += "]}";
+    const std::string payload = audio_studio::serialize_transcription_result_json(result);
     return env->NewStringUTF(payload.c_str());
 }
 
