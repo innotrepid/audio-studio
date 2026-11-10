@@ -64,8 +64,15 @@ TranscriptionResult transcribe(const TranscriptionRequest& request) {
 
     whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
     const unsigned int available_threads = std::thread::hardware_concurrency();
+    // Windows hosted runners can stall in the multi-threaded CPU inference path.
+    // Keep Windows inference deterministic with one worker; other platforms retain
+    // the bounded parallel path for better throughput.
+#if defined(_WIN32)
+    params.n_threads = 1;
+#else
     // Avoid oversubscribing hosted CI and low-core devices.
     params.n_threads = static_cast<int>(std::clamp(available_threads == 0U ? 2U : available_threads, 1U, 4U));
+#endif
     params.translate = request.translate_to_english;
     params.no_context = true;
     params.print_progress = false;
