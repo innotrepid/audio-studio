@@ -17,6 +17,7 @@ internal sealed class CreatorProjectStore
         public string Transcript { get; set; } = string.Empty;
         public List<CaptionDocument> Captions { get; set; } = new();
         public List<ProductionMarkerDocument> ProductionMarkers { get; set; } = new();
+        public List<TranscriptionCorrectionDocument> TranscriptionCorrections { get; set; } = new();
     }
 
     internal sealed class ScriptDocument
@@ -36,6 +37,18 @@ internal sealed class CreatorProjectStore
         public int Order { get; set; }
         public string Notes { get; set; } = string.Empty;
         public List<string> Cues { get; set; } = new();
+    }
+
+    internal sealed class TranscriptionCorrectionDocument
+    {
+        public string CorrectionId { get; set; } = Guid.NewGuid().ToString();
+        public string TakeId { get; set; } = string.Empty;
+        public long StartMs { get; set; }
+        public long EndMs { get; set; }
+        public string RecognizedText { get; set; } = string.Empty;
+        public string CorrectedText { get; set; } = string.Empty;
+        public string Language { get; set; } = string.Empty;
+        public string CreatedUtc { get; set; } = DateTime.UtcNow.ToString("O");
     }
 
     internal sealed class ProductionMarkerDocument
@@ -382,6 +395,25 @@ internal sealed class CreatorProjectStore
                 if (!referencedScript.Sections.Any(section => section.SectionId == take.SectionId))
                     throw new InvalidDataException("A take section must exist inside its referenced script.");
             }
+        }
+
+        if (project.TranscriptionCorrections is null || project.TranscriptionCorrections.Count > 5_000)
+            throw new InvalidDataException("Transcription correction count exceeds the 5,000 item limit.");
+        var takeIds = new HashSet<string>((project.Takes ?? new List<TakeDocument>()).Select(take => take.TakeId), StringComparer.Ordinal);
+        foreach (var correction in project.TranscriptionCorrections)
+        {
+            if (string.IsNullOrWhiteSpace(correction.CorrectionId) || !ids.Add(correction.CorrectionId))
+                throw new InvalidDataException("Transcription correction IDs must be present and unique.");
+            if (string.IsNullOrWhiteSpace(correction.TakeId) || !takeIds.Contains(correction.TakeId))
+                throw new InvalidDataException("A transcription correction must reference an existing take.");
+            if (correction.StartMs < 0 || correction.EndMs <= correction.StartMs)
+                throw new InvalidDataException("Transcription correction end time must follow its start time.");
+            if (string.IsNullOrWhiteSpace(correction.RecognizedText) || correction.RecognizedText.Length > 1_000)
+                throw new InvalidDataException("Recognized text must contain 1–1,000 characters.");
+            if (string.IsNullOrWhiteSpace(correction.CorrectedText) || correction.CorrectedText.Length > 1_000)
+                throw new InvalidDataException("Corrected text must contain 1–1,000 characters.");
+            if ((correction.Language?.Length ?? 0) > 16)
+                throw new InvalidDataException("Transcription language code is too long.");
         }
     }
 
