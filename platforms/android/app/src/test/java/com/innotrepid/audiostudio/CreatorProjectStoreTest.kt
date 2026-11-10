@@ -269,4 +269,52 @@ class CreatorProjectStoreTest {
             root.deleteRecursively()
         }
     }
+
+    @Test
+    fun transcriptionCorrectionsRoundTripAndValidateSourceTake() {
+        val (context, root) = isolatedContext()
+        try {
+            val store = CreatorProjectStore(context)
+            val project = store.loadOrCreate()
+            val take = org.json.JSONObject()
+                .put("takeId", "correction-source-take")
+                .put("sourcePath", "/recordings/verified-reading.wav")
+                .put("durationMs", 5000)
+                .put("sampleRateHz", 48000)
+                .put("channels", 1)
+            val correction = CreatorProjectStore.TranscriptionCorrection(
+                correctionId = "correction-1",
+                takeId = "correction-source-take",
+                startMs = 420,
+                endMs = 980,
+                recognizedText = "clothes",
+                correctedText = "close",
+                language = "en"
+            )
+            store.save(project.copy(
+                takes = project.takes + take,
+                transcriptionCorrections = listOf(correction)
+            ))
+
+            val loaded = CreatorProjectStore(context).loadOrCreate()
+            assertEquals(1, loaded.transcriptionCorrections.size)
+            assertEquals("clothes", loaded.transcriptionCorrections[0].recognizedText)
+            assertEquals("close", loaded.transcriptionCorrections[0].correctedText)
+            assertEquals("correction-source-take", loaded.transcriptionCorrections[0].takeId)
+
+            var failed = false
+            try {
+                store.save(loaded.copy(transcriptionCorrections = loaded.transcriptionCorrections + correction.copy(
+                    correctionId = "orphan-correction",
+                    takeId = "missing-take"
+                )))
+            } catch (_: IllegalArgumentException) {
+                failed = true
+            }
+            assertTrue("A correction referencing a missing source take must be rejected.", failed)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
 }
