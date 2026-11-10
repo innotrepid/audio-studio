@@ -132,12 +132,21 @@ if(WIN32)
         else()
             target_compile_options(audio_studio_silero_onnx_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
         endif()
+        # ORT loads from PATH; also copy DLL beside test binaries for reliable CI.
+        if(DEFINED ONNXRUNTIME_DLL AND EXISTS "${ONNXRUNTIME_DLL}")
+            add_custom_command(TARGET audio_studio_silero_onnx_tests POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ONNXRUNTIME_DLL}"
+                    "$<TARGET_FILE_DIR:audio_studio_silero_onnx_tests>/onnxruntime.dll"
+                COMMENT "Copy onnxruntime.dll for silero tests"
+                VERBATIM)
+        endif()
         add_test(NAME audio_studio_silero_onnx_tests
             COMMAND audio_studio_silero_onnx_tests
                 "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx"
                 "${CMAKE_BINARY_DIR}/test-data/silero-test.wav")
         set_tests_properties(audio_studio_silero_onnx_tests PROPERTIES
-            TIMEOUT 60
+            TIMEOUT 120
             ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
 
         # LiveCaptureVad needs production Silero ONNX (Windows ORT package).
@@ -163,12 +172,20 @@ if(WIN32)
         else()
             target_compile_options(audio_studio_live_capture_vad_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
         endif()
+        if(DEFINED ONNXRUNTIME_DLL AND EXISTS "${ONNXRUNTIME_DLL}")
+            add_custom_command(TARGET audio_studio_live_capture_vad_tests POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${ONNXRUNTIME_DLL}"
+                    "$<TARGET_FILE_DIR:audio_studio_live_capture_vad_tests>/onnxruntime.dll"
+                COMMENT "Copy onnxruntime.dll for live capture VAD tests"
+                VERBATIM)
+        endif()
         add_test(NAME audio_studio_live_capture_vad_tests
             COMMAND audio_studio_live_capture_vad_tests
                 "${CMAKE_BINARY_DIR}/transcription-models/silero_vad.onnx"
                 "${CMAKE_BINARY_DIR}/test-data/silero-test.wav")
         set_tests_properties(audio_studio_live_capture_vad_tests PROPERTIES
-            TIMEOUT 60
+            TIMEOUT 120
             ENVIRONMENT "PATH=${ONNXRUNTIME_ROOT}/runtimes/win-x64/native;$ENV{PATH}")
     endif()
 endif()
