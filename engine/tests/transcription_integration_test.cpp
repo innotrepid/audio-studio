@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     // deterministic English fixture test focuses on actual speech decoding.
     request.language = "en";
     std::cerr << "Starting Whisper inference on " << request.mono_pcm_16khz.size()
-              << " samples.\\n";
+              << " samples.\n";
     const auto result = transcribe(request);
     if (!result) {
         std::cerr << "Whisper integration inference failed: " << result.error_message << "\n";
