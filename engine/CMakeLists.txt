@@ -140,6 +140,7 @@ if(BUILD_TESTING)
         COMMAND audio_studio_transcription_integration_tests
             "${CMAKE_BINARY_DIR}/transcription-models/ggml-tiny.bin"
             "${CMAKE_BINARY_DIR}/test-data/whisper-speech.wav")
+    set_tests_properties(audio_studio_transcription_integration_tests PROPERTIES TIMEOUT 180)
 
     add_executable(audio_studio_wav_audio_reader_tests tests/wav_audio_reader_test.cpp)
     target_link_libraries(audio_studio_wav_audio_reader_tests PRIVATE audio_studio_core)
