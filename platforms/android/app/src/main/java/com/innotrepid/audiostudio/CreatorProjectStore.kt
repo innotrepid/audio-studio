@@ -39,6 +39,17 @@ internal class CreatorProjectStore(context: Context) {
         val text: String
     )
 
+    data class TranscriptionCorrection(
+        val correctionId: String,
+        val takeId: String,
+        val startMs: Long,
+        val endMs: Long,
+        val recognizedText: String,
+        val correctedText: String,
+        val language: String = "",
+        val createdUtc: String = Instant.now().toString()
+    )
+
     data class ProductionMarker(
         val markerId: String,
         val sectionId: String,
@@ -56,7 +67,8 @@ internal class CreatorProjectStore(context: Context) {
         val takes: List<JSONObject> = emptyList(),
         val transcript: String = "",
         val captions: List<Caption> = emptyList(),
-        val productionMarkers: List<ProductionMarker> = emptyList()
+        val productionMarkers: List<ProductionMarker> = emptyList(),
+        val transcriptionCorrections: List<TranscriptionCorrection> = emptyList()
     )
 
     private val file = File(context.filesDir, "creator/projects/default-project.json")
@@ -231,6 +243,18 @@ internal class CreatorProjectStore(context: Context) {
         }
     }
 
+        require(project.transcriptionCorrections.size <= 5_000) { "Transcription correction count exceeds the 5,000 item limit." }
+        val takeIds = project.takes.map { it.optString("takeId") }.toSet()
+        project.transcriptionCorrections.forEach { correction ->
+            require(correction.correctionId.isNotBlank() && ids.add(correction.correctionId)) { "Transcription correction IDs must be present and unique." }
+            require(correction.takeId.isNotBlank() && takeIds.contains(correction.takeId)) { "A transcription correction must reference an existing take." }
+            require(correction.startMs >= 0L && correction.endMs > correction.startMs) { "Transcription correction end time must follow its start time." }
+            require(correction.recognizedText.isNotBlank() && correction.recognizedText.length <= 1_000) { "Recognized text must contain 1–1,000 characters." }
+            require(correction.correctedText.isNotBlank() && correction.correctedText.length <= 1_000) { "Corrected text must contain 1–1,000 characters." }
+            require(correction.language.length <= 16) { "Transcription language code is too long." }
+        }
+    }
+
     private fun encode(project: Project): String {
         val scripts = JSONArray()
         project.scripts.forEach { script ->
@@ -265,6 +289,15 @@ internal class CreatorProjectStore(context: Context) {
                 project.captions.forEach { caption ->
                     put(JSONObject().put("captionId", caption.captionId).put("startMs", caption.startMs)
                         .put("endMs", caption.endMs).put("text", caption.text))
+                }
+            })
+            .put("transcriptionCorrections", JSONArray().apply {
+                project.transcriptionCorrections.forEach { correction ->
+                    put(JSONObject().put("correctionId", correction.correctionId)
+                        .put("takeId", correction.takeId).put("startMs", correction.startMs)
+                        .put("endMs", correction.endMs).put("recognizedText", correction.recognizedText)
+                        .put("correctedText", correction.correctedText).put("language", correction.language)
+                        .put("createdUtc", correction.createdUtc))
                 }
             })
             .toString(2)
@@ -394,6 +427,14 @@ internal class CreatorProjectStore(context: Context) {
             val item = captionsJson.getJSONObject(index)
             Caption(item.getString("captionId"), item.getLong("startMs"), item.getLong("endMs"), item.getString("text"))
         }
+        val correctionsJson = root.optJSONArray("transcriptionCorrections") ?: JSONArray()
+        val corrections = (0 until correctionsJson.length()).map { index ->
+            val item = correctionsJson.getJSONObject(index)
+            TranscriptionCorrection(item.getString("correctionId"), item.getString("takeId"),
+                item.getLong("startMs"), item.getLong("endMs"), item.getString("recognizedText"),
+                item.getString("correctedText"), item.optString("language", ""),
+                item.optString("createdUtc", Instant.now().toString()))
+        }
         return Project(
             projectId = root.getString("projectId"),
             title = root.getString("title"),
@@ -403,7 +444,8 @@ internal class CreatorProjectStore(context: Context) {
             takes = takes,
             transcript = root.optString("transcript", ""),
             captions = captions,
-            productionMarkers = markers
+            productionMarkers = markers,
+            transcriptionCorrections = corrections
         ).also(::validate)
     }
 }
