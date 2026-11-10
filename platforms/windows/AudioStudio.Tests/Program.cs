@@ -16,7 +16,8 @@ try
     CaptionTimingAndExportAreValidated(Path.Combine(root, "captions"));
     ProjectJsonExportImportRoundTrip(Path.Combine(root, "export-import"));
     InvalidImportIsRejectedWithoutChangingActiveProject(Path.Combine(root, "import-reject"));
-    Console.WriteLine("Creator project, named-draft, caption, and backup tests passed (12 scenarios).");
+    TranscriptionCorrectionsRoundTripAndValidate(Path.Combine(root, "transcription-corrections"));
+    Console.WriteLine("Creator project, named-draft, caption, backup, and transcription-correction tests passed (13 scenarios).");
 }
 finally
 {
@@ -247,6 +248,52 @@ static void InvalidImportIsRejectedWithoutChangingActiveProject(string root)
 
     var still = new CreatorProjectStore(root).LoadOrCreate().Project;
     Assert(still.Title == "Keep me", "Failed import must not replace the active project on disk.");
+}
+
+
+static void TranscriptionCorrectionsRoundTripAndValidate(string root)
+{
+    var store = new CreatorProjectStore(root);
+    var project = store.LoadOrCreate().Project;
+    project.Takes.Add(new CreatorProjectStore.TakeDocument
+    {
+        TakeId = "correction-source-take",
+        SourcePath = "/recordings/verified-reading.wav",
+        DurationMs = 5000,
+        SampleRateHz = 48000,
+        Channels = 1,
+    });
+    project.TranscriptionCorrections.Add(new CreatorProjectStore.TranscriptionCorrectionDocument
+    {
+        CorrectionId = "correction-1",
+        TakeId = "correction-source-take",
+        StartMs = 420,
+        EndMs = 980,
+        RecognizedText = "clothes",
+        CorrectedText = "close",
+        Language = "en",
+    });
+    store.Save(project);
+
+    var loaded = new CreatorProjectStore(root).LoadOrCreate().Project;
+    Assert(loaded.TranscriptionCorrections.Count == 1, "Transcription correction did not persist.");
+    Assert(loaded.TranscriptionCorrections[0].RecognizedText == "clothes", "Recognized text did not round-trip.");
+    Assert(loaded.TranscriptionCorrections[0].CorrectedText == "close", "Corrected text did not round-trip.");
+    Assert(loaded.TranscriptionCorrections[0].TakeId == "correction-source-take", "Correction lost its source-take link.");
+
+    loaded.TranscriptionCorrections.Add(new CreatorProjectStore.TranscriptionCorrectionDocument
+    {
+        CorrectionId = "orphan-correction",
+        TakeId = "missing-take",
+        StartMs = 100,
+        EndMs = 200,
+        RecognizedText = "wrong",
+        CorrectedText = "right",
+    });
+    var threw = false;
+    try { store.Save(loaded); }
+    catch (InvalidDataException) { threw = true; }
+    Assert(threw, "A correction referencing a missing source take must be rejected.");
 }
 
 static void Assert(bool condition, string message)
