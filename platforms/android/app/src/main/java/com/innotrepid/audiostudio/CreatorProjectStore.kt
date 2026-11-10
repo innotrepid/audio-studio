@@ -241,7 +241,6 @@ internal class CreatorProjectStore(context: Context) {
                 }
             }
         }
-    }
 
         require(project.transcriptionCorrections.size <= 5_000) { "Transcription correction count exceeds the 5,000 item limit." }
         val takeIds = project.takes.map { it.optString("takeId") }.toSet()
