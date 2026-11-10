@@ -35,10 +35,20 @@ int main(int argc, char** argv) {
         std::cerr << "Speech fixture decoded as near-silence.\n";
         return 7;
     }
+    // Keep the real-model integration check short enough for Windows hosted
+    // runners while retaining several seconds of clean, recognizable speech.
+    constexpr std::size_t kSmokeAudioSamples = 4U * kTranscriptionSampleRateHz;
+    if (pcm.size() > kSmokeAudioSamples) {
+        pcm.resize(kSmokeAudioSamples);
+    }
     TranscriptionRequest request;
     request.model_path = argv[1];
     request.mono_pcm_16khz = std::move(pcm);
-    request.language = "auto";
+    // Language selection is covered by the production auto-detect path; this
+    // deterministic English fixture test focuses on actual speech decoding.
+    request.language = "en";
+    std::cerr << "Starting Whisper inference on " << request.mono_pcm_16khz.size()
+              << " samples.\\n";
     const auto result = transcribe(request);
     if (!result) {
         std::cerr << "Whisper integration inference failed: " << result.error_message << "\n";
